@@ -4,3 +4,11 @@
 .DS_Store
 .vscode/
 .idea/
+
+# MkDocs build output
+site/
+
+# Local Python virtualenvs
+.venv/
+__pycache__/
+*.pyc
