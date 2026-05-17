@@ -440,6 +440,33 @@ pacman -Qi pkg                # info on installed package
 pacman -Qdt                   # orphaned dependencies
 ```
 
+#### Checking if a package is installed (e.g. cuDNN)
+
+```bash
+pacman -Qs cudnn              # query INSTALLED — empty output = not installed
+pacman -Qi cudnn              # full info (version, install date); exits non-zero if absent
+pacman -Ss cudnn              # search REMOTE repos (like `apt search`)
+pacman -Ql cudnn              # list files the package owns
+ldconfig -p | grep libcudnn   # verify the shared library is actually linkable
+```
+
+AUR packages installed via `paru`/`yay` still register with pacman, so `pacman -Qs` finds them too.
+
+#### apt → pacman cheat sheet
+
+| Ubuntu / Debian | Arch |
+|---|---|
+| `apt search foo \| grep installed` | `pacman -Qs foo` |
+| `apt list --installed` | `pacman -Q` |
+| `apt search foo` (remote) | `pacman -Ss foo` |
+| `apt show foo` | `pacman -Si foo` (remote) / `pacman -Qi foo` (installed) |
+| `dpkg -L foo` | `pacman -Ql foo` |
+| `dpkg -S /path/to/file` | `pacman -Qo /path/to/file` |
+| `apt update && apt upgrade` | `sudo pacman -Syu` |
+| `apt install foo` | `sudo pacman -S foo` |
+| `apt remove foo` | `sudo pacman -Rns foo` |
+| `apt autoremove` | `sudo pacman -Rns $(pacman -Qdtq)` |
+
 ### 7.2 Hyprland
 
 ```bash
