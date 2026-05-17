@@ -2,7 +2,10 @@
 
 > Last updated 2026-05-17. HDR set to OFF by default; toggle with `Super + Ctrl + Alt + H`.
 > Machine: Arch Linux + Hyprland 0.55 + caelestia dotfiles.
-> Hardware: NVIDIA RTX 3060 12 GB + Intel iGPU; LG Ultrawide 3440x1440@160 Hz on DP-2.
+> The install lives on a portable NVMe and roams between two hosts —
+> **desktop** (NVIDIA RTX 3060 + Intel iGPU, LG Ultrawide 3440x1440@160 Hz on DP-2)
+> and **laptop** (Intel Raptor Lake + RTX 4070 Mobile, BOE 16" 2560x1600@240 Hz on eDP-1).
+> Per-host monitor config switches automatically on session start — see [Display setup](display.md).
 
 ---
 
@@ -14,6 +17,9 @@
 | **Your Hyprland user overrides** | `~/.config/caelestia/hypr-user.conf` |
 | **Your Hyprland variable overrides** | `~/.config/caelestia/hypr-vars.conf` |
 | Hyprland entrypoint (symlink to caelestia) | `~/.config/hypr/hyprland.conf` |
+| **Per-host monitor configs** | `~/.config/hypr/hyprland/monitors-{laptop,desktop}.conf` |
+| Active monitor symlink (flips per host) | `~/.config/hypr/hyprland/monitors.conf` |
+| Host-detection script (runs on session start) | `~/.config/hypr/scripts/select-monitors.sh` |
 | Fish shell config (caelestia) | `~/.config/fish/config.fish` |
 | **Your fish dev-env additions** | `~/.config/fish/conf.d/dev-env.fish` |
 | Personal scripts (in PATH) | `~/.local/bin/` |
@@ -36,7 +42,8 @@ Linux has no single "Settings app." Configuration is owned by different layers d
 |---|---|---|
 | **Hyprland — windows, monitors, keybinds, input** | | |
 | Keybinds, window rules, startup apps | `~/.config/caelestia/hypr-user.conf` | sourced last — always wins |
-| Monitor (resolution, refresh, HDR, scale, VRR) | same — the `monitor =` line | live test: `hyprctl keyword monitor ...` |
+| Monitor (resolution, refresh, scale, VRR) | `~/.config/hypr/hyprland/monitors-{laptop,desktop}.conf` | per-host file, picked automatically; see [Display setup](display.md) |
+| HDR / color management for DP-2 | toggle with `Super+Ctrl+Alt+H` (script `~/.local/bin/hdr-toggle`) | live mode flip via `hyprctl keyword monitor` |
 | Gaps, borders, rounded corners, animations | `~/.config/caelestia/hypr-vars.conf` | `general / decoration / animations` blocks |
 | Keyboard layout, repeat rate, mouse / trackpad | same — `input {}` block | |
 | **Caelestia shell — bar, launcher, theme, notifications** | `~/.config/caelestia/shell.json` | reload with `Ctrl + Super + Shift + R` |
@@ -287,11 +294,14 @@ Your monitor (LG Ultrawide on DP-2) supports:
 
 **HDR is OFF by default** — the session starts in plain 8-bit sRGB. HDR is opt-in per session via the toggle bind (`Super + Ctrl + Alt + H`).
 
-The default monitor line in `~/.config/caelestia/hypr-user.conf`:
+The default monitor line in `~/.config/hypr/hyprland/monitors-desktop.conf`:
 
 ```
 monitor = DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 8, cm, srgb
 ```
+
+(Previously this lived in `hypr-user.conf`. It moved to a per-host file so the
+same SSD can boot cleanly on the laptop too — see [Display setup](display.md).)
 
 When toggled on, the HDR profile applied by `~/.local/bin/hdr-toggle` is:
 
@@ -361,7 +371,7 @@ hyprctl monitors -j | jq '.[] | {name, colorManagementPreset, currentFormat}'
 
 ### 5.6 Persisting tweaks
 
-If you decide you like `sdrbrightness, 1.8`, just edit the `monitor =` line in `~/.config/caelestia/hypr-user.conf` to make it permanent across reboots. The toggle script's "HDR ON" branch will still use the values hard-coded in the script — update those to match if you tweak.
+If you decide you like `sdrbrightness, 1.8`, just edit the `monitor =` line in `~/.config/hypr/hyprland/monitors-desktop.conf` to make it permanent across reboots. The toggle script's "HDR ON" branch will still use the values hard-coded in the script — update those to match if you tweak.
 
 ---
 
