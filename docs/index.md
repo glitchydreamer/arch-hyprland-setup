@@ -43,7 +43,7 @@ Configuration is owned by different layers depending on what you're changing. Us
 | I want to change... | Where | Notes |
 |---|---|---|
 | **Hyprland — windows, monitors, keybinds, input** | | |
-| Keybinds, window rules, startup apps | `~/.config/caelestia/hypr-user.conf` | sourced last — always wins |
+| Keybinds, window rules, startup apps | `~/.config/caelestia/hypr-user.conf` | sourced last — always wins; full reference: [Keybinds](keybinds.md) |
 | Monitor (resolution, refresh, scale, VRR) | `~/.config/hypr/hyprland/monitors-{laptop,desktop}.conf` | per-host file, picked automatically; see [Display setup](display.md) |
 | HDR / color management for DP-2 | toggle with `Super+Ctrl+Alt+H` (script `~/.local/bin/hdr-toggle`) | live mode flip via `hyprctl keyword monitor` |
 | Gaps, borders, rounded corners, animations | `~/.config/caelestia/hypr-vars.conf` | `general / decoration / animations` blocks |

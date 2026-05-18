@@ -66,19 +66,20 @@ icon onto. Two ways to launch:
 
 ### Bind a hotkey per app
 
-In `~/.config/caelestia/hypr-user.conf`:
+This setup uses `Super+Shift+<letter>` for app launches (single `Super+<letter>`
+is reserved for window/workspace actions — see [Keybinds](keybinds.md) for the
+full table). Defined in `~/.config/caelestia/hypr-user.conf`:
 
 ```ini
-bind = Super, T, exec, app2unit -- $terminal      # already bound (caelestia default)
-bind = Super, W, exec, app2unit -- $browser       # already bound
-bind = Super, E, exec, app2unit -- dolphin        # add yourself
-bind = Super+Shift, S, exec, systemsettings       # add yourself
-bind = Super, C, exec, code                       # vscode
+bind = Super+Shift, G, exec, app2unit -- google-chrome-stable
+bind = Super+Shift, F, exec, app2unit -- firefox
+bind = Super+Shift, I, exec, app2unit -- systemsettings
+# ...
 ```
 
 The `app2unit --` wrapper (caelestia ships it) launches the app under a
-systemd user unit so it gets clean process accounting; without it
-`exec, dolphin` works too.
+systemd user unit so it gets clean process accounting; plain `exec, dolphin`
+works too.
 
 ### Use the launcher for everything else
 
