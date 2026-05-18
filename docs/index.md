@@ -36,7 +36,9 @@ After editing any Hyprland config: `hyprctl reload` (or just save — caelestia'
 
 ## 2. Where to change a setting (the "Settings app" equivalent)
 
-Linux has no single "Settings app." Configuration is owned by different layers depending on what you're changing. Use this table as a first lookup, then jump to the file or command.
+Linux has no single "Settings app" the way Ubuntu/GNOME or Plasma do — but `systemsettings` from KDE is installed here as the closest equivalent. Launch it with `systemsettings` (or pin a keybind). It covers display, audio, bluetooth, theming, input, keyboard shortcuts, and most of the panels you remember from Ubuntu. Some panels assume KDE Plasma is running and won't apply on Hyprland; the table below covers what really lives where.
+
+Configuration is owned by different layers depending on what you're changing. Use this table as a first lookup, then jump to the file or command.
 
 | I want to change... | Where | Notes |
 |---|---|---|
@@ -63,6 +65,8 @@ Linux has no single "Settings app." Configuration is owned by different layers d
 | **Services / daemons** | `systemctl [start\|stop\|enable\|disable] foo` | user units: add `--user` |
 | **Packages** | `sudo pacman -S pkg` / `paru -S pkg` (AUR) | no GUI store by default |
 | **NVIDIA GPU** | `nvidia-settings` (GUI) | overclock, fan curves, monitor info |
+| **Catch-all GUI ("Ubuntu Settings"-equivalent)** | `systemsettings` (KDE), `kinfocenter` (hardware/about) | most panels work without full KDE; some assume Plasma and no-op on Hyprland |
+| **File manager — hidden files, view settings** | Dolphin: `Ctrl+H` toggles hidden; defaults in `~/.config/dolphinrc` (`GlobalViewProps=true`) + `~/.local/share/dolphin/view_properties/global/.directory` | Nautilus also installable if you prefer the Ubuntu Files UX |
 
 ### 2.1 Mental model
 
