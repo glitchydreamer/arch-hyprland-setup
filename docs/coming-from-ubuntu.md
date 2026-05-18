@@ -66,16 +66,24 @@ icon onto. Two ways to launch:
 
 ### Bind a hotkey per app
 
-This setup uses `Super+Shift+<letter>` for app launches (single `Super+<letter>`
-is reserved for window/workspace actions — see [Keybinds](keybinds.md) for the
-full table). Defined in `~/.config/caelestia/hypr-user.conf`:
+Most-used apps live on **single `Super+<letter>`** by retargeting caelestia's
+`$browser` / `$editor` / `$fileExplorer` variables in `hypr-vars.conf`:
+
+```
+Super+T  →  foot         Super+G  →  Google Chrome
+Super+W  →  Firefox       Super+E  →  Dolphin
+Super+C  →  VS Code
+```
+
+Everything else uses `Super+Shift+<letter>` in `hypr-user.conf`:
 
 ```ini
-bind = Super+Shift, G, exec, app2unit -- google-chrome-stable
-bind = Super+Shift, F, exec, app2unit -- firefox
+bind = Super+Shift, B, exec, app2unit -- brave
 bind = Super+Shift, I, exec, app2unit -- systemsettings
 # ...
 ```
+
+See [Keybinds](keybinds.md) for the full table and how to add more.
 
 The `app2unit --` wrapper (caelestia ships it) launches the app under a
 systemd user unit so it gets clean process accounting; plain `exec, dolphin`

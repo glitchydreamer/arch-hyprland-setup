@@ -2,49 +2,74 @@
 
 A working reference for the chords that actually fire on this setup.
 Caelestia defaults plus the personal additions in
-`~/.config/caelestia/hypr-user.conf`.
+`~/.config/caelestia/hypr-vars.conf` and `~/.config/caelestia/hypr-user.conf`.
 
 ## Modifier convention
 
 The single `Super+<letter>` namespace is owned by **window / workspace /
 caelestia panel actions** — every letter is one keystroke away from a window
-operation. That's the whole point of a tiling WM. Trying to cram app
-launchers in there overwrites the action layer.
+operation. That's the whole point of a tiling WM. A handful of letters are
+already wired to apps via caelestia's `$browser` / `$editor` / `$fileExplorer`
+variables (see below) — those land the most-used apps on the shortest chord.
 
-Personal apps therefore live on **`Super+Shift+<mnemonic letter>`** —
-two-fingers-while-holding-Super, same speed once learned, mnemonic on the
-letter (G = Google Chrome, F = Firefox, etc.).
+Everything else lives on **`Super+Shift+<mnemonic letter>`**.
 
-## Apps
+## Apps on single Super (most-used)
 
-```
-APPS — Super+Shift+<letter>
-  Super+Shift+G  →  Google Chrome
-  Super+Shift+F  →  Firefox
-  Super+Shift+B  →  Brave
-  Super+Shift+E  →  Microsoft Edge
-  Super+Shift+A  →  Antigravity
-  Super+Shift+D  →  Claude Desktop
-  Super+Shift+K  →  KWrite
-  Super+Shift+I  →  KDE System Settings   (I = settIngs / Info)
-  Super+Shift+N  →  NVIDIA X Server Settings
-  Super+Shift+P  →  Mission Center        (P = Performance)
-  Super+Shift+U  →  Discover               (U = Updates)
+Caelestia ships `$kbBrowser`, `$kbEditor`, `$kbFileExplorer`, `$kbTerminal`
+which bind to `Super+W / C / E / T` and `exec app2unit -- $variable`. The
+defaults point at apps that aren't installed on this system
+(`zen-browser`, `codium`, `thunar`), so the variables are overridden in
+`~/.config/caelestia/hypr-vars.conf`:
+
+```ini
+$browser      = firefox
+$editor       = code
+$fileExplorer = dolphin
 ```
 
-Defined in `~/.config/caelestia/hypr-user.conf`. All apps are launched via
-`app2unit -- <cmd>` so they run as systemd user units with clean process
-accounting.
+`hypr-vars.conf` is sourced **after** caelestia's `variables.conf` but
+**before** its `keybinds.conf`, so the existing bind lines pick up the new
+values automatically — no separate rebind needed.
 
-### Apps already on single Super (caelestia defaults — don't rebind)
+`Super+G` (originally `github-desktop`, also not installed) is rebound in
+`hypr-user.conf` using `unbind` + `bind` to retarget it onto Google Chrome:
+
+```ini
+unbind = Super, G
+bind   = Super, G, exec, app2unit -- google-chrome-stable
+```
+
+Result:
 
 ```
 Super+T  →  Terminal (foot)
-Super+W  →  Default browser (Zen, via $browser variable)
-Super+C  →  VS Code         ($kbEditor)
-Super+E  →  Dolphin         ($kbFileExplorer)
-Super+G  →  GitHub Desktop  (user override)
+Super+W  →  Firefox
+Super+C  →  VS Code
+Super+E  →  Dolphin
+Super+G  →  Google Chrome
 ```
+
+## Apps on Super+Shift
+
+Defined in `~/.config/caelestia/hypr-user.conf`, all launched via
+`app2unit -- <cmd>` so they run as systemd user units with clean process
+accounting.
+
+```
+Super+Shift+B  →  Brave
+Super+Shift+E  →  Microsoft Edge
+Super+Shift+A  →  Antigravity
+Super+Shift+D  →  Claude Desktop
+Super+Shift+K  →  KWrite
+Super+Shift+I  →  KDE System Settings   (I = settIngs / Info)
+Super+Shift+N  →  NVIDIA X Server Settings
+Super+Shift+P  →  Mission Center        (P = Performance)
+Super+Shift+U  →  Discover               (U = Updates)
+```
+
+Firefox and Chrome are intentionally **not** duplicated here — they already
+sit on the shorter `Super+W` / `Super+G` chords.
 
 ## Caelestia panels (the auto-hidden bars)
 
@@ -122,15 +147,28 @@ hyprctl binds -j | jq -r '.[] | "\(.modmask) \(.key)  →  \(.dispatcher) \(.arg
 Modmask reference: `64` = Super, `65` = Super+Shift, `72` = Super+Ctrl,
 `80` = Super+Alt, `81` = Super+Shift+Alt, `73` = Super+Shift+Ctrl.
 
-## Conflicts checked
-
-These additions were verified against the existing bind table — no overlaps
-with caelestia's keybinds, the user overrides already in `hypr-user.conf`, or
-the `$kb*` variable definitions. Verify yourself any time:
+## Verifying no duplicates / dead targets
 
 ```bash
-hyprctl binds -j | jq -r '.[] | select(.modmask==65) | "\(.key)  →  \(.dispatcher) \(.arg)"' | sort
+# Every Super+letter bind on this system, what it actually launches:
+hyprctl binds -j | jq -r '.[] | select(.dispatcher=="exec") |
+  select(.arg | test("app2unit|qs -c caelestia")) |
+  "\(.modmask) \(.key)  →  \(.arg)"' | sort
+
+# Does the target executable exist?
+for cmd in firefox code dolphin foot google-chrome-stable brave \
+           microsoft-edge-stable antigravity claude-desktop kwrite \
+           systemsettings nvidia-settings mission-center plasma-discover; do
+    which "$cmd" >/dev/null 2>&1 && echo "OK   $cmd" || echo "MISS $cmd"
+done
 ```
+
+## Known dead caelestia default (not fixed — harmless)
+
+Caelestia also ships `bind = Super+Alt, E, exec, app2unit -- nemo`. Nemo
+isn't installed and there's no reason to install a second file manager —
+`Super+E` (Dolphin) is what you'll actually use. The bind sits idle.
+If it ever annoys you, drop `unbind = Super+Alt, E` into `hypr-user.conf`.
 
 ## Required package (one-time)
 
