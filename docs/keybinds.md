@@ -158,7 +158,7 @@ hyprctl binds -j | jq -r '.[] | select(.dispatcher=="exec") |
 # Does the target executable exist?
 for cmd in firefox code dolphin foot google-chrome-stable brave \
            microsoft-edge-stable antigravity claude-desktop kwrite \
-           systemsettings nvidia-settings mission-center plasma-discover; do
+           systemsettings nvidia-settings missioncenter plasma-discover; do
     which "$cmd" >/dev/null 2>&1 && echo "OK   $cmd" || echo "MISS $cmd"
 done
 ```
@@ -170,13 +170,16 @@ isn't installed and there's no reason to install a second file manager —
 `Super+E` (Dolphin) is what you'll actually use. The bind sits idle.
 If it ever annoys you, drop `unbind = Super+Alt, E` into `hypr-user.conf`.
 
-## Required package (one-time)
+## Package-name vs. binary-name gotcha
 
-Mission Center isn't installed by default on this drive. To make
-`Super+Shift+P` work:
+Some apps install their executable under a name that doesn't match the
+package. Always launch by the **binary** name (what `which <cmd>` returns),
+not the package name. Confirmed mismatches on this system:
 
-```bash
-sudo pacman -S mission-center
-```
+| Package (`pacman -Qs`) | Binary (used in bind) |
+|---|---|
+| `mission-center` | `missioncenter` (no hyphen) |
+| `visual-studio-code-bin` (if used) | `code` |
+| `microsoft-edge-stable-bin` (if used) | `microsoft-edge-stable` |
 
-Until then the bind is a no-op (the command runs and fails silently).
+When adding a new bind, sanity-check with `which <cmd>` first.
