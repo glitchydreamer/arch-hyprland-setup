@@ -9,11 +9,20 @@ automatically at session start via a small detection script.
 | Host | Output | Mode | Scale | VRR | Bit depth |
 |---|---|---|---|---|---|
 | **Laptop** (Intel + RTX 4070 Mobile) | `eDP-1` — BOE 16" 2560×1600 | `2560x1600@240` | `1.25` | on (global `misc { vrr = 1 }`) | 8-bit (panel maxes out at 8 bpc per EDID) |
-| **Desktop** (RTX 3060) | `DP-2` — LG 34" WQHD ultrawide | `3440x1440@159.96` | `1.0` | on | 8-bit SDR by default; HDR/10-bit on demand via toggle |
+| **Desktop** (RTX 3060) | `DP-2` — LG 34" WQHD ultrawide | `3440x1440@159.96` | `1.0` | **off** (locked 160 Hz) | **10-bit SDR (sRGB)** by default; HDR on demand via toggle |
 
-10-bit isn't enabled on either: the laptop panel is hardware-limited to 8 bpc,
-and the desktop monitor wasn't configured for 10-bit (would need
-`bitdepth, 10` on the monitor line *and* a panel/cable that supports it).
+The laptop panel is hardware-limited to 8 bpc (BOE EDID says so). The desktop
+monitor is 10-bit capable and is configured for 10-bit SDR — smoother
+gradients within the sRGB gamut, no downsides since modern DP cables carry it
+fine. HDR is not on at boot (toggle is opt-in per session); wide gamut is not
+on either — see [Why sRGB is the desktop default](#why-srgb-and-not-wide-gamut).
+
+VRR on the desktop is explicitly **off** (`vrr, 0` on the monitor line, which
+overrides the global `misc { vrr = 1 }`). The GPU comfortably feeds 160 Hz, so
+locking the display at its max refresh is what we want. VRR's job is to drag
+the refresh rate *down* to match a fluctuating GPU frame rate — useful on the
+laptop, counterproductive on a desktop that never struggles to keep up. The
+laptop keeps VRR on for power and tear-free behaviour during fluctuating loads.
 
 ## File layout
 
@@ -42,11 +51,17 @@ monitor = , preferred, auto, 1          # catch-all for external monitors
 ### `monitors-desktop.conf`
 
 ```ini
-monitor = DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 8, cm, srgb
+monitor = DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0
 monitor = , preferred, auto, 1
 ```
 
-Note the explicit `bitdepth, 8, cm, srgb` — this is the boot-time SDR baseline.
+The trailing args:
+
+- `bitdepth, 10` — 10-bit output (the LG panel reports 10 bpc in its EDID).
+- `cm, srgb` — sRGB color management; not HDR, not wide gamut.
+- `vrr, 0` — VRR off, display locked at 160 Hz. Overrides the global
+  `misc { vrr = 1 }`. The laptop inherits the global, so VRR stays on there.
+
 HDR is opt-in per session via `Super+Ctrl+Alt+H` (the `hdr-toggle` script flips
 the live mode to 10-bit HDR via `hyprctl keyword monitor` without touching this
 file). See the HDR section of [the main reference](index.md#5-hdr--color-management).
@@ -164,6 +179,66 @@ monitor = DP-2, 3440x1440@160, 0x0, 1, vrr, 2
 
 # Disable a connector entirely
 monitor = HDMI-A-1, disable
+```
+
+## G-Sync vs. FreeSync vs. VRR — they're all the same thing
+
+"G-Sync" (NVIDIA), "FreeSync" (AMD), and "Adaptive Sync" (VESA) are three brand
+names for the same underlying technology: **variable refresh rate (VRR)**. The
+display tells the GPU "I can redraw at any rate between X and Y Hz" and the GPU
+sends frames as fast as it can render them — the panel updates the moment a
+frame arrives instead of on a fixed cadence. No tearing, no waiting for the
+next vsync interval.
+
+On Linux there is one knob — `vrr` — and it controls all three. There is no
+separate "G-Sync on / VRR off" mode: with NVIDIA's proprietary driver, enabling
+`vrr` is what registers the display as a G-Sync Compatible target.
+
+Modes (per-monitor `vrr, N` overrides the global `misc { vrr = N }`):
+
+| `vrr` | Behaviour |
+|---|---|
+| `0` | Off. Display runs at the configured fixed refresh rate, period. |
+| `1` | Always on. Refresh follows GPU frame rate within the panel's VRR range. |
+| `2` | On only when a fullscreen window is focused (typical gaming setup). |
+| `3` | On for fullscreen *and* video / mpv-like content. |
+
+When to use which:
+
+- **Desktop + high-refresh + capable GPU** → `vrr, 0`. You want the display
+  pinned at max refresh; the GPU keeps up.
+- **Laptop, mixed workloads** → `vrr, 1` or `vrr, 2`. Saves power, smooths
+  unstable frame rates.
+- **HDR + VRR causing flicker** → drop to `vrr, 0` for that monitor.
+
+## Why sRGB and not wide gamut
+
+"Wide gamut" means telling Hyprland your monitor can paint outside the sRGB
+color triangle — typically up to DCI-P3 or Adobe RGB. Hyprland then asks the
+panel to use that wider range. Set with `cm, wide` on the monitor line.
+
+The catch: most Linux desktop apps still encode their output as sRGB without
+tagging it. In wide-gamut mode, Hyprland treats those sRGB values as if they
+were P3 → reds look neon, skin tones go orange, the whole desktop has a "TV
+showroom" look. Same root cause as HDR-without-tone-mapping looking weird.
+
+Apps that *do* handle color management correctly today are a short list — mpv
+with the right flags, gamescope-wrapped games, recent Firefox (after setting
+`gfx.color_management.mode = 2`), some KDE/Plasma apps. Everything else
+(GTK apps, Electron apps, Steam, terminals, file managers) assumes sRGB and
+will look wrong.
+
+The current setup keeps `cm, srgb` for predictable, accurate colors and
+combines it with `bitdepth, 10` so you get smoother gradients *inside* the sRGB
+gamut — that's the "free" upgrade with no downsides. If a wide-gamut workflow
+becomes a priority later, flip to `cm, wide` and expect to adjust per-app
+color settings.
+
+A/B test live without committing:
+
+```bash
+hyprctl keyword monitor "DP-2,3440x1440@159.96,0x0,1,bitdepth,10,cm,wide,vrr,0"
+hyprctl keyword monitor "DP-2,3440x1440@159.96,0x0,1,bitdepth,10,cm,srgb,vrr,0"
 ```
 
 ## GUI alternatives

@@ -1,6 +1,6 @@
 # Arch + Hyprland Setup Reference
 
-> Last updated 2026-05-17. HDR set to OFF by default; toggle with `Super + Ctrl + Alt + H`.
+> Last updated 2026-05-18. HDR set to OFF by default; toggle with `Super + Ctrl + Alt + H`.
 > Machine: Arch Linux + Hyprland 0.55 + caelestia dotfiles.
 > The install lives on a portable NVMe and roams between two hosts —
 > **desktop** (NVIDIA RTX 3060 + Intel iGPU, LG Ultrawide 3440x1440@160 Hz on DP-2)
@@ -297,8 +297,12 @@ Your monitor (LG Ultrawide on DP-2) supports:
 The default monitor line in `~/.config/hypr/hyprland/monitors-desktop.conf`:
 
 ```
-monitor = DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 8, cm, srgb
+monitor = DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0
 ```
+
+Boot baseline: native resolution, 160 Hz **fixed** (VRR off — see
+[Display setup → G-Sync vs. VRR](display.md#g-sync-vs-freesync-vs-vrr-theyre-all-the-same-thing)),
+**10-bit** SDR within the sRGB gamut. HDR is opt-in per session.
 
 (Previously this lived in `hypr-user.conf`. It moved to a per-host file so the
 same SSD can boot cleanly on the laptop too — see [Display setup](display.md).)
@@ -347,8 +351,8 @@ case "$state" in
     notify-send -i video-display "HDR enabled" "HDR10 / BT.2020"
     ;;
   *)
-    hyprctl keyword monitor "DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 8, cm, srgb"
-    notify-send -i video-display "HDR disabled" "sRGB / 8-bit"
+    hyprctl keyword monitor "DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0"
+    notify-send -i video-display "HDR disabled" "sRGB / 10-bit / 160 Hz fixed"
     ;;
 esac
 ```
@@ -360,7 +364,8 @@ hyprctl monitors -j | jq '.[] | {name, colorManagementPreset, currentFormat}'
 ```
 
 - `colorManagementPreset: "hdr"` and `currentFormat: "XBGR2101010"` → HDR active.
-- `colorManagementPreset: "srgb"` and `currentFormat: "XRGB8888"` → SDR.
+- `colorManagementPreset: "srgb"` and `currentFormat: "XBGR2101010"` → 10-bit SDR (the default).
+- `colorManagementPreset: "srgb"` and `currentFormat: "XRGB8888"` → 8-bit SDR (laptop, or pre-update desktop).
 
 ### 5.5 Caveats
 
