@@ -45,6 +45,8 @@ Configuration is owned by different layers depending on what you're changing. Us
 | **Hyprland — windows, monitors, keybinds, input** | | |
 | Keybinds, window rules, startup apps | `~/.config/caelestia/hypr-user.conf` | sourced last — always wins; full reference: [Keybinds](keybinds.md) |
 | Monitor (resolution, refresh, scale, VRR) | `~/.config/hypr/hyprland/monitors-{laptop,desktop}.conf` | per-host file, picked automatically; see [Display setup](display.md) |
+| Inspect / arrange displays (GUI) | `wdisplays` | drag-arrange, scale, refresh, VRR toggle — see [Display setup → Inspecting current state](display.md#inspecting-current-state) |
+| Inspect displays (CLI, deep) | `drm_info` | full kernel DRM dump: modes, EDID, HDR/VRR caps, pixel formats |
 | HDR / color management for DP-2 | toggle with `Super+Ctrl+Alt+H` (script `~/.local/bin/hdr-toggle`) | live mode flip via `hyprctl keyword monitor` |
 | Gaps, borders, rounded corners, animations | `~/.config/caelestia/hypr-vars.conf` | `general / decoration / animations` blocks |
 | Keyboard layout, repeat rate, mouse / trackpad | same — `input {}` block | |

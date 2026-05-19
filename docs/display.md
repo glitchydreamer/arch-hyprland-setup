@@ -128,6 +128,86 @@ Full reference: <https://wiki.hyprland.org/Configuring/Monitors/>.
 
 ## Inspecting current state
 
+Two installed power-tools cover almost every question — one CLI, one GUI —
+plus the lightweight Hyprland/kernel commands for quick checks.
+
+### `drm_info` — the feature-rich CLI inspector
+
+`drm_info` (package: `drm-info`) dumps **everything the kernel knows** about
+every DRM device, connector, encoder, CRTC, plane and property — far more
+than `hyprctl monitors` exposes. It's the tool to reach for when you're
+diagnosing weird behaviour or want to verify a hardware claim (HDR support,
+VRR capability, supported pixel formats, EDID parsing).
+
+```bash
+drm_info                              # full human-readable dump for all GPUs
+drm_info /dev/dri/card1               # restrict to one card
+drm_info -j                           # JSON (pipe to jq for scripting)
+drm_info -i                           # include EDID raw bytes
+```
+
+What you get for each connector:
+
+- **Status** — `connected` / `disconnected`
+- **Physical size** — for accurate DPI / scale decisions
+- **Modes** — every resolution / refresh the panel reports
+- **EDID parsed** — manufacturer, model, serial
+- **DRM properties** — `vrr_capable`, `Colorspace`
+  (`Default / BT2020_RGB / BT2020_YCC`), `HDR_OUTPUT_METADATA`, `non-desktop`,
+  `link-status`, plus dozens of NVIDIA-specific ones
+- **CRTCs / Planes** — every pixel format and modifier the hardware can scan
+  out, gamma/degamma LUT sizes, CTM color matrix support
+
+Useful one-liners:
+
+```bash
+# Just the connected outputs and their best modes
+drm_info 2>/dev/null | awk '/Connector [0-9]/,/Properties/' | \
+    grep -E 'Connector|Status|×.*@' | head -30
+
+# Is this monitor VRR-capable per the kernel?
+drm_info 2>/dev/null | grep -A1 'DP-2\|vrr_capable'
+
+# All supported pixel formats on the desktop GPU
+drm_info -j 2>/dev/null | jq '.[].planes[].formats' | sort -u
+```
+
+> **Note:** `drm_info` reads DRM master state. If a Wayland compositor (i.e.
+> Hyprland) has the device open, some property blobs come back as `0` and a
+> few `drmModeGetPropertyBlob: No such file or directory` warnings print to
+> stderr — that's harmless. The full data is still produced.
+
+### `wdisplays` — the feature-rich GUI
+
+`wdisplays` (package: `wdisplays`) is a Wayland-native GUI display arranger,
+modeled on `arandr` from the X11 days. Closest to "GNOME Settings → Displays"
+in feel, but works on any wlroots compositor including Hyprland.
+
+```bash
+wdisplays &        # launches the GUI
+```
+
+What it lets you do interactively:
+
+- **Drag monitors** around to set their logical position
+- **Resolution & refresh rate** dropdown per monitor (driven by what wlroots
+  reports — same list `wlr-randr` shows)
+- **Scale** spinner (fractional supported, but XWayland caveat applies)
+- **Rotation** (normal / 90 / 180 / 270 / flipped variants)
+- **Adaptive sync** (VRR) toggle per monitor
+- **Enable / disable** each output
+- **Apply** to test, **Save** to keep (Hyprland persists via its wlr-output
+  manager bridge — `hyprctl reload` will revert to your config files, so
+  treat the GUI as scratch space)
+
+When to reach for it: testing scales/refresh rates without leaving the
+desktop, arranging a docked external monitor, confirming what modes a panel
+actually offers. When **not** to: making permanent changes — those still
+belong in `monitors-*.conf` so they survive a reload and the
+laptop ↔ desktop swap.
+
+### Quick checks (already on the system)
+
 ```bash
 hyprctl monitors                # what Hyprland is doing right now
 hyprctl monitors all            # includes disabled outputs
@@ -144,9 +224,20 @@ Fields worth knowing in `hyprctl monitors` output:
 | `2560x1600@240.00000 at 0x0` | active mode and position |
 | `scale` | applied HiDPI scale |
 | `vrr` | currently varying refresh? `true` means VRR is active |
-| `currentFormat` | `XRGB8888` = 8-bit, `XRGB2101010` = 10-bit |
+| `currentFormat` | `XRGB8888` = 8-bit, `XBGR2101010` = 10-bit, `XBGR2101010` w/ `cm hdr` = 10-bit HDR |
 | `availableModes` | every mode the panel reports via EDID |
 | `colorManagementPreset` | `srgb` / `hdr` / `wide` from the `cm` extra |
+
+### Which tool for which question
+
+| Question | Reach for |
+|---|---|
+| What's Hyprland doing *right now*? | `hyprctl monitors` |
+| What modes does this panel support? | `wlr-randr` or `drm_info` |
+| Does this monitor really support 10-bit / HDR / VRR? | `drm_info` + `edid-decode` |
+| Try a layout / scale visually | `wdisplays` |
+| Diagnose "no signal" on a connector | `drm_info` (look at `link-status`, EDID blob present?) |
+| Dump everything for a bug report | `drm_info -j > drm.json` |
 
 ## Testing changes without editing files
 
@@ -241,15 +332,16 @@ hyprctl keyword monitor "DP-2,3440x1440@159.96,0x0,1,bitdepth,10,cm,wide,vrr,0"
 hyprctl keyword monitor "DP-2,3440x1440@159.96,0x0,1,bitdepth,10,cm,srgb,vrr,0"
 ```
 
-## GUI alternatives
+## Other GUI / arranger tools
 
-If you'd rather drag boxes around than edit a file:
+`wdisplays` (above) is the installed default. A few alternatives if its
+feature set ever falls short:
 
 | Tool | Install | What it does |
 |---|---|---|
-| `nwg-displays` | `pacman -S nwg-displays` | GUI arranger; writes `monitor =` lines straight into Hyprland config |
-| `wdisplays` | `pacman -S wdisplays` | Generic wlroots display GUI |
+| `nwg-displays` | `pacman -S nwg-displays` | GUI arranger that writes `monitor =` lines straight into Hyprland config — useful if you want the GUI to *persist* changes |
 | `kanshi` | `pacman -S kanshi` | Profile-based auto-switching (e.g. dock vs. undock) |
+| `kscreen-doctor` (KDE) | `pacman -S libkscreen` | KDE's CLI; works partially on Hyprland via wlr-output protocol |
 
 The script-based setup here predates and supersedes `kanshi` for the
 laptop ↔ desktop swap — but `kanshi` is the right tool if you want, say,
