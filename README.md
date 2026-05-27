@@ -40,11 +40,23 @@ bash ~/Documents/arch-hyprland-setup/setup-home.sh
 bash ~/Documents/arch-hyprland-setup/install.sh
 ```
 
-`install.sh` picks the CUDA toolkit that fits your installed driver: it reads
-`nvidia-smi`'s max-supported CUDA and only installs the rolling repo `cuda` if
-it's within that ceiling, otherwise it reaches for an AUR `cuda-<ver>` pinned to
-the driver. Set your git identity afterward, then log out/in. See `docs/index.md`
-§10 for what changed across rebuilds.
+`install.sh` bootstraps the essentials first — `git`, `base-devel`, the GitHub
+CLI (`gh`), and an **AUR helper** (it builds `yay` from the AUR if neither
+`paru` nor `yay` is present on a fresh minimal install) — so the AUR steps have
+a helper and you can push as soon as it finishes. It also picks the CUDA toolkit
+that fits your installed driver: it reads `nvidia-smi`'s max-supported CUDA and
+only installs the rolling repo `cuda` if it's within that ceiling, otherwise it
+reaches for an AUR `cuda-<ver>` pinned to the driver.
+
+After both scripts, the **only remaining manual step is authentication**:
+
+```sh
+gh auth login && git push          # the one thing that can't be scripted
+git config --global user.name "…"  # if not already set
+# then log out / back in for the fish + group changes
+```
+
+See `docs/index.md` §10 for what changed across rebuilds.
 
 ## Updating the docs
 

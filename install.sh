@@ -23,11 +23,35 @@ fi
 
 USER_NAME="$(id -un)"
 FAILED=()
+HELPER=""   # AUR helper, resolved by ensure_aur_helper()
 
 pac() {  # install a group; record failure but keep going
     local group="$1"; shift
     echo -e "\n>>> pacman: $group"
     sudo pacman -S --needed --noconfirm "$@" || FAILED+=("pacman:$group")
+}
+
+# Make sure an AUR helper exists. A truly fresh minimal install has neither
+# paru nor yay; bootstrap yay from the AUR (clone + makepkg) if needed.
+ensure_aur_helper() {
+    if command -v paru >/dev/null; then HELPER=paru; return; fi
+    if command -v yay  >/dev/null; then HELPER=yay;  return; fi
+    echo -e "\n>>> No AUR helper found — bootstrapping yay"
+    sudo pacman -S --needed --noconfirm git base-devel || true
+    local tmp; tmp="$(mktemp -d)"
+    if git clone https://aur.archlinux.org/yay-bin.git "$tmp/yay-bin" \
+        && ( cd "$tmp/yay-bin" && makepkg -si --noconfirm ); then
+        HELPER=yay
+    else
+        FAILED+=("yay-bootstrap")
+    fi
+    rm -rf "$tmp"
+}
+
+# Run an AUR install through whichever helper we have.
+aur() {
+    [ -n "$HELPER" ] || { FAILED+=("aur:no-helper"); return 1; }
+    "$HELPER" -S --needed "$@"
 }
 
 # Install CUDA + cuDNN matched to the installed NVIDIA driver.
@@ -55,7 +79,7 @@ install_cuda() {
     else
         echo ">>> Repo cuda ($repoc) is newer than the driver supports ($maxc)."
         echo ">>> Trying the AUR toolkit pinned to your driver: cuda-$maxc"
-        paru -S --needed "cuda-$maxc" cudnn \
+        aur "cuda-$maxc" cudnn \
             || { echo ">>> No matching AUR cuda-$maxc. Either update the NVIDIA driver"
                  echo ">>> (sudo pacman -S nvidia/nvidia-open) then re-run, or install a"
                  echo ">>> CUDA <= $maxc manually."; FAILED+=("cuda:driver-too-old"); }
@@ -64,6 +88,13 @@ install_cuda() {
 
 echo "### Refreshing package databases"
 sudo pacman -Syu --noconfirm || FAILED+=("pacman -Syu")
+
+# --- Prerequisites: git, GitHub CLI, ssh, then an AUR helper -----------------
+# Done up front so `gh auth login` + `git push` are available the moment the
+# script finishes, and so the AUR steps below have a helper to use.
+pac prereqs git base-devel github-cli openssh
+ensure_aur_helper
+echo ">>> AUR helper: ${HELPER:-none}"
 
 # --- Build / compilers / debug ----------------------------------------------
 pac build base-devel clang lld lldb cmake ninja meson ccache gdb valgrind \
@@ -109,10 +140,10 @@ pac kde dolphin systemsettings discover kinfocenter
 pac display drm-info wdisplays wlr-randr brightnessctl nm-connection-editor
 
 # --- AUR (sweet-cursors fixes the ghost-cursor theme; browsers; claude) ------
-echo -e "\n>>> AUR via paru"
-paru -S --needed sweet-cursors-git sweet-cursors-hyprcursor-git \
-                 brave-bin microsoft-edge-stable-bin claude-desktop-bin \
-    || FAILED+=("paru:aur")
+echo -e "\n>>> AUR via ${HELPER:-(none)}"
+aur sweet-cursors-git sweet-cursors-hyprcursor-git \
+    brave-bin microsoft-edge-stable-bin claude-desktop-bin \
+    || FAILED+=("aur:apps")
 
 # ============================================================================
 # System files
@@ -178,11 +209,14 @@ else
 fi
 cat <<'EOF'
 
-Next:
-  1. Set your git identity name:
+Next (gh + an AUR helper are now installed, so the only auth step is manual):
+  1. Authenticate GitHub, then push:
+       gh auth login
+       git push
+  2. Set your git identity name (email is usually set by setup-home/your config):
        git config --global user.name "Your Name"
-  2. Log out and back in (group + shell changes need a fresh session).
-  3. Verify the ghost cursor is gone and sweet-cursors renders:
+  3. Log out and back in (group + shell changes need a fresh session).
+  4. Verify the ghost cursor is gone and sweet-cursors renders:
        hyprctl reload
-  4. ROS 2 Jazzy (pulls ~6.4GB on first use):  ros2-jazzy pull
+  5. ROS 2 Jazzy (pulls ~6.4GB on first use):  ros2-jazzy pull
 EOF

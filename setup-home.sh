@@ -294,4 +294,6 @@ Set your git identity (not done automatically):
     git config --global user.email "you@example.com"
 
 Next: run the system half ->  bash $(dirname "$0")/install.sh
+  (it installs git, the GitHub CLI, and an AUR helper up front, so afterward the
+   only auth step left is:  gh auth login  &&  git push)
 EOF
