@@ -107,6 +107,54 @@ set -x CMAKE_POLICY_VERSION_MINIMUM 3.5
 ./isaaclab.sh --install
 ```
 
+### `libxml2.so.2: cannot open shared object file` — dozens of extensions fail
+
+Launching `isaacsim` (or any GUI/asset path) spams errors and disables the
+**asset converter**, **URDF/MJCF importers**, and the **CAD converters**
+(`omni.kit.asset_converter`, `isaacsim.asset.importer.{urdf,mjcf}`,
+`omni.kit.converter.*`, `omni.services.convert.*`). Every traceback ends in:
+
+```
+OSError: libxml2.so.2: cannot open shared object file: No such file or directory
+```
+
+Cause: Isaac Sim's prebuilt `.so`s are linked against the old **`libxml2.so.2`**
+soname. Arch's `libxml2` is now **2.15**, which bumped the soname to
+`libxml2.so.16` — so `.so.2` simply doesn't exist on the system anymore.
+
+Fix: install an older libxml2 (≤ 2.13, still provides `.so.2`) **into the conda
+env** and put the env's `lib` on the loader path. No sudo — it's all env-local.
+
+```fish
+conda install -n isaaclab -c conda-forge "libxml2=2.13" -y
+```
+
+conda does **not** add `$CONDA_PREFIX/lib` to `LD_LIBRARY_PATH`, so add an
+activation hook (fish integration sources only `*.fish`, not `*.sh`):
+
+```fish
+# ~/anaconda3/envs/isaaclab/etc/conda/activate.d/zz_isaacsim_libpath.fish
+set -gx _ISAACSIM_OLD_LD_LIBRARY_PATH $LD_LIBRARY_PATH
+if set -q LD_LIBRARY_PATH
+    set -gx LD_LIBRARY_PATH "$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
+else
+    set -gx LD_LIBRARY_PATH "$CONDA_PREFIX/lib"
+end
+```
+
+with a matching `deactivate.d/zz_isaacsim_libpath.fish` that restores it. Then
+re-activate the env (`conda deactivate; conda activate isaaclab`) and verify:
+`python -c "import ctypes; ctypes.CDLL('libxml2.so.2')"` should be silent.
+
+### `isaacsim.ros2.bridge` fails: `'NoneType' object has no attribute 'split'`
+
+Separate, **non-fatal** error at startup — the ROS 2 bridge calls
+`get_ubuntu_version()`, which parses `/etc/os-release`; on Arch there's no Ubuntu
+version string so it returns `None` and crashes that one extension. Isaac Sim
+itself runs fine. Only relevant if you actually need the in-sim ROS 2 bridge
+(this repo's ROS 2 lives in Docker anyway — see
+[§7.4](index.md#74-ros-2-jazzy-via-docker)).
+
 ### Headless runs hang on the EULA prompt
 
 A non-interactive run (headless, no TTY on stdin) stops at
