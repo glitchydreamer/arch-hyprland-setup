@@ -75,6 +75,17 @@ log out/in (fish shell + group changes need a fresh session).
 - **Half-screen snaps omitted:** `Super+Ctrl+arrows` is caelestia's workspace
   nav; a float-based snap is unreliable on dwindle.
 
+## Maintenance habit
+
+Every change to this project is followed — deliberately, without being asked —
+by: **update the docs** (and this page if a decision/root-cause changed),
+**update memory**, and **`git push`**. Docs, memory, and the remote are kept in
+lockstep with reality so nothing drifts.
+
+Gotcha: the login shell is **fish**, which has **no heredocs**. To write a
+root-owned file, use `printf '…\n' | sudo tee /path` (not `sudo tee … <<'EOF'`).
+fish does support `&&` / `||`.
+
 ## Git identity
 
 Commits use **`glitchydreamer <creativegod0307@gmail.com>`** (the GitHub
