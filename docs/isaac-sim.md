@@ -38,8 +38,8 @@ reproducible path.
   the containerd image store enabled (`Storage Driver: overlayfs`), layers go to
   `/var/lib/containerd` on root and `data-root` is *ignored*; disabling it falls
   back to the `overlay2` graph driver, which honors `data-root`. On an existing
-  system, run `move-docker-to-home.sh` (sets both keys, reclaims the orphaned
-  partial layers, restarts docker). Verify with
+  system, run [`migrate-docker-to-home.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/migrate-docker-to-home.sh)
+  (sets both keys, reclaims the orphaned partial layers, restarts docker). Verify with
   `docker info | grep -E "Storage Driver|Docker Root"` → want `overlay2` +
   `/home/docker-data`.
 

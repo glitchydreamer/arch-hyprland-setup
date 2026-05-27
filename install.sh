@@ -54,6 +54,47 @@ aur() {
     "$HELPER" -S --needed "$@"
 }
 
+# Workaround: PipeWire 1.6.6 broke DualSense USB audio (built-in speaker AND the
+# 3.5mm headphone jack go silent — the kernel delivers frames but nothing sounds).
+# Pin to the last-good 1.6.5 until upstream fixes it. Self-limiting and idempotent:
+#   - only acts when the INSTALLED pipewire is in the known-bad range (so a fresh
+#     install with an already-fixed repo version is left alone),
+#   - downgrades only if the good packages are still in the pacman cache,
+#   - the IgnorePkg pin stops the next `pacman -Syu` from re-pulling the breakage.
+# Remove the IgnorePkg line + drop this call once a fixed PipeWire ships.
+BAD_PW_REGEX='^1:1\.6\.6'   # extend if new bad versions appear; clear when fixed
+PW_PKGS=(libpipewire pipewire pipewire-audio pipewire-alsa pipewire-pulse pipewire-jack gst-plugin-pipewire)
+pin_pipewire_dualsense() {
+    command -v pipewire >/dev/null || { echo ">>> No pipewire installed — skipping DualSense pin."; return; }
+    local cur; cur=$(pacman -Q pipewire 2>/dev/null | awk '{print $2}')
+    echo ">>> PipeWire installed: ${cur:-unknown}"
+    if ! printf '%s' "$cur" | grep -qE "$BAD_PW_REGEX"; then
+        echo ">>> Not in the known-bad range — no DualSense workaround needed."
+        return
+    fi
+    echo ">>> PipeWire $cur is the DualSense-breaking version — applying workaround."
+    # Downgrade from cache if the good set is present.
+    local good=() p f
+    for p in "${PW_PKGS[@]}"; do
+        f=$(ls -1 /var/cache/pacman/pkg/"$p"-1:1.6.5-*.pkg.tar.zst 2>/dev/null | tail -1)
+        [ -n "$f" ] && good+=("$f")
+    done
+    if [ "${#good[@]}" -eq "${#PW_PKGS[@]}" ]; then
+        sudo pacman -U --noconfirm "${good[@]}" || FAILED+=("pipewire-downgrade")
+    else
+        echo ">>> 1.6.5 not fully cached — can't auto-downgrade. Pinning to stop"
+        echo ">>> further breakage; downgrade manually from an archive if needed."
+        FAILED+=("pipewire-downgrade:no-cache")
+    fi
+    # Pin so `pacman -Syu` won't re-pull the broken version.
+    local pin="IgnorePkg = ${PW_PKGS[*]}"
+    if ! grep -qF "$pin" /etc/pacman.conf; then
+        sudo sed -i "0,/^\[options\]/s//[options]\n$pin/" /etc/pacman.conf \
+            || FAILED+=("pipewire-pin")
+    fi
+    systemctl --user restart pipewire pipewire-pulse wireplumber 2>/dev/null || true
+}
+
 # Install Anaconda (AUR) and wire it into the fish login shell.
 # Used for general ML/Python work; NOT for Isaac Sim (that's containerized now —
 # see install_isaac() and docs/isaac-sim.md). Idempotent: conda init is a no-op
@@ -220,6 +261,8 @@ pac embedded picocom minicom arduino-cli stlink openocd wireshark-qt
 
 # --- Audio -------------------------------------------------------------------
 pac audio pavucontrol easyeffects
+# DualSense audio: pin PipeWire off the 1.6.6 regression (no-op when not affected)
+pin_pipewire_dualsense
 
 # --- GPU / gaming (multilib is already enabled) ------------------------------
 pac gpu lib32-nvidia-utils gamemode lib32-gamemode mangohud lib32-mangohud nvidia-settings

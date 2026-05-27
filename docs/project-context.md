@@ -88,10 +88,14 @@ log out/in (fish shell + group changes need a fresh session).
 
 ## Maintenance habit
 
-Every change to this project is followed — deliberately, without being asked —
-by: **update the docs** (and this page if a decision/root-cause changed),
-**update memory**, and **`git push`**. Docs, memory, and the remote are kept in
-lockstep with reality so nothing drifts.
+Every fix or feature is followed — deliberately, without being asked — by:
+**fold it into the automated scripts** (`install.sh` for system/sudo steps,
+`setup-home.sh` for home configs/launchers; committed helper scripts like
+`migrate-docker-to-home.sh` for one-off migrations), **make it robust** (idempotent,
+self-limiting, `FAILED=()`-tracked — rolling Arch breaks things), **update the
+docs** (and this page if a decision/root-cause changed), **update memory**, and
+**`git push`**. A clean reinstall must reproduce the *fixed* system. Nothing is
+left as an ad-hoc `/tmp` one-off.
 
 Gotcha: the login shell is **fish**, which has **no heredocs**. To write a
 root-owned file, use `printf '…\n' | sudo tee /path` (not `sudo tee … <<'EOF'`).
