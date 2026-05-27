@@ -556,7 +556,7 @@ ros2-jazzy stop                         # kill the container
 ros2-jazzy pull                         # pull latest image
 ```
 
-Inside the container, your host `~/robotics/ws` is at `/root/ws`. GPU is passed through. X11 + Wayland sockets are forwarded so `rviz2`, `rqt`, `gz sim` all open windows on your desktop.
+Inside the container, your host `~/robotics/ws` is at `/root/ws`. GPU is passed through. X11 + Wayland sockets are forwarded so `rviz2`, `rqt`, `gz sim` all open windows on your desktop. The container runs `--network host --ipc host`, which lets it exchange DDS traffic (incl. FastDDS shared memory) with the natively-running Isaac Sim ROS 2 bridge — see [Connecting Isaac Sim to the dockerized ROS 2 Jazzy](isaac-sim.md#connecting-isaac-sim-to-the-dockerized-ros-2-jazzy).
 
 ### 7.5 Docker
 

@@ -148,12 +148,16 @@ re-activate the env (`conda deactivate; conda activate isaaclab`) and verify:
 
 ### `isaacsim.ros2.bridge` fails: `'NoneType' object has no attribute 'split'`
 
-Separate, **non-fatal** error at startup — the ROS 2 bridge calls
-`get_ubuntu_version()`, which parses `/etc/os-release`; on Arch there's no Ubuntu
-version string so it returns `None` and crashes that one extension. Isaac Sim
-itself runs fine. Only relevant if you actually need the in-sim ROS 2 bridge
-(this repo's ROS 2 lives in Docker anyway — see
-[§7.4](index.md#74-ros-2-jazzy-via-docker)).
+The ROS 2 bridge calls `get_ubuntu_version()`, which parses `/etc/os-release`;
+Arch is rolling and has no `VERSION_ID`, so it returns `None` and crashes that
+extension. It's non-fatal to Isaac Sim itself, but the bridge stays disabled.
+
+Fix: set **`ROS_DISTRO=jazzy`** before launch — the bridge only runs that
+autodetect when `ROS_DISTRO` is unset (`extension.py` line ~53), so setting it
+skips the broken path *and* selects the bundled internal Jazzy libraries. This
+is wired into the `zz_isaacsim_ros2.*` activation hook — see
+[Connecting Isaac Sim to the dockerized ROS 2 Jazzy](#connecting-isaac-sim-to-the-dockerized-ros-2-jazzy)
+for the full bridge↔Docker setup.
 
 ### Headless runs hang on the EULA prompt
 
@@ -201,6 +205,72 @@ Vulkan and historically prefers X11 — under pure **Wayland/Hyprland** the
 windowed app can misbehave. If the GUI is needed, launch it through XWayland
 (`env -u WAYLAND_DISPLAY isaacsim`) or stick to headless + a separate viewer.
 Headless training/inference is unaffected and uses the GPU directly (`cuda:0`).
+
+## Connecting Isaac Sim to the dockerized ROS 2 Jazzy
+
+Isaac Sim runs **natively**; ROS 2 Jazzy runs in the
+[Docker container](index.md#74-ros-2-jazzy-via-docker). They talk over **DDS**,
+not a shared filesystem. Key facts that make this work here:
+
+- **No host ROS 2 install needed.** Isaac Sim's `isaacsim.ros2.bridge` extension
+  ships its *own* internal ROS 2 Jazzy (FastDDS + CycloneDDS RMW, in
+  `…/isaacsim.ros2.bridge/jazzy/lib`). The bridge uses those libs directly.
+- **Both ends are Jazzy + `rmw_fastrtps_cpp` + `ROS_DOMAIN_ID=0`** → wire-compatible.
+- The container runs **`--network host`**, so it shares the host network
+  namespace and DDS discovery happens over localhost.
+
+### What's configured (one-time, already done)
+
+**Isaac side** — a conda activation hook
+(`~/anaconda3/envs/isaaclab/etc/conda/activate.d/zz_isaacsim_ros2.{fish,sh}`)
+exports, on `conda activate isaaclab`:
+
+```fish
+set -gx ROS_DISTRO jazzy            # also skips the Arch get_ubuntu_version() crash
+set -gx RMW_IMPLEMENTATION rmw_fastrtps_cpp
+```
+
+and `zz_isaacsim_libpath.*` adds the bundled `jazzy/lib` to `LD_LIBRARY_PATH`.
+Setting `ROS_DISTRO` is what fixes the bridge crash described above — the bridge
+only runs the (broken on Arch) Ubuntu autodetect when `ROS_DISTRO` is unset.
+
+**Container side** — [`~/.local/bin/ros2-jazzy`](index.md#74-ros-2-jazzy-via-docker)
+runs with **`--network host --ipc host`**. The `--ipc host` is essential:
+`--network host` alone shares the network namespace but **not** `/dev/shm`, and
+FastDDS uses shared-memory transport for same-host endpoints. Without it the
+classic symptom is *topics show up in `ros2 topic list` but no data arrives*.
+
+### Verify the link
+
+Publish from Isaac Sim, subscribe from the container (or vice-versa). Quick test
+using a standalone Isaac Sim ROS 2 sample, then in the container:
+
+```fish
+# terminal 1 — native Isaac Sim publishing a clock/tf/camera via an OmniGraph
+#             ROS2 node, or any isaacsim.ros2.bridge sample, e.g.:
+conda activate isaaclab
+isaacsim isaacsim.exp.full.kit   # enable the ROS2 Bridge extension + a ROS2 publisher graph
+```
+
+```bash
+# terminal 2 — the container should SEE and RECEIVE the topics
+ros2-jazzy run "ros2 topic list"          # should list Isaac's topics
+ros2-jazzy run "ros2 topic echo /clock"   # should stream data (proves --ipc host works)
+```
+
+If `topic list` shows nothing: check `ROS_DOMAIN_ID` matches on both ends and
+that no firewall blocks loopback multicast. If `topic list` works but `echo`
+hangs: that's the `/dev/shm` issue — confirm the container was (re)started after
+the `--ipc host` change (`ros2-jazzy stop` then relaunch).
+
+### Gotchas / alternatives
+
+- **RMW must match.** Both default to FastDDS here. If you switch one to
+  CycloneDDS (`rmw_cyclonedds_cpp`), switch the other too.
+- **Pure-UDP fallback.** If SHM keeps misbehaving, force UDP on both ends
+  instead of `--ipc host`: `export FASTDDS_BUILTIN_TRANSPORTS=UDPv4`.
+- **Multiple machines / domains.** Bump `ROS_DOMAIN_ID` (0–101) identically on
+  both ends to isolate from other ROS 2 traffic on the LAN.
 
 ## Useful URLs
 
