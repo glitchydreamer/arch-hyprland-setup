@@ -1,5 +1,15 @@
 # Isaac Sim + Isaac Lab (NVIDIA robotics simulation)
 
+> **⚠️ REMOVED 2026-05-27 — this conda install no longer exists.** The `isaaclab`
+> conda env (~20 GB), the `~/IsaacLab` clone, and the Omniverse caches
+> (`~/.cache/ov`, `~/.cache/warp`, `~/.nvidia-omniverse`, `~/.local/share/ov`)
+> were all deleted. Reason: Isaac Sim 5.1's RTX renderer segfaults on this box's
+> NVIDIA **595** driver (see the RTX gotcha below) — the windowed app and any
+> rendering workload were unusable, and the conda route wasn't worth more time.
+> The libxml2 and ROS 2 bridge fixes below *did* work; they're kept as a record
+> in case the stack is revisited via a different route (e.g. the Isaac Sim
+> Docker container). Everything below describes the now-deleted setup.
+
 NVIDIA's [Isaac Sim](https://developer.nvidia.com/isaac/sim) (Omniverse-based
 robotics simulator) and [Isaac Lab](https://isaac-sim.github.io/IsaacLab/)
 (the RL/learning framework on top of it) are installed **as pip/conda packages**
