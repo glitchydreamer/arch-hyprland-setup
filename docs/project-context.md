@@ -77,6 +77,12 @@ log out/in (fish shell + group changes need a fresh session).
   reports `vrr=true` regardless — that's a capability readout, not the setting.
 - **Half-screen snaps omitted:** `Super+Ctrl+arrows` is caelestia's workspace
   nav; a float-based snap is unreliable on dwindle.
+- **Isaac Sim/Lab lives in its own conda env, not system Python.** Isaac Sim
+  ships wheels only for Python 3.10/3.11; the system interpreter is 3.14, so a
+  bare `pip install isaacsim` can't resolve. A pinned 3.11 `isaaclab` conda env
+  is the fix. Two Arch-specific snags: `egl_probe` won't build under Arch's
+  CMake 4.x without `CMAKE_POLICY_VERSION_MINIMUM=3.5`, and headless runs hang on
+  the EULA prompt without `OMNI_KIT_ACCEPT_EULA=YES`. → [Isaac Sim + Isaac Lab](isaac-sim.md)
 
 ## Maintenance habit
 
@@ -106,3 +112,6 @@ repo is private, and the Actions deploy keeps working.
 - **2026-05-27** — full rebuild on a clean minimal install (GDM, DP-1):
   scripted into `setup-home.sh` + `install.sh`; fixed the DualSense cursor and
   audio after discovering the first round's diagnoses were the wrong root cause.
+- **2026-05-27** — installed Isaac Sim 5.1 + Isaac Lab into the `isaaclab` conda
+  env (Python 3.11); documented in [Isaac Sim + Isaac Lab](isaac-sim.md) with the
+  Arch CMake-4 / EULA gotchas.

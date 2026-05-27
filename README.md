@@ -13,6 +13,7 @@ arch-hyprland-setup/
 │   ├── index.md          ← main reference
 │   ├── display.md        ← monitors / HDR / VRR
 │   ├── keybinds.md       ← keybind reference
+│   ├── isaac-sim.md      ← Isaac Sim + Isaac Lab install (conda)
 │   ├── coming-from-ubuntu.md
 │   └── assets/
 ├── setup-home.sh         ← reproduce the HOME-DIR half (configs/scripts, no sudo)

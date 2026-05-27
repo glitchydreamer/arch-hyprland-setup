@@ -33,7 +33,9 @@
 | Fish shell config (caelestia) | `~/.config/fish/config.fish` |
 | **Your fish dev-env additions** | `~/.config/fish/conf.d/dev-env.fish` |
 | Personal scripts (in PATH) | `~/.local/bin/` |
-| Robotics workspace | `~/robotics/ws` |
+| Robotics workspace (ROS 2) | `~/robotics/ws` |
+| Isaac Sim/Lab conda env | `~/anaconda3/envs/isaaclab` (Python 3.11) — see [Isaac Sim + Isaac Lab](isaac-sim.md) |
+| Isaac Lab repo | `~/IsaacLab` |
 | DualSense audio → headphone jack | `~/.local/bin/dualsense-audio` + `~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf` |
 | DualSense touchpad ignore (cursor) | `~/.config/caelestia/hypr-user.conf` (device block) + `/etc/udev/rules.d/71-dualsense-touchpad-ignore.rules` |
 | HDR toggle script | `~/.local/bin/hdr-toggle` |
@@ -438,6 +440,10 @@ npm 11, pnpm 10, yarn classic.
 - **ROS 2 Jazzy** via Docker image `osrf/ros:jazzy-desktop-full` (6.35 GB).
 - Launcher: `ros2-jazzy` (subcommands `shell`, `run "..."`, `attach`, `stop`, `pull`).
 - Workspace: `~/robotics/ws` mounted as `/root/ws` in the container.
+- **Isaac Sim 5.1 + Isaac Lab** — NVIDIA's robotics simulator + RL framework,
+  installed natively (not Docker) as pip packages in the `isaaclab` conda env
+  (`~/anaconda3/envs/isaaclab`, Python 3.11). Repo at `~/IsaacLab`. Runs against
+  the GPU directly. Full install + Arch gotchas: [Isaac Sim + Isaac Lab](isaac-sim.md).
 
 ### 6.6 Audio / DualSense
 
