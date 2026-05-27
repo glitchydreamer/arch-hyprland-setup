@@ -258,13 +258,16 @@ pac node pnpm yarn
 pac editors neovim zed
 
 # --- Containers / robotics (ROS runs via the jazzy Docker image) -------------
-pac containers docker docker-buildx nvidia-container-toolkit
+# xorg-xauth: host-side dep for Isaac Lab's docker/container.py X11 forwarding
+# (it runs `xauth` on the host to build the .xauth file mounted into the container).
+pac containers docker docker-buildx nvidia-container-toolkit xorg-xauth
 
 # --- Embedded / serial -------------------------------------------------------
 pac embedded picocom minicom arduino-cli stlink openocd wireshark-qt
 
 # --- Audio -------------------------------------------------------------------
-pac audio pavucontrol easyeffects
+# alsa-utils: aplay/speaker-test for low-level audio debugging (DualSense jack).
+pac audio pavucontrol easyeffects alsa-utils
 # DualSense audio: pin PipeWire off the 1.6.6 regression (no-op when not affected)
 pin_pipewire_dualsense
 

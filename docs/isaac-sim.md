@@ -104,6 +104,12 @@ cd ~/robotics/IsaacLab
 ./docker/container.py stop  base      # stop + remove
 ```
 
+> **X11 forwarding needs `xauth` on the host.** `container.py` runs `xauth` on the
+> Arch host to build the `.xauth` file it mounts in; without it you get *"xauth is
+> not installed … the temporary .xauth file does not exist"*. Install `xorg-xauth`
+> (in `install.sh`). On pure Wayland you can instead skip it by setting
+> `X11_FORWARDING_ENABLED=0` in `docker/.container.cfg` and using livestream.
+
 Profiles:
 
 - **`base`** — Isaac Lab only.
