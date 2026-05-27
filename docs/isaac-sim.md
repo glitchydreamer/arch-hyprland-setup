@@ -30,6 +30,11 @@ reproducible path.
 - Docker + `docker-buildx` + `nvidia-container-toolkit` (the `containers` group).
 - `nvidia-ctk runtime configure --runtime=docker` + the docker service enabled.
 - Your user in the `docker` group (**log out/in once** for it to take effect).
+- **Docker `data-root` on `/home`.** The root partition is small (~50G) and the
+  Isaac Sim image is ~20GB extracted — pulling it onto root fails with *no space
+  left on device*. `install.sh` sets `data-root` to `/home/docker-data` on fresh
+  installs; on an existing system migrate with `move-docker-to-home.sh` (stops
+  docker, rsyncs `/var/lib/docker` → `/home/docker-data`, merges `daemon.json`).
 
 Sanity check the GPU is visible inside Docker:
 

@@ -273,9 +273,24 @@ fi
 # Services / groups / shell
 # ============================================================================
 
-echo -e "\n### Docker: NVIDIA runtime + enable service + group"
+echo -e "\n### Docker: data-root on /home, NVIDIA runtime + enable service"
 if command -v docker >/dev/null; then
     sudo nvidia-ctk runtime configure --runtime=docker || FAILED+=("nvidia-ctk")
+    # The root partition here is small (~50G); the Isaac Sim image alone is
+    # ~20GB extracted. Point Docker's data-root at /home (hundreds of GB free).
+    # On a FRESH install nothing needs migrating; on an existing system with
+    # data already in /var/lib/docker, use move-docker-to-home.sh instead.
+    sudo install -d -m 0711 /home/docker-data || FAILED+=("docker data-root dir")
+    sudo python - <<'PY' || FAILED+=("docker data-root json")
+import json, os
+p = "/etc/docker/daemon.json"; d = {}
+if os.path.exists(p):
+    try:
+        with open(p) as f: d = json.load(f)
+    except Exception: d = {}
+d["data-root"] = "/home/docker-data"
+with open(p, "w") as f: json.dump(d, f, indent=2)
+PY
     sudo systemctl enable --now docker || FAILED+=("docker enable")
 fi
 
