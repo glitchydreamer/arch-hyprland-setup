@@ -152,12 +152,67 @@ The ROS 2 bridge calls `get_ubuntu_version()`, which parses `/etc/os-release`;
 Arch is rolling and has no `VERSION_ID`, so it returns `None` and crashes that
 extension. It's non-fatal to Isaac Sim itself, but the bridge stays disabled.
 
-Fix: set **`ROS_DISTRO=jazzy`** before launch — the bridge only runs that
-autodetect when `ROS_DISTRO` is unset (`extension.py` line ~53), so setting it
-skips the broken path *and* selects the bundled internal Jazzy libraries. This
-is wired into the `zz_isaacsim_ros2.*` activation hook — see
+Fix (primary): set **`ROS_DISTRO=jazzy`** before launch — the bridge only runs
+that autodetect when `ROS_DISTRO` is unset (`extension.py` line ~53), so setting
+it skips the broken path *and* selects the bundled internal Jazzy libraries.
+This is wired into the `zz_isaacsim_ros2.*` activation hook — see
 [Connecting Isaac Sim to the dockerized ROS 2 Jazzy](#connecting-isaac-sim-to-the-dockerized-ros-2-jazzy)
 for the full bridge↔Docker setup.
+
+Fix (belt-and-suspenders, survives a stale shell): patch the autodetect so it
+can't crash. In `…/isaacsim.ros2.bridge/isaacsim/ros2/bridge/impl/ros2_common.py`,
+`get_ubuntu_version()` does `version.split(".")` on a `None` `VERSION_ID`. Guard it:
+
+```python
+version = os_release.get("VERSION_ID")
+# Arch / rolling distros have no VERSION_ID; avoid crashing and default to jazzy.
+if not version:
+    carb.log_warn("os-release has no VERSION_ID (rolling distro?); defaulting ROS distro to 'jazzy'")
+    return "jazzy"
+major_version = version.split(".")[0]
+```
+
+This edit lives in `site-packages`, so **re-apply it after any
+`pip install --upgrade isaacsim`** (or reinstall of the env).
+
+### GUI / RTX renderer SIGSEGV in `librtx.scenedb.plugin.so` (driver 595)
+
+**Open issue (unresolved).** Launching the windowed `isaacsim` app — or any
+path that initialises the RTX renderer (e.g. `SimulationApp({"headless": True})`
+with the default experience, which waits for a viewport) — segfaults during
+renderer startup:
+
+```
+librtx.scenedb.plugin.so!carbOnPluginStartup+0x3b4de
+…
+Segmentation fault (core dumped)
+```
+
+The crash is in NVIDIA's RTX scene-renderer plugin while it builds its
+shader/material tables, **not** in anything Arch-specific or ROS-related. Ruled
+out so far:
+
+- System **Vulkan is healthy** — `vulkaninfo --summary` succeeds (NVIDIA
+  proprietary 595.71.05, Vulkan 1.4.329, single clean `nvidia_icd.json`).
+- **Not a stale cache** — `~/.cache/ov` is nearly empty (the renderer dies
+  before populating it); clearing it changes nothing.
+- The driver is **595.71.05**, and Isaac Sim 5.1's own startup check warns it is
+  newer than the validated range (recommended ~535.x; "latest may work but is
+  not fully tested"). Prime suspect: RTX-renderer incompatibility with the 595
+  driver branch.
+
+**What still works:** headless runs that don't render. `./isaaclab.sh -p
+scripts/tutorials/00_sim/create_empty.py --headless` runs clean for minutes
+(`Using device: cuda:0`, PhysX stepping) because the `isaaclab.python.headless.kit`
+experience defers RTX scenedb until rendering is actually requested.
+
+**Implication for ROS 2:** non-rendering bridge traffic (clock, TF, joint
+states, twist commands) should be fine headless; any camera/RTX-sensor topic
+needs the renderer and is blocked until this is resolved.
+
+Likely fix paths (not yet attempted — driver changes are a system-level
+decision): try a validated NVIDIA driver branch (550.x / 535.x), or wait for an
+Isaac Sim point release that supports 595.
 
 ### Headless runs hang on the EULA prompt
 
