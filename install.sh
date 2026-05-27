@@ -4,7 +4,7 @@
 # setup on a fresh minimal install (NVIDIA + GDM).
 #
 # Run setup-home.sh FIRST (it writes the home-dir configs, no sudo). THIS script
-# does the sudo-gated parts: packages (repo + AUR), the DualSense udev fix, CUDA
+# does the sudo-gated parts: packages (repo + AUR), CUDA
 # (matched to your driver) + cuDNN, CUDA PATH, Docker + NVIDIA runtime, group
 # membership, and switching the login shell to fish.
 #
@@ -149,26 +149,17 @@ aur sweet-cursors-git sweet-cursors-hyprcursor-git \
 # System files
 # ============================================================================
 
-echo -e "\n### DualSense audio fix (udev rule + helper)"
-sudo tee /usr/local/bin/dualsense-audio-fix.sh >/dev/null <<'EOF'
-#!/usr/bin/env bash
-# DualSense reports PCM Playback Volume = 0 on connect; bump it to 100.
-# Retries briefly because the ALSA card may not be registered the instant udev fires.
-for _ in $(seq 1 10); do
-    CARD=$(awk '/DualSense Wireless Controller/{n=$1;gsub(/[^0-9]/,"",n);print n;exit}' /proc/asound/cards)
-    if [ -n "${CARD:-}" ]; then
-        amixer -c "$CARD" cset numid=4 100 && exit 0
-    fi
-    sleep 1
-done
-exit 0
-EOF
-sudo chmod +x /usr/local/bin/dualsense-audio-fix.sh
+# NOTE: the DualSense AUDIO fix is no longer a root udev/amixer hack. On modern
+# PipeWire this controller is UCM/profile-based (no ALSA mixer controls), and
+# the real issue is profile/port routing — handled in the user session by the
+# WirePlumber drop-in + `dualsense-audio` helper that setup-home.sh installs.
 
-sudo tee /etc/udev/rules.d/99-dualsense-audio.rules >/dev/null <<'EOF'
-# Fix muted DualSense output on connect (USB 054c:0ce6, Edge 054c:0df2).
-ACTION=="add", SUBSYSTEM=="sound", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="0ce6", RUN+="/usr/bin/systemd-run --no-block /usr/local/bin/dualsense-audio-fix.sh"
-ACTION=="add", SUBSYSTEM=="sound", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="0df2", RUN+="/usr/bin/systemd-run --no-block /usr/local/bin/dualsense-audio-fix.sh"
+echo -e "\n### DualSense touchpad: stop it acting as a second (centred) cursor"
+# The controller's touchpad registers as an absolute pointer that parks a cursor
+# at screen centre. hypr-user.conf disables it in Hyprland; this libinput rule
+# is the belt-and-suspenders version (ignored before any compositor sees it).
+sudo tee /etc/udev/rules.d/71-dualsense-touchpad-ignore.rules >/dev/null <<'EOF'
+SUBSYSTEM=="input", ATTRS{name}=="Sony Interactive Entertainment DualSense Wireless Controller Touchpad", ENV{LIBINPUT_IGNORE_DEVICE}="1"
 EOF
 sudo udevadm control --reload-rules
 

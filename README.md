@@ -9,6 +9,7 @@ Personal documentation for an Arch Linux + Hyprland (caelestia) setup, plus all 
 ```
 arch-hyprland-setup/
 ├── docs/
+│   ├── project-context.md ← READ FIRST: one-page map of the whole project
 │   ├── index.md          ← main reference
 │   ├── display.md        ← monitors / HDR / VRR
 │   ├── keybinds.md       ← keybind reference

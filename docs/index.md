@@ -1,5 +1,7 @@
 # Arch + Hyprland Setup Reference
 
+> New here? Start with [Project context](project-context.md) for a one-page map.
+
 > Last updated 2026-05-27. HDR set to OFF by default; toggle with `Super + Ctrl + Alt + H`.
 > Machine: Arch Linux + Hyprland + caelestia dotfiles, **GDM** as the display manager.
 > The install lives on a portable NVMe and roams between two hosts —
@@ -32,8 +34,8 @@
 | **Your fish dev-env additions** | `~/.config/fish/conf.d/dev-env.fish` |
 | Personal scripts (in PATH) | `~/.local/bin/` |
 | Robotics workspace | `~/robotics/ws` |
-| ALSA state | `/var/lib/alsa/asound.state` |
-| DualSense audio fix | `/usr/local/bin/dualsense-audio-fix.sh` + `/etc/udev/rules.d/99-dualsense-audio.rules` |
+| DualSense audio → headphone jack | `~/.local/bin/dualsense-audio` + `~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf` |
+| DualSense touchpad ignore (cursor) | `~/.config/caelestia/hypr-user.conf` (device block) + `/etc/udev/rules.d/71-dualsense-touchpad-ignore.rules` |
 | HDR toggle script | `~/.local/bin/hdr-toggle` |
 
 **Golden rule**: never edit anything under `~/.local/share/caelestia/`. It will be overwritten when caelestia updates. All your customisation goes in `~/.config/caelestia/hypr-user.conf` (sourced LAST, so it always wins).
@@ -440,7 +442,12 @@ npm 11, pnpm 10, yarn classic.
 ### 6.6 Audio / DualSense
 
 - PipeWire + WirePlumber.
-- DualSense udev rule fixes the hardware `PCM Playback Volume = 0` bug automatically on plug-in.
+- DualSense earphone-jack output: a WirePlumber drop-in re-enables ACP
+  auto-profile/auto-port so the jack auto-routes; `dualsense-audio` forces it
+  manually. (The old `PCM Playback Volume` amixer hack no longer applies — this
+  controller is UCM/profile-based. See [troubleshooting §8.1](#81-dualsense-audio-silent-earphones-in-the-controller-jack).)
+- DualSense touchpad is disabled as a pointer so it doesn't park a second cursor
+  at screen centre (see [§8.8](#88-two-mouse-cursors-one-moving-one-stuck-at-centre)).
 
 ### 6.7 GPU / gaming
 
@@ -583,18 +590,38 @@ git config --global user.email "you@example.com"
 
 ## 8. Troubleshooting recipes
 
-### 8.1 DualSense audio silent again
+### 8.1 DualSense audio silent (earphones in the controller jack)
+
+This bit us on the 2026-05-27 rebuild. The **old amixer/`numid` fix does not
+apply** on a modern PipeWire stack: the DualSense is UCM/profile-based and has
+*no* ALSA mixer controls (`amixer -c <card>` is empty). The real problem is
+**routing**: the controller exposes its internal speaker and its 3.5mm jack as
+separate PipeWire **profiles**, and it ships with auto-switching disabled
+(`api.acp.auto-profile/auto-port = false`), so plugging earphones into the jack
+never moves audio off the `HiFi (Mic, Speaker)` profile → silence.
+
+Two-part fix (both written by `setup-home.sh`, no sudo):
 
 ```bash
-# Check current state
-CARD=$(awk '/DualSense Wireless Controller/{n=$1;gsub(/[^0-9]/,"",n);print n;exit}' /proc/asound/cards)
-amixer -c $CARD cget numid=4   # should report values=100
+# Immediate: route to the 3.5mm jack + make it default (the helper does all this)
+dualsense-audio
 
-# Manual fix
-amixer -c $CARD cset numid=4 100
+# Under the hood it runs, roughly:
+CARD=$(pactl list cards short | awk '/Sony|DualSense/{print $2; exit}')
+pactl set-card-profile "$CARD" 'HiFi (Headphones, Mic)'
+SINK=$(pactl list sinks short | awk '/Sony|DualSense/{print $2; exit}')
+pactl set-default-sink "$SINK"; pactl set-sink-mute "$SINK" 0; pactl set-sink-volume "$SINK" 70%
+```
 
-# If the udev rule isn't firing
-sudo udevadm test $(udevadm info -q path /dev/snd/controlC$CARD) 2>&1 | tail
+Durable: `~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf`
+turns ACP `auto-profile`/`auto-port` back **on** for the DualSense so WirePlumber
+follows the jack automatically. If it ever doesn't catch, run `dualsense-audio`.
+
+Inspect available profiles/ports:
+
+```bash
+pactl list cards | grep -A2 -iE 'Profiles:|Headphones'   # see HiFi (Headphones, Mic) etc.
+pactl list sinks | grep -iE 'Description|Active Port'
 ```
 
 ### 8.2 Hyprland config change broke things
@@ -638,38 +665,45 @@ Try in order:
 
 The AUR `gz-harmonic` package currently fails on gcc 16 because of `ogre-next2`, `fcl`, `libccd`, `octomap`. Use Gazebo via the ROS 2 Jazzy Docker image instead (`ros2-jazzy` → `gz sim ...`). Re-check in a few months once AUR maintainers patch.
 
-### 8.8 Two mouse cursors (one moving, one stuck)
+### 8.8 Two mouse cursors (one moving, one stuck at centre)
 
-On NVIDIA + Wayland under GDM you can end up with **two pointers**: the real one
-that moves and a stale "ghost" frozen on screen. Two things conspire:
+**The actual cause here was the DualSense.** When the controller is plugged in
+(e.g. for audio), its **touchpad** registers as an *absolute* pointer and parks
+a cursor at the centre of the screen; the usable cursor is your real mouse.
+Confirm by listing pointers — the touchpad shows up as a mouse:
 
-1. **NVIDIA hardware-cursor bug** — the GPU leaves a stale cursor on the hardware
-   plane while the live cursor is drawn in software. Fixed by disabling the HW
-   cursor plane. This is set in `~/.config/caelestia/hypr-user.conf`:
+```bash
+hyprctl devices | grep -i touchpad
+#  sony-interactive-entertainment-dualsense-wireless-controller-touchpad
+```
+
+Fix (both applied by the rebuild scripts):
+
+1. **Hyprland disables the device** (`setup-home.sh` → `hypr-user.conf`, no sudo,
+   takes effect on `hyprctl reload`):
 
    ```ini
-   cursor {
-       no_hardware_cursors = true
+   device {
+       name = sony-interactive-entertainment-dualsense-wireless-controller-touchpad
+       enabled = false
    }
    ```
 
-   (Modern Hyprland reads `cursor:no_hardware_cursors`; the old
-   `env = WLR_NO_HARDWARE_CURSORS,1` is deprecated.)
+2. **libinput ignores it outright** (`install.sh` → udev, survives reboots and
+   works before any compositor sees the device):
 
-2. **Missing cursor theme** — caelestia's `variables.conf` sets
-   `$cursorTheme = sweet-cursors`, exported as `XCURSOR_THEME`. On a fresh
-   install that theme isn't present, so the cursor falls back and can render
-   oddly. `install.sh` installs `sweet-cursors-git` **and**
-   `sweet-cursors-hyprcursor-git` (the hyprcursor variant Hyprland prefers).
+   ```
+   /etc/udev/rules.d/71-dualsense-touchpad-ignore.rules
+   SUBSYSTEM=="input", ATTRS{name}=="Sony Interactive Entertainment DualSense Wireless Controller Touchpad", ENV{LIBINPUT_IGNORE_DEVICE}="1"
+   ```
+   Apply now without rebooting: `sudo udevadm control --reload-rules && sudo udevadm trigger`.
+   This only affects the *pointer* role — the gamepad still works in games.
 
-Apply without relogging: `hyprctl reload`. Verify the option took:
-
-```bash
-hyprctl getoption cursor:no_hardware_cursors   # int: 1
-```
-
-GDM draws its own cursor on the login screen — that's unrelated and harmless;
-the double-cursor only matters once inside the Hyprland session.
+Separately, `hypr-user.conf` also keeps `cursor { no_hardware_cursors = true }`.
+That addresses a *different* NVIDIA-Wayland class of stale-cursor bug (the GPU
+leaving a stale image on the hardware cursor plane) and is harmless to keep on.
+Verify: `hyprctl getoption cursor:no_hardware_cursors` → `int: 1`. GDM's own
+login-screen cursor is unrelated.
 
 ---
 
