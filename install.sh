@@ -228,7 +228,7 @@ pac gpu lib32-nvidia-utils gamemode lib32-gamemode mangohud lib32-mangohud nvidi
 pac media haruna obs-studio gimp inkscape okular gwenview swayimg
 
 # --- Terminal productivity ---------------------------------------------------
-pac terminal fzf ripgrep fd bat zoxide lazygit github-cli tmux tree yq
+pac terminal fzf ripgrep fd bat zoxide lazygit github-cli tmux tree yq rsync
 
 # --- KDE "settings app" + Dolphin --------------------------------------------
 pac kde dolphin systemsettings discover kinfocenter
