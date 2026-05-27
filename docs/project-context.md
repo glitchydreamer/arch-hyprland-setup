@@ -61,9 +61,12 @@ log out/in (fish shell + group changes need a fresh session).
   works off whatever the first non-eDP output is.
 - **Two-cursor bug = DualSense touchpad**, not (mainly) the NVIDIA HW cursor.
   The controller's touchpad is an absolute pointer that parks a cursor at
-  centre. Fixed by disabling it (Hyprland `device{enabled=false}` + a libinput
-  `LIBINPUT_IGNORE_DEVICE` udev rule). `no_hardware_cursors=true` is kept for a
-  separate NVIDIA stale-cursor class but was not the cause. → [§8.8](index.md#88-two-mouse-cursors-one-moving-one-stuck-at-centre)
+  centre. The **authoritative fix is a libinput `LIBINPUT_IGNORE_DEVICE` udev
+  rule** — and it (like the secondary Hyprland `device{enabled=false}`) only
+  takes effect when the device **re-attaches**, so replug/reboot after applying;
+  a plain `hyprctl reload` won't disable an already-connected controller.
+  `no_hardware_cursors=true` is kept for a separate NVIDIA stale-cursor class but
+  was not the cause. → [§8.8](index.md#88-two-mouse-cursors-one-moving-one-stuck-at-centre)
 - **DualSense audio = profile routing**, not the old `PCM Playback Volume`
   amixer hack (this UCM card has no mixer controls). Speaker vs the 3.5mm jack
   are separate PipeWire *profiles*; auto-switching ships disabled. Fixed with a

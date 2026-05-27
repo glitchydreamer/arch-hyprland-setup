@@ -677,10 +677,28 @@ hyprctl devices | grep -i touchpad
 #  sony-interactive-entertainment-dualsense-wireless-controller-touchpad
 ```
 
-Fix (both applied by the rebuild scripts):
+Fix — the **libinput udev rule is the authoritative one**; the Hyprland device
+block is best-effort:
 
-1. **Hyprland disables the device** (`setup-home.sh` → `hypr-user.conf`, no sudo,
-   takes effect on `hyprctl reload`):
+1. **libinput ignores the device outright** (`install.sh` → udev). This is the
+   reliable fix — it removes the touchpad's pointer role before any compositor
+   sees it, and survives reboots:
+
+   ```
+   /etc/udev/rules.d/71-dualsense-touchpad-ignore.rules
+   SUBSYSTEM=="input", ATTRS{name}=="Sony Interactive Entertainment DualSense Wireless Controller Touchpad", ENV{LIBINPUT_IGNORE_DEVICE}="1"
+   ```
+   After installing the rule: `sudo udevadm control --reload-rules && sudo udevadm trigger`,
+   **then unplug/replug the controller (or reboot)** — the rule only takes
+   effect when the input device *re-attaches*. Only the *pointer* role is
+   ignored; the gamepad still works in games.
+
+   > Writing this file from **fish** (no heredocs): use a one-shot script, e.g.
+   > `sudo bash /tmp/ds-fix.sh`, or `printf '…\n' | sudo tee <path>` on a single
+   > unwrapped line. `sudo tee <path> <<'EOF'` is a bash-ism and won't parse.
+
+2. **Hyprland device block** (`setup-home.sh` → `hypr-user.conf`, no sudo) — a
+   secondary layer:
 
    ```ini
    device {
@@ -688,16 +706,10 @@ Fix (both applied by the rebuild scripts):
        enabled = false
    }
    ```
-
-2. **libinput ignores it outright** (`install.sh` → udev, survives reboots and
-   works before any compositor sees the device):
-
-   ```
-   /etc/udev/rules.d/71-dualsense-touchpad-ignore.rules
-   SUBSYSTEM=="input", ATTRS{name}=="Sony Interactive Entertainment DualSense Wireless Controller Touchpad", ENV{LIBINPUT_IGNORE_DEVICE}="1"
-   ```
-   Apply now without rebooting: `sudo udevadm control --reload-rules && sudo udevadm trigger`.
-   This only affects the *pointer* role — the gamepad still works in games.
+   Caveat: Hyprland applies device settings when the device **attaches**, so a
+   plain `hyprctl reload` does **not** disable an already-connected controller
+   (you'd need to replug or restart the session). Hence the udev rule above is
+   the dependable fix.
 
 Separately, `hypr-user.conf` also keeps `cursor { no_hardware_cursors = true }`.
 That addresses a *different* NVIDIA-Wayland class of stale-cursor bug (the GPU
