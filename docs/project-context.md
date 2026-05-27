@@ -95,6 +95,11 @@ Commits use **`glitchydreamer <creativegod0307@gmail.com>`** (the GitHub
 account), *not* the Claude-context account email. Remote is HTTPS; pushing
 needs `gh auth login` (or SSH/PAT) — a fresh install has no credentials.
 
+**Repo visibility doesn't affect pushing.** Public vs private is gated by
+auth + write access, not visibility — as the owner you push the same either
+way. On a free plan the GitHub Pages docs site stays **public** even if the
+repo is private, and the Actions deploy keeps working.
+
 ## History
 
 - **2026-05-17** — original setup (SDDM, DP-2).
