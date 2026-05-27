@@ -219,7 +219,7 @@ hyprctl monitors all            # includes disabled outputs
 wlr-randr                       # all supported modes (install wlr-randr)
 ls /sys/class/drm/              # connectors the kernel sees
 cat /sys/class/drm/card*-DP-1/status      # connected | disconnected
-edid-decode /sys/class/drm/card*-eDP-1/edid   # bit depth, HDR, primaries
+drm_info -i 2>/dev/null | grep -A20 -i edid       # parsed EDID: bit depth, HDR, primaries
 ```
 
 Fields worth knowing in `hyprctl monitors` output:
@@ -239,7 +239,7 @@ Fields worth knowing in `hyprctl monitors` output:
 |---|---|
 | What's Hyprland doing *right now*? | `hyprctl monitors` |
 | What modes does this panel support? | `wlr-randr` or `drm_info` |
-| Does this monitor really support 10-bit / HDR / VRR? | `drm_info` + `edid-decode` |
+| Does this monitor really support 10-bit / HDR / VRR? | `drm_info` (`-i` for raw EDID) |
 | Try a layout / scale visually | `wdisplays` |
 | Diagnose "no signal" on a connector | `drm_info` (look at `link-status`, EDID blob present?) |
 | Dump everything for a bug report | `drm_info -j > drm.json` |

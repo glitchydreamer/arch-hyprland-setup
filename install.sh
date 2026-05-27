@@ -72,7 +72,8 @@ pac terminal fzf ripgrep fd bat zoxide lazygit github-cli tmux tree yq
 pac kde dolphin systemsettings discover kinfocenter
 
 # --- Display inspection tools (per docs/display.md) --------------------------
-pac display drm-info wdisplays wlr-randr edid-decode brightnessctl nm-connection-editor
+# (edid-decode isn't packaged in the repos; `drm_info -i` covers EDID parsing.)
+pac display drm-info wdisplays wlr-randr brightnessctl nm-connection-editor
 
 # --- AUR (sweet-cursors fixes the ghost-cursor theme; browsers; claude) ------
 echo -e "\n>>> AUR via paru"
