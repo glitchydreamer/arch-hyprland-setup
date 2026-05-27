@@ -278,8 +278,11 @@ if command -v docker >/dev/null; then
     sudo nvidia-ctk runtime configure --runtime=docker || FAILED+=("nvidia-ctk")
     # The root partition here is small (~50G); the Isaac Sim image alone is
     # ~20GB extracted. Point Docker's data-root at /home (hundreds of GB free).
-    # On a FRESH install nothing needs migrating; on an existing system with
-    # data already in /var/lib/docker, use move-docker-to-home.sh instead.
+    # Two keys are needed: data-root, AND containerd-snapshotter=false — with the
+    # containerd image store ON, layers go under /var/lib/containerd (on root) and
+    # data-root is ignored; the classic overlay2 graph driver honors data-root.
+    # On a FRESH install nothing needs migrating; on an existing system with data
+    # already under /var/lib, use move-docker-to-home.sh instead.
     sudo install -d -m 0711 /home/docker-data || FAILED+=("docker data-root dir")
     sudo python - <<'PY' || FAILED+=("docker data-root json")
 import json, os
@@ -289,6 +292,7 @@ if os.path.exists(p):
         with open(p) as f: d = json.load(f)
     except Exception: d = {}
 d["data-root"] = "/home/docker-data"
+d.setdefault("features", {})["containerd-snapshotter"] = False
 with open(p, "w") as f: json.dump(d, f, indent=2)
 PY
     sudo systemctl enable --now docker || FAILED+=("docker enable")

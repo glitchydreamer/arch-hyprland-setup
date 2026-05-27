@@ -30,11 +30,18 @@ reproducible path.
 - Docker + `docker-buildx` + `nvidia-container-toolkit` (the `containers` group).
 - `nvidia-ctk runtime configure --runtime=docker` + the docker service enabled.
 - Your user in the `docker` group (**log out/in once** for it to take effect).
-- **Docker `data-root` on `/home`.** The root partition is small (~50G) and the
-  Isaac Sim image is ~20GB extracted — pulling it onto root fails with *no space
-  left on device*. `install.sh` sets `data-root` to `/home/docker-data` on fresh
-  installs; on an existing system migrate with `move-docker-to-home.sh` (stops
-  docker, rsyncs `/var/lib/docker` → `/home/docker-data`, merges `daemon.json`).
+- **Docker storage on `/home`.** The root partition is small (~50G) and the Isaac
+  Sim image is ~20GB extracted — pulling it onto root fails with *no space left on
+  device*. Two `daemon.json` keys fix this, both set by `install.sh`:
+  `"data-root": "/home/docker-data"` **and**
+  `"features": {"containerd-snapshotter": false}`. The second is essential — with
+  the containerd image store enabled (`Storage Driver: overlayfs`), layers go to
+  `/var/lib/containerd` on root and `data-root` is *ignored*; disabling it falls
+  back to the `overlay2` graph driver, which honors `data-root`. On an existing
+  system, run `move-docker-to-home.sh` (sets both keys, reclaims the orphaned
+  partial layers, restarts docker). Verify with
+  `docker info | grep -E "Storage Driver|Docker Root"` → want `overlay2` +
+  `/home/docker-data`.
 
 Sanity check the GPU is visible inside Docker:
 
