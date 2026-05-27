@@ -9,7 +9,7 @@ automatically at session start via a small detection script.
 | Host | Output | Mode | Scale | VRR | Bit depth |
 |---|---|---|---|---|---|
 | **Laptop** (Intel + RTX 4070 Mobile) | `eDP-1` — BOE 16" 2560×1600 | `2560x1600@240` | `1.25` | on (global `misc { vrr = 1 }`) | 8-bit (panel maxes out at 8 bpc per EDID) |
-| **Desktop** (RTX 3060) | `DP-2` — LG 34" WQHD ultrawide | `3440x1440@159.96` | `1.0` | **off** (locked 160 Hz) | **10-bit SDR (sRGB)** by default; HDR on demand via toggle |
+| **Desktop** (RTX 3060) | `DP-1` — LG 34" WQHD ultrawide | `3440x1440@159.96` | `1.0` | **off** (locked 160 Hz) | **10-bit SDR (sRGB)** by default; HDR on demand via toggle |
 
 The laptop panel is hardware-limited to 8 bpc (BOE EDID says so). The desktop
 monitor is 10-bit capable and is configured for 10-bit SDR — smoother
@@ -26,32 +26,37 @@ laptop keeps VRR on for power and tear-free behaviour during fluctuating loads.
 
 ## File layout
 
+`~/.config/hypr` is a **symlink** into the caelestia package tree
+(`~/.local/share/caelestia/hypr`), so per-host monitor files can't live there —
+they'd be clobbered on a caelestia update. They live in user-owned
+`~/.config/caelestia/` instead, and the detection script lives in `~/.local/bin/`:
+
 ```
-~/.config/hypr/
-├── hyprland.conf                       # entrypoint — sources monitors.conf
-├── hyprland/
-│   ├── monitors.conf                   # symlink → active host's file
-│   ├── monitors-laptop.conf            # laptop settings
-│   ├── monitors-desktop.conf           # desktop settings
-│   └── execs.conf                      # runs select-monitors.sh at startup
-└── scripts/
-    └── select-monitors.sh              # flips the symlink based on /sys/class/drm
+~/.config/caelestia/
+├── hypr-user.conf                      # sources hypr-monitors.conf + runs the script
+├── hypr-monitors.conf                  # symlink → active host's file
+├── hypr-monitors-laptop.conf           # laptop settings
+└── hypr-monitors-desktop.conf          # desktop settings
+~/.local/bin/
+└── select-monitors.sh                  # flips the symlink based on /sys/class/drm
 ```
 
-`monitors.conf` is a symlink, not a real file — it points at whichever per-host
-file is correct for the machine currently booted.
+`hypr-monitors.conf` is a symlink, not a real file — it points at whichever
+per-host file is correct for the machine currently booted. `hypr-user.conf`
+(sourced last by caelestia) pulls it in with `source = $cConf/hypr-monitors.conf`
+and starts the detector with `exec-once = ~/.local/bin/select-monitors.sh`.
 
-### `monitors-laptop.conf`
+### `hypr-monitors-laptop.conf`
 
 ```ini
 monitor = eDP-1, 2560x1600@240, 0x0, 1.25
 monitor = , preferred, auto, 1          # catch-all for external monitors
 ```
 
-### `monitors-desktop.conf`
+### `hypr-monitors-desktop.conf`
 
 ```ini
-monitor = DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0
+monitor = DP-1, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0
 monitor = , preferred, auto, 1
 ```
 
@@ -66,7 +71,7 @@ HDR is opt-in per session via `Super+Ctrl+Alt+H` (the `hdr-toggle` script flips
 the live mode to 10-bit HDR via `hyprctl keyword monitor` without touching this
 file). See the HDR section of [the main reference](index.md#5-hdr--color-management).
 
-### `scripts/select-monitors.sh`
+### `~/.local/bin/select-monitors.sh`
 
 Detects host by checking `/sys/class/drm/card*-eDP-1/status`. If `connected`,
 it's the laptop; otherwise the desktop. Updates the symlink and runs
@@ -75,13 +80,13 @@ it's the laptop; otherwise the desktop. Updates the symlink and runs
 ```bash
 #!/usr/bin/env bash
 set -eu
-dir="$HOME/.config/hypr/hyprland"
-link="$dir/monitors.conf"
-target=monitors-desktop.conf
+dir="$HOME/.config/caelestia"
+link="$dir/hypr-monitors.conf"
+target=hypr-monitors-desktop.conf
 for f in /sys/class/drm/card*-eDP-1/status; do
     [ -r "$f" ] || continue
     if [ "$(cat "$f")" = "connected" ]; then
-        target=monitors-laptop.conf
+        target=hypr-monitors-laptop.conf
         break
     fi
 done
@@ -92,13 +97,13 @@ if [ "$current" != "$target" ]; then
 fi
 ```
 
-Wired into `execs.conf`:
+Wired into `hypr-user.conf`:
 
 ```ini
-exec-once = $hypr/scripts/select-monitors.sh
+exec-once = ~/.local/bin/select-monitors.sh
 ```
 
-It also works as a standalone tool — run `~/.config/hypr/scripts/select-monitors.sh`
+It also works as a standalone tool — run `~/.local/bin/select-monitors.sh`
 any time to re-detect (e.g. after hot-plugging a dock).
 
 ## Why a symlink and a script
@@ -118,7 +123,7 @@ monitor = NAME, RESOLUTION@REFRESH, POSITION, SCALE, [extras...]
 
 | Field | Notes |
 |---|---|
-| `NAME` | DRM connector (`eDP-1`, `DP-2`, `HDMI-A-1`). Empty `=` matches any unmatched output. |
+| `NAME` | DRM connector (`eDP-1`, `DP-1`, `HDMI-A-1`). Empty `=` matches any unmatched output. |
 | `RESOLUTION@REFRESH` | `2560x1600@240` etc. Or `preferred` to use the EDID's preferred mode. |
 | `POSITION` | Logical pixel offset, e.g. `0x0`. `auto` lets Hyprland place it. |
 | `SCALE` | `1`, `1.25`, `1.5`, `1.75`, `2`. Fractional values render up and downsample — XWayland apps will be blurry at non-integer scales. |
@@ -166,7 +171,7 @@ drm_info 2>/dev/null | awk '/Connector [0-9]/,/Properties/' | \
     grep -E 'Connector|Status|×.*@' | head -30
 
 # Is this monitor VRR-capable per the kernel?
-drm_info 2>/dev/null | grep -A1 'DP-2\|vrr_capable'
+drm_info 2>/dev/null | grep -A1 'DP-1\|vrr_capable'
 
 # All supported pixel formats on the desktop GPU
 drm_info -j 2>/dev/null | jq '.[].planes[].formats' | sort -u
@@ -213,7 +218,7 @@ hyprctl monitors                # what Hyprland is doing right now
 hyprctl monitors all            # includes disabled outputs
 wlr-randr                       # all supported modes (install wlr-randr)
 ls /sys/class/drm/              # connectors the kernel sees
-cat /sys/class/drm/card*-DP-2/status      # connected | disconnected
+cat /sys/class/drm/card*-DP-1/status      # connected | disconnected
 edid-decode /sys/class/drm/card*-eDP-1/edid   # bit depth, HDR, primaries
 ```
 
@@ -260,13 +265,13 @@ When you've found something you like, write it into the matching
 monitor = HDMI-A-1, 1920x1080@60, 3440x0, 1, transform, 1
 
 # Mirror an external display
-monitor = HDMI-A-1, preferred, 0x0, 1, mirror, DP-2
+monitor = HDMI-A-1, preferred, 0x0, 1, mirror, DP-1
 
 # Force 10-bit (only if both panel + cable support it)
-monitor = DP-2, 3440x1440@160, 0x0, 1, bitdepth, 10
+monitor = DP-1, 3440x1440@160, 0x0, 1, bitdepth, 10
 
 # Fullscreen-only VRR (overrides global `misc { vrr = 1 }`)
-monitor = DP-2, 3440x1440@160, 0x0, 1, vrr, 2
+monitor = DP-1, 3440x1440@160, 0x0, 1, vrr, 2
 
 # Disable a connector entirely
 monitor = HDMI-A-1, disable
@@ -328,8 +333,8 @@ color settings.
 A/B test live without committing:
 
 ```bash
-hyprctl keyword monitor "DP-2,3440x1440@159.96,0x0,1,bitdepth,10,cm,wide,vrr,0"
-hyprctl keyword monitor "DP-2,3440x1440@159.96,0x0,1,bitdepth,10,cm,srgb,vrr,0"
+hyprctl keyword monitor "DP-1,3440x1440@159.96,0x0,1,bitdepth,10,cm,wide,vrr,0"
+hyprctl keyword monitor "DP-1,3440x1440@159.96,0x0,1,bitdepth,10,cm,srgb,vrr,0"
 ```
 
 ## Other GUI / arranger tools
@@ -350,8 +355,8 @@ different behaviour when docking a USB-C hub vs. plugging in a TV.
 ## Troubleshooting
 
 **Display stuck at low refresh or wrong scale** — run
-`~/.config/hypr/scripts/select-monitors.sh` manually and check
-`readlink ~/.config/hypr/hyprland/monitors.conf` points at the right file.
+`~/.local/bin/select-monitors.sh` manually and check
+`readlink ~/.config/caelestia/hypr-monitors.conf` points at the right file.
 
 **Hot-plug external display doesn't appear** — the catch-all
 `monitor = , preferred, auto, 1` should pick it up. If it doesn't,

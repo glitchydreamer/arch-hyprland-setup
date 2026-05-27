@@ -118,7 +118,7 @@ The window/workspace layer that consumes most of single-Super:
 | `Super+V` | Clipboard history |
 | `Super+Period` | Emoji picker |
 | `Super+M`, `Super+D`, `Super+R` | Music, Communication, Todo overlays |
-| `Super+Ctrl+Alt+H` | Toggle HDR on DP-2 (`hdr-toggle`) |
+| `Super+Ctrl+Alt+H` | Toggle HDR on DP-1 (`hdr-toggle`) |
 | `Print` | Screenshot to clipboard |
 | `Super+Shift+S` | Region screenshot (frozen) |
 | `Super+Shift+Alt+S` | Region screenshot (live) |

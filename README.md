@@ -7,16 +7,34 @@ Personal documentation for an Arch Linux + Hyprland (caelestia) setup, plus all 
 ## Layout
 
 ```
-arch-setup-docs/
+arch-hyprland-setup/
 ├── docs/
-│   ├── index.md          ← main reference (was dev-setup-notes.md)
+│   ├── index.md          ← main reference
+│   ├── display.md        ← monitors / HDR / VRR
+│   ├── keybinds.md       ← keybind reference
+│   ├── coming-from-ubuntu.md
 │   └── assets/
+├── install.sh            ← reproduce the SYSTEM half on a fresh install (sudo)
 ├── mkdocs.yml            ← site config (MkDocs Material)
 ├── requirements.txt      ← Python deps for the site build
 ├── sync.sh               ← edit → commit → push helper
 └── .github/workflows/
     └── deploy-docs.yml   ← builds & deploys to GitHub Pages on push to main
 ```
+
+## Rebuilding on a fresh install
+
+The home-dir configs (Hyprland overrides, `~/.local/bin` scripts, git, fish,
+Dolphin) are documented per-file in the docs. The **system half** — packages
+(repo + AUR), the DualSense udev fix, CUDA path, Docker + NVIDIA runtime, group
+membership, and switching the login shell to fish — is scripted:
+
+```sh
+bash ~/Documents/arch-hyprland-setup/install.sh
+```
+
+It's idempotent (`--needed` everywhere) and calls `sudo` itself only where
+required. See `docs/index.md` §10 for what changed across rebuilds.
 
 ## Updating the docs
 

@@ -1,11 +1,19 @@
 # Arch + Hyprland Setup Reference
 
-> Last updated 2026-05-18. HDR set to OFF by default; toggle with `Super + Ctrl + Alt + H`.
-> Machine: Arch Linux + Hyprland 0.55 + caelestia dotfiles.
+> Last updated 2026-05-27. HDR set to OFF by default; toggle with `Super + Ctrl + Alt + H`.
+> Machine: Arch Linux + Hyprland + caelestia dotfiles, **GDM** as the display manager.
 > The install lives on a portable NVMe and roams between two hosts —
-> **desktop** (NVIDIA RTX 3060 + Intel iGPU, LG Ultrawide 3440x1440@160 Hz on DP-2)
+> **desktop** (NVIDIA RTX 3060, LG Ultrawide 3440x1440@160 Hz on **DP-1**)
 > and **laptop** (Intel Raptor Lake + RTX 4070 Mobile, BOE 16" 2560x1600@240 Hz on eDP-1).
 > Per-host monitor config switches automatically on session start — see [Display setup](display.md).
+>
+> **Rebuilt 2026-05-27** on a fresh minimal Arch install (NVIDIA + GDM). The
+> system-level half (packages, DualSense fix, CUDA, Docker/NVIDIA, fish shell)
+> is reproduced by [`install.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/install.sh)
+> at the repo root; the home-dir configs below were recreated directly. Two
+> things changed vs. the previous install: the desktop output is now **DP-1**
+> (was DP-2), and user Hyprland files live under `~/.config/caelestia/` because
+> `~/.config/hypr` is now a symlink into the caelestia package tree.
 
 ---
 
@@ -16,10 +24,10 @@
 | Caelestia upstream config (don't edit) | `~/.local/share/caelestia/hypr/` |
 | **Your Hyprland user overrides** | `~/.config/caelestia/hypr-user.conf` |
 | **Your Hyprland variable overrides** | `~/.config/caelestia/hypr-vars.conf` |
-| Hyprland entrypoint (symlink to caelestia) | `~/.config/hypr/hyprland.conf` |
-| **Per-host monitor configs** | `~/.config/hypr/hyprland/monitors-{laptop,desktop}.conf` |
-| Active monitor symlink (flips per host) | `~/.config/hypr/hyprland/monitors.conf` |
-| Host-detection script (runs on session start) | `~/.config/hypr/scripts/select-monitors.sh` |
+| Hyprland entrypoint (symlink into caelestia tree) | `~/.config/hypr` → `~/.local/share/caelestia/hypr` |
+| **Per-host monitor configs** | `~/.config/caelestia/hypr-monitors-{laptop,desktop}.conf` |
+| Active monitor symlink (flips per host) | `~/.config/caelestia/hypr-monitors.conf` |
+| Host-detection script (runs on session start) | `~/.local/bin/select-monitors.sh` |
 | Fish shell config (caelestia) | `~/.config/fish/config.fish` |
 | **Your fish dev-env additions** | `~/.config/fish/conf.d/dev-env.fish` |
 | Personal scripts (in PATH) | `~/.local/bin/` |
@@ -44,10 +52,10 @@ Configuration is owned by different layers depending on what you're changing. Us
 |---|---|---|
 | **Hyprland — windows, monitors, keybinds, input** | | |
 | Keybinds, window rules, startup apps | `~/.config/caelestia/hypr-user.conf` | sourced last — always wins; full reference: [Keybinds](keybinds.md) |
-| Monitor (resolution, refresh, scale, VRR) | `~/.config/hypr/hyprland/monitors-{laptop,desktop}.conf` | per-host file, picked automatically; see [Display setup](display.md) |
+| Monitor (resolution, refresh, scale, VRR) | `~/.config/caelestia/hypr-monitors-{laptop,desktop}.conf` | per-host file, picked automatically; see [Display setup](display.md) |
 | Inspect / arrange displays (GUI) | `wdisplays` | drag-arrange, scale, refresh, VRR toggle — see [Display setup → Inspecting current state](display.md#inspecting-current-state) |
 | Inspect displays (CLI, deep) | `drm_info` | full kernel DRM dump: modes, EDID, HDR/VRR caps, pixel formats |
-| HDR / color management for DP-2 | toggle with `Super+Ctrl+Alt+H` (script `~/.local/bin/hdr-toggle`) | live mode flip via `hyprctl keyword monitor` |
+| HDR / color management for DP-1 | toggle with `Super+Ctrl+Alt+H` (script `~/.local/bin/hdr-toggle`) | live mode flip via `hyprctl keyword monitor` |
 | Gaps, borders, rounded corners, animations | `~/.config/caelestia/hypr-vars.conf` | `general / decoration / animations` blocks |
 | Keyboard layout, repeat rate, mouse / trackpad | same — `input {}` block | |
 | **Caelestia shell — bar, launcher, theme, notifications** | `~/.config/caelestia/shell.json` | reload with `Ctrl + Super + Shift + R` |
@@ -291,7 +299,7 @@ hyprctl binds | grep -A3 'YourKeyHere'
 
 ### 5.1 Current state
 
-Your monitor (LG Ultrawide on DP-2) supports:
+Your monitor (LG Ultrawide on DP-1) supports:
 
 - HDR10 (SMPTE ST2084 / PQ EOTF)
 - BT.2020 RGB + YCC color spaces
@@ -300,10 +308,10 @@ Your monitor (LG Ultrawide on DP-2) supports:
 
 **HDR is OFF by default** — the session starts in plain 8-bit sRGB. HDR is opt-in per session via the toggle bind (`Super + Ctrl + Alt + H`).
 
-The default monitor line in `~/.config/hypr/hyprland/monitors-desktop.conf`:
+The default monitor line in `~/.config/caelestia/hypr-monitors-desktop.conf`:
 
 ```
-monitor = DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0
+monitor = DP-1, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0
 ```
 
 Boot baseline: native resolution, 160 Hz **fixed** (VRR off — see
@@ -316,7 +324,7 @@ same SSD can boot cleanly on the laptop too — see [Display setup](display.md).
 When toggled on, the HDR profile applied by `~/.local/bin/hdr-toggle` is:
 
 ```
-monitor = DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, hdr, sdrbrightness, 1.5, sdrsaturation, 1.0
+monitor = DP-1, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, hdr, sdrbrightness, 1.5, sdrsaturation, 1.0
 ```
 
 Rationale for SDR-default: most Linux apps don't produce HDR output, SDR content under HDR mode often looks dim/washed-out without tuning, and HDR + VRR can flicker. Enable HDR only when launching an HDR-aware client (mpv with `--target-colorspace-hint=yes`, gamescope, Steam-in-gamescope).
@@ -350,14 +358,14 @@ The script:
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-state=$(hyprctl monitors -j | jq -r '.[] | select(.name=="DP-2") | .colorManagementPreset')
+state=$(hyprctl monitors -j | jq -r '.[] | select(.name=="DP-1") | .colorManagementPreset')
 case "$state" in
   srgb|unknown)
-    hyprctl keyword monitor "DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, hdr, sdrbrightness, 1.5, sdrsaturation, 1.0"
+    hyprctl keyword monitor "DP-1, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, hdr, sdrbrightness, 1.5, sdrsaturation, 1.0"
     notify-send -i video-display "HDR enabled" "HDR10 / BT.2020"
     ;;
   *)
-    hyprctl keyword monitor "DP-2, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0"
+    hyprctl keyword monitor "DP-1, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0"
     notify-send -i video-display "HDR disabled" "sRGB / 10-bit / 160 Hz fixed"
     ;;
 esac
@@ -382,7 +390,7 @@ hyprctl monitors -j | jq '.[] | {name, colorManagementPreset, currentFormat}'
 
 ### 5.6 Persisting tweaks
 
-If you decide you like `sdrbrightness, 1.8`, just edit the `monitor =` line in `~/.config/hypr/hyprland/monitors-desktop.conf` to make it permanent across reboots. The toggle script's "HDR ON" branch will still use the values hard-coded in the script — update those to match if you tweak.
+If you decide you like `sdrbrightness, 1.8`, just edit the `monitor =` line in `~/.config/caelestia/hypr-monitors-desktop.conf` to make it permanent across reboots. The toggle script's "HDR ON" branch will still use the values hard-coded in the script — update those to match if you tweak.
 
 ---
 
@@ -618,6 +626,39 @@ Try in order:
 
 The AUR `gz-harmonic` package currently fails on gcc 16 because of `ogre-next2`, `fcl`, `libccd`, `octomap`. Use Gazebo via the ROS 2 Jazzy Docker image instead (`ros2-jazzy` → `gz sim ...`). Re-check in a few months once AUR maintainers patch.
 
+### 8.8 Two mouse cursors (one moving, one stuck)
+
+On NVIDIA + Wayland under GDM you can end up with **two pointers**: the real one
+that moves and a stale "ghost" frozen on screen. Two things conspire:
+
+1. **NVIDIA hardware-cursor bug** — the GPU leaves a stale cursor on the hardware
+   plane while the live cursor is drawn in software. Fixed by disabling the HW
+   cursor plane. This is set in `~/.config/caelestia/hypr-user.conf`:
+
+   ```ini
+   cursor {
+       no_hardware_cursors = true
+   }
+   ```
+
+   (Modern Hyprland reads `cursor:no_hardware_cursors`; the old
+   `env = WLR_NO_HARDWARE_CURSORS,1` is deprecated.)
+
+2. **Missing cursor theme** — caelestia's `variables.conf` sets
+   `$cursorTheme = sweet-cursors`, exported as `XCURSOR_THEME`. On a fresh
+   install that theme isn't present, so the cursor falls back and can render
+   oddly. `install.sh` installs `sweet-cursors-git` **and**
+   `sweet-cursors-hyprcursor-git` (the hyprcursor variant Hyprland prefers).
+
+Apply without relogging: `hyprctl reload`. Verify the option took:
+
+```bash
+hyprctl getoption cursor:no_hardware_cursors   # int: 1
+```
+
+GDM draws its own cursor on the login screen — that's unrelated and harmless;
+the double-cursor only matters once inside the Hyprland session.
+
 ---
 
 ## 9. Useful URLs
@@ -634,4 +675,12 @@ The AUR `gz-harmonic` package currently fails on gcc 16 because of `ogre-next2`,
 
 ## 10. Where things came from
 
-Setup performed by Claude on 2026-05-17. Memory entries describing decisions live at `~/.claude/projects/-home-gamingsoul03/memory/`. Update or delete this file freely — it's yours.
+Original setup performed by Claude on 2026-05-17. **Rebuilt 2026-05-27** on a
+fresh minimal Arch install (clean `archinstall`, NVIDIA drivers, GDM instead of
+SDDM). The rebuild recreated every home-dir config directly and reproduced the
+system half via [`install.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/install.sh).
+Notable deltas from the first install: desktop output moved DP-2 → **DP-1**,
+user Hyprland files moved under `~/.config/caelestia/` (since `~/.config/hypr`
+is now a symlink into the caelestia tree), and the NVIDIA ghost-cursor fix was
+added (`cursor { no_hardware_cursors = true }` — see §8.8). Update or delete
+this file freely — it's yours.
