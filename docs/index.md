@@ -667,49 +667,55 @@ The AUR `gz-harmonic` package currently fails on gcc 16 because of `ogre-next2`,
 
 ### 8.8 Two mouse cursors (one moving, one stuck at centre)
 
-**The actual cause here was the DualSense.** When the controller is plugged in
-(e.g. for audio), its **touchpad** registers as an *absolute* pointer and parks
-a cursor at the centre of the screen; the usable cursor is your real mouse.
-Confirm by listing pointers — the touchpad shows up as a mouse:
+There are **two independent causes**, and the persistent one is the NVIDIA
+renderer. Both fixes are baked into the rebuild scripts, so a clean install
+needs no manual tweaking.
 
-```bash
-hyprctl devices | grep -i touchpad
-#  sony-interactive-entertainment-dualsense-wireless-controller-touchpad
+#### Cause 1 (the real culprit): NVIDIA software-cursor artifact
+
+A cursor frozen at screen centre that survives reboots, unplugging the
+controller, and disabling every input device is **not an input device at all** —
+it's a stale software cursor the NVIDIA driver leaves behind. The fix is a CPU
+cursor buffer **with hardware cursors enabled**. Counter-intuitively, forcing
+`no_hardware_cursors = true` *causes* this on recent drivers, so it's explicitly
+off. In `~/.config/caelestia/hypr-user.conf` (written by `setup-home.sh`):
+
+```ini
+cursor {
+    no_hardware_cursors = false
+    use_cpu_buffer = true
+}
 ```
 
-Fix — the **libinput udev rule is the authoritative one**; the Hyprland device
-block is best-effort:
+Verify live: `hyprctl getoption cursor:use_cpu_buffer` → `int: 1`. Test combos
+without editing files:
 
-1. **libinput ignores the device outright** (`install.sh` → udev). This is the
-   reliable fix — it removes the touchpad's pointer role before any compositor
-   sees it, and survives reboots:
+```bash
+hyprctl keyword cursor:no_hardware_cursors 0
+hyprctl keyword cursor:use_cpu_buffer 1
+hyprctl setcursor sweet-cursors 24      # nudge a re-render, then move the mouse
+```
 
-   ```
-   /etc/udev/rules.d/71-dualsense-touchpad-ignore.rules
-   SUBSYSTEM=="input", ATTRS{name}=="Sony Interactive Entertainment DualSense Wireless Controller Touchpad", ENV{LIBINPUT_IGNORE_DEVICE}="1"
-   ```
-   After installing the rule: `sudo udevadm control --reload-rules && sudo udevadm trigger`,
-   **then unplug/replug the controller (or reboot)** — the rule only takes
-   effect when the input device *re-attaches*. Only the *pointer* role is
-   ignored; the gamepad still works in games.
+#### Cause 2 (secondary): the DualSense touchpad as a pointer
 
-   > Writing this file from **fish** (no heredocs): use a one-shot script, e.g.
-   > `sudo bash /tmp/ds-fix.sh`, or `printf '…\n' | sudo tee <path>` on a single
-   > unwrapped line. `sudo tee <path> <<'EOF'` is a bash-ism and won't parse.
+When the controller is plugged in, its **touchpad** also registers as an
+absolute pointer that can sit at centre. Confirm: `hyprctl devices | grep -i touchpad`.
+The authoritative fix is a libinput udev rule (`install.sh`); the Hyprland
+device block is a secondary layer.
 
-2. **Hyprland device block** (`setup-home.sh` → `hypr-user.conf`, no sudo) — a
-   secondary layer:
+```
+/etc/udev/rules.d/71-dualsense-touchpad-ignore.rules
+SUBSYSTEM=="input", ATTRS{name}=="Sony Interactive Entertainment DualSense Wireless Controller Touchpad", ENV{LIBINPUT_IGNORE_DEVICE}="1"
+```
+Apply: `sudo udevadm control --reload-rules && sudo udevadm trigger`, **then
+unplug/replug the controller (or reboot)** — the rule (like Hyprland's
+`device{enabled=false}`) only takes effect when the device *re-attaches*; a
+plain `hyprctl reload` won't drop an already-connected controller. Only the
+pointer role is ignored — the gamepad still works in games.
 
-   ```ini
-   device {
-       name = sony-interactive-entertainment-dualsense-wireless-controller-touchpad
-       enabled = false
-   }
-   ```
-   Caveat: Hyprland applies device settings when the device **attaches**, so a
-   plain `hyprctl reload` does **not** disable an already-connected controller
-   (you'd need to replug or restart the session). Hence the udev rule above is
-   the dependable fix.
+> Writing this file from **fish** (no heredocs): use a one-shot script
+> (`sudo bash script.sh`) or `printf '…\n' | sudo tee <path>` on a single
+> unwrapped line. `sudo tee <path> <<'EOF'` is a bash-ism and won't parse.
 
 Separately, `hypr-user.conf` also keeps `cursor { no_hardware_cursors = true }`.
 That addresses a *different* NVIDIA-Wayland class of stale-cursor bug (the GPU
