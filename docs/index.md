@@ -643,21 +643,30 @@ stayed silent**. Everything looks correct throughout (sink `RUNNING`, jack
 `cat /proc/asound/card<N>/pcm0p/sub0/status` shows `state: RUNNING` with `hw_ptr`
 advancing — the kernel delivers 4-channel frames, nothing sounds.
 
-**Two packages are at fault, both bumped 1.6.5 → 1.6.6 together:**
+What 1.6.6 broke, and what it did **not**:
 
-- `pipewire` (+ `libpipewire`, `pipewire-{audio,alsa,pulse,jack}`, `gst-plugin-pipewire`)
-  — the engine; its 1.6.6 broke the **speaker**.
-- **`alsa-card-profiles`** — the ACP channel/profile data; its 1.6.6 breaks the
-  **DualSense headphone channel map** (jack silent, speaker fine). It is *not*
-  named `pipewire*`, so it's easy to miss when pinning — but it's versioned in
-  lockstep (`1:1.6.x`) and must be downgraded/pinned with the rest.
+- **Speaker — software, fixed.** PipeWire 1.6.6 (`pipewire` + `libpipewire`,
+  `pipewire-{audio,alsa,pulse,jack}`, `gst-plugin-pipewire`) killed the controller's
+  built-in **speaker**. Pinning back to **1.6.5** restores it. `alsa-card-profiles`
+  is the ACP channel/profile data, versioned in lockstep (`1:1.6.x`) but *not*
+  named `pipewire*`; pin it alongside the rest for version-consistency.
+- **3.5mm jack — NOT a software/version issue (controller-side fault).** The jack
+  stayed silent on 1.6.5 too. Proven not to be PipeWire/routing: with the earphones
+  confirmed working on a phone and the speaker working, a raw
+  `speaker-test -D plughw:<card>,0 -c 4` driving **all four DAC channels directly**
+  (bypassing PipeWire) produced **no sound in the earphones on any channel**. So the
+  controller's headphone output stage isn't emitting analog — a controller
+  firmware/hardware fault, not something the OS can fix. Try: the DualSense
+  **hardware reset** (pinhole on the back, hold ~5s with a pin), then test the jack
+  on another host (PS5 / another PC). If silent there too, the controller needs
+  repair/replacement.
 
-Fix: pin the whole set back to **1.6.5**. `install.sh` does this automatically via
-`pin_pipewire_dualsense()` — self-limiting (only acts when the installed pipewire
-is in the known-bad range), downgrades all of the above (incl. `alsa-card-profiles`)
-from the pacman cache, and adds an `IgnorePkg` line so `pacman -Syu` won't re-pull
-the breakage. Lift the pin (delete the `IgnorePkg` line in `/etc/pacman.conf` and
-drop the call) once fixed builds ship. Manual one-off:
+Fix for the **speaker** regression: pin the audio stack back to **1.6.5**.
+`install.sh` does this automatically via `pin_pipewire_dualsense()` — self-limiting
+(only acts when the installed pipewire is in the known-bad range), downgrades the
+set from the pacman cache, and adds an `IgnorePkg` line so `pacman -Syu` won't
+re-pull the breakage. Lift the pin (delete the `IgnorePkg` line in
+`/etc/pacman.conf` and drop the call) once a fixed build ships. Manual one-off:
 
 ```bash
 sudo pacman -U /var/cache/pacman/pkg/{libpipewire,pipewire,pipewire-audio,pipewire-alsa,pipewire-pulse,pipewire-jack,gst-plugin-pipewire,alsa-card-profiles}-1:1.6.5-*.pkg.tar.zst
