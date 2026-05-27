@@ -63,7 +63,11 @@ aur() {
 #   - the IgnorePkg pin stops the next `pacman -Syu` from re-pulling the breakage.
 # Remove the IgnorePkg line + drop this call once a fixed PipeWire ships.
 BAD_PW_REGEX='^1:1\.6\.6'   # extend if new bad versions appear; clear when fixed
-PW_PKGS=(libpipewire pipewire pipewire-audio pipewire-alsa pipewire-pulse pipewire-jack gst-plugin-pipewire)
+# NOTE: alsa-card-profiles is versioned in lockstep with PipeWire (1:1.6.x) and
+# holds the ACP channel/profile data. Its 1.6.6 build breaks the DualSense 3.5mm
+# headphone channel map (jack silent, speaker fine) — it MUST be pinned/downgraded
+# alongside the pipewire-named packages, or the jack stays dead after the pin.
+PW_PKGS=(libpipewire pipewire pipewire-audio pipewire-alsa pipewire-pulse pipewire-jack gst-plugin-pipewire alsa-card-profiles)
 pin_pipewire_dualsense() {
     command -v pipewire >/dev/null || { echo ">>> No pipewire installed — skipping DualSense pin."; return; }
     local cur; cur=$(pacman -Q pipewire 2>/dev/null | awk '{print $2}')

@@ -633,29 +633,40 @@ pactl list cards | grep -A2 -iE 'Profiles:|Headphones'   # see HiFi (Headphones,
 pactl list sinks | grep -iE 'Description|Active Port'
 ```
 
-#### PipeWire 1.6.6 regression — all DualSense audio silent
+#### PipeWire 1.6.6 regression — DualSense audio silent
 
-Distinct from the routing issue above. **PipeWire 1.6.6 broke DualSense USB audio
-entirely**: both the built-in speaker *and* the 3.5mm jack go silent even though
-everything looks correct (sink `RUNNING`, jack `available`, unmuted, default).
-Proof it's not routing: `cat /proc/asound/card<N>/pcm0p/sub0/status` shows
-`state: RUNNING` with `hw_ptr` advancing — the kernel delivers frames, nothing
-sounds. Only relevant package change was `pipewire 1.6.5 → 1.6.6`.
+Distinct from the routing issue above. **The 1.6.6 audio-stack bump broke DualSense
+USB audio**: first the built-in speaker *and* the 3.5mm jack went silent, then —
+after pinning only the `pipewire*` packages — the **speaker came back but the jack
+stayed silent**. Everything looks correct throughout (sink `RUNNING`, jack
+`available`, unmuted, default). Proof it's not routing:
+`cat /proc/asound/card<N>/pcm0p/sub0/status` shows `state: RUNNING` with `hw_ptr`
+advancing — the kernel delivers 4-channel frames, nothing sounds.
 
-Fix: pin back to the last-good **1.6.5**. `install.sh` does this automatically via
-`pin_pipewire_dualsense()` — self-limiting (only acts when the installed version
-is in the known-bad range), downgrades from the pacman cache, and adds an
-`IgnorePkg` line so `pacman -Syu` won't re-pull the breakage. Lift the pin (delete
-the `IgnorePkg` line in `/etc/pacman.conf` and drop the call) once a fixed PipeWire
-ships. Manual one-off:
+**Two packages are at fault, both bumped 1.6.5 → 1.6.6 together:**
+
+- `pipewire` (+ `libpipewire`, `pipewire-{audio,alsa,pulse,jack}`, `gst-plugin-pipewire`)
+  — the engine; its 1.6.6 broke the **speaker**.
+- **`alsa-card-profiles`** — the ACP channel/profile data; its 1.6.6 breaks the
+  **DualSense headphone channel map** (jack silent, speaker fine). It is *not*
+  named `pipewire*`, so it's easy to miss when pinning — but it's versioned in
+  lockstep (`1:1.6.x`) and must be downgraded/pinned with the rest.
+
+Fix: pin the whole set back to **1.6.5**. `install.sh` does this automatically via
+`pin_pipewire_dualsense()` — self-limiting (only acts when the installed pipewire
+is in the known-bad range), downgrades all of the above (incl. `alsa-card-profiles`)
+from the pacman cache, and adds an `IgnorePkg` line so `pacman -Syu` won't re-pull
+the breakage. Lift the pin (delete the `IgnorePkg` line in `/etc/pacman.conf` and
+drop the call) once fixed builds ship. Manual one-off:
 
 ```bash
-sudo pacman -U /var/cache/pacman/pkg/{libpipewire,pipewire,pipewire-audio,pipewire-alsa,pipewire-pulse,pipewire-jack,gst-plugin-pipewire}-1:1.6.5-*.pkg.tar.zst
+sudo pacman -U /var/cache/pacman/pkg/{libpipewire,pipewire,pipewire-audio,pipewire-alsa,pipewire-pulse,pipewire-jack,gst-plugin-pipewire,alsa-card-profiles}-1:1.6.5-*.pkg.tar.zst
 systemctl --user restart pipewire pipewire-pulse wireplumber
 ```
 
-> Note: pinning to 1.6.5 restored the **speaker**; if the **3.5mm jack** alone is
-> still silent after a reboot, that's the routing path — see the top of §8.1.
+> The DualSense re-enumerates with a **different ALSA card index** across reboots
+> (it was card 2, became card 0) — don't hard-code `card<N>`; resolve it from
+> `pactl list cards short | grep -i sony` each time.
 
 ### 8.2 Hyprland config change broke things
 
