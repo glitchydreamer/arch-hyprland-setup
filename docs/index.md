@@ -34,8 +34,9 @@
 | **Your fish dev-env additions** | `~/.config/fish/conf.d/dev-env.fish` |
 | Personal scripts (in PATH) | `~/.local/bin/` |
 | Robotics workspace (ROS 2) | `~/robotics/ws` |
-| Isaac Sim/Lab conda env | `~/anaconda3/envs/isaaclab` (Python 3.11) — see [Isaac Sim + Isaac Lab](isaac-sim.md) |
-| Isaac Lab repo | `~/IsaacLab` |
+| Isaac Sim (container) | `nvcr.io/nvidia/isaac-sim:5.1.0` via `~/.local/bin/isaac-sim`; caches in `~/docker/isaac-sim` — see [Isaac Sim + Isaac Lab](isaac-sim.md) |
+| Isaac Lab repo | `~/robotics/IsaacLab` (driven by `docker/container.py`) |
+| Anaconda (general ML) | `/opt/anaconda`, `conda init fish`, base not auto-activated |
 | DualSense audio → headphone jack | `~/.local/bin/dualsense-audio` + `~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf` |
 | DualSense touchpad ignore (cursor) | `~/.config/caelestia/hypr-user.conf` (device block) + `/etc/udev/rules.d/71-dualsense-touchpad-ignore.rules` |
 | HDR toggle script | `~/.local/bin/hdr-toggle` |
@@ -440,10 +441,12 @@ npm 11, pnpm 10, yarn classic.
 - **ROS 2 Jazzy** via Docker image `osrf/ros:jazzy-desktop-full` (6.35 GB).
 - Launcher: `ros2-jazzy` (subcommands `shell`, `run "..."`, `attach`, `stop`, `pull`).
 - Workspace: `~/robotics/ws` mounted as `/root/ws` in the container.
-- **Isaac Sim 5.1 + Isaac Lab** — NVIDIA's robotics simulator + RL framework,
-  installed natively (not Docker) as pip packages in the `isaaclab` conda env
-  (`~/anaconda3/envs/isaaclab`, Python 3.11). Repo at `~/IsaacLab`. Runs against
-  the GPU directly. Full install + Arch gotchas: [Isaac Sim + Isaac Lab](isaac-sim.md).
+- **Isaac Sim 5.1 + Isaac Lab** — NVIDIA's robotics simulator + RL framework, run
+  via the official **Docker container** (`nvcr.io/nvidia/isaac-sim:5.1.0`,
+  launcher `~/.local/bin/isaac-sim`). Isaac Lab is cloned to `~/robotics/IsaacLab`
+  and driven by `docker/container.py`. The container route replaced an earlier
+  native/conda install that broke on Arch userspace + a driver-595 RTX segfault.
+  Full route + ROS 2 Jazzy bridge integration: [Isaac Sim + Isaac Lab](isaac-sim.md).
 
 ### 6.6 Audio / DualSense
 
@@ -556,7 +559,7 @@ ros2-jazzy stop                         # kill the container
 ros2-jazzy pull                         # pull latest image
 ```
 
-Inside the container, your host `~/robotics/ws` is at `/root/ws`. GPU is passed through. X11 + Wayland sockets are forwarded so `rviz2`, `rqt`, `gz sim` all open windows on your desktop. The container runs `--network host --ipc host`, which lets it exchange DDS traffic (incl. FastDDS shared memory) with the natively-running Isaac Sim ROS 2 bridge — see [Connecting Isaac Sim to the dockerized ROS 2 Jazzy](isaac-sim.md#connecting-isaac-sim-to-the-dockerized-ros-2-jazzy).
+Inside the container, your host `~/robotics/ws` is at `/root/ws`. GPU is passed through. X11 + Wayland sockets are forwarded so `rviz2`, `rqt`, `gz sim` all open windows on your desktop. The container runs `--network host --ipc host`, which lets it exchange DDS traffic (incl. FastDDS shared memory) with the Isaac Sim container's bundled ROS 2 Jazzy bridge (also run with host network/IPC) — see [ROS 2 Jazzy integration](isaac-sim.md#ros-2-jazzy-integration).
 
 ### 7.5 Docker
 

@@ -77,12 +77,14 @@ log out/in (fish shell + group changes need a fresh session).
   reports `vrr=true` regardless — that's a capability readout, not the setting.
 - **Half-screen snaps omitted:** `Super+Ctrl+arrows` is caelestia's workspace
   nav; a float-based snap is unreliable on dwindle.
-- **Isaac Sim/Lab lives in its own conda env, not system Python.** Isaac Sim
-  ships wheels only for Python 3.10/3.11; the system interpreter is 3.14, so a
-  bare `pip install isaacsim` can't resolve. A pinned 3.11 `isaaclab` conda env
-  is the fix. Two Arch-specific snags: `egl_probe` won't build under Arch's
-  CMake 4.x without `CMAKE_POLICY_VERSION_MINIMUM=3.5`, and headless runs hang on
-  the EULA prompt without `OMNI_KIT_ACCEPT_EULA=YES`. → [Isaac Sim + Isaac Lab](isaac-sim.md)
+- **Isaac Sim/Lab runs via the official Docker container, not native/conda.** The
+  earlier conda route broke repeatedly on Arch's rolling userspace (libxml2
+  soname, `get_ubuntu_version`, CMake 4.x) and finally on a driver-595 RTX
+  renderer segfault. The container ships a matched Ubuntu userspace + its own
+  Vulkan loader, sharing only the host kernel driver. Launcher `~/.local/bin/isaac-sim`;
+  Isaac Lab at `~/robotics/IsaacLab` via `docker/container.py`; ROS 2 = Isaac's
+  bundled Jazzy bridge over host network/IPC to the ros2-jazzy container.
+  Anaconda is still installed but for **general ML only**. → [Isaac Sim + Isaac Lab](isaac-sim.md)
 
 ## Maintenance habit
 
@@ -112,6 +114,8 @@ repo is private, and the Actions deploy keeps working.
 - **2026-05-27** — full rebuild on a clean minimal install (GDM, DP-1):
   scripted into `setup-home.sh` + `install.sh`; fixed the DualSense cursor and
   audio after discovering the first round's diagnoses were the wrong root cause.
-- **2026-05-27** — installed Isaac Sim 5.1 + Isaac Lab into the `isaaclab` conda
-  env (Python 3.11); documented in [Isaac Sim + Isaac Lab](isaac-sim.md) with the
-  Arch CMake-4 / EULA gotchas.
+- **2026-05-27** — tried Isaac Sim 5.1 + Isaac Lab in a conda env (Python 3.11),
+  then **dropped it** after a driver-595 RTX renderer segfault and repeated Arch
+  userspace breakage. Switched to the official **Docker container** route, wired
+  into `install.sh` (`install_isaac`), plus anaconda for general ML. Documented in
+  [Isaac Sim + Isaac Lab](isaac-sim.md).

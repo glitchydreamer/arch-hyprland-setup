@@ -54,6 +54,101 @@ aur() {
     "$HELPER" -S --needed "$@"
 }
 
+# Install Anaconda (AUR) and wire it into the fish login shell.
+# Used for general ML/Python work; NOT for Isaac Sim (that's containerized now —
+# see install_isaac() and docs/isaac-sim.md). Idempotent: conda init is a no-op
+# if the managed block already exists, and we never auto-activate base.
+install_anaconda() {
+    if [ ! -x /opt/anaconda/bin/conda ] && ! command -v conda >/dev/null; then
+        echo -e "\n>>> Anaconda (AUR via ${HELPER:-none})"
+        aur anaconda || { FAILED+=("anaconda"); return; }
+    else
+        echo ">>> Anaconda already present — skipping install."
+    fi
+    local conda
+    conda="$(command -v conda || echo /opt/anaconda/bin/conda)"
+    [ -x "$conda" ] || { FAILED+=("anaconda:no-conda-bin"); return; }
+    # `conda init fish` writes ~/.config/fish/conf.d/conda.fish (idempotent).
+    "$conda" init fish || FAILED+=("conda init fish")
+    # Don't drop every shell into (base); opt in with `conda activate`.
+    "$conda" config --set auto_activate_base false || true
+}
+
+# Isaac Sim + Isaac Lab, the CONTAINER route (see docs/isaac-sim.md for why).
+# Pulls the official Isaac Sim image, creates persistent host caches, clones
+# Isaac Lab under /home (a Docker mount requirement), and installs the
+# `isaac-sim` launcher (sibling of ros2-jazzy). Wired for the bundled Jazzy ROS 2
+# bridge so it discovers the existing ros2-jazzy container over host networking.
+install_isaac() {
+    command -v docker >/dev/null || { echo ">>> No docker — skipping Isaac."; FAILED+=("isaac:no-docker"); return; }
+    local img="nvcr.io/nvidia/isaac-sim:5.1.0"
+    local cache="$HOME/docker/isaac-sim"
+    local bin="$HOME/.local/bin"
+    local lab="$HOME/robotics/IsaacLab"
+
+    echo -e "\n>>> Isaac Sim: host cache/data dirs under $cache"
+    mkdir -p "$cache"/{cache/main/ov,cache/main/warp,cache/computecache,config,data/documents,data/Kit,logs,pkg}
+    # The image runs as internal UID 1234; the mounts must be writable by it.
+    sudo chown -R 1234:1234 "$cache" || FAILED+=("isaac:chown-cache")
+
+    echo -e "\n>>> Isaac Sim: docker pull $img (large; may need 'docker login nvcr.io')"
+    docker pull "$img" || { echo ">>> pull failed (NGC auth or docker group not active yet — see docs)"; FAILED+=("isaac:pull"); }
+
+    echo -e "\n>>> Isaac Lab: clone to $lab"
+    if [ -d "$lab/.git" ]; then
+        echo ">>> $lab already cloned — skipping."
+    else
+        mkdir -p "$(dirname "$lab")"
+        git clone https://github.com/isaac-sim/IsaacLab.git "$lab" || FAILED+=("isaac:clone-lab")
+    fi
+
+    echo -e "\n>>> Isaac Sim: launcher $bin/isaac-sim"
+    mkdir -p "$bin"
+    cat > "$bin/isaac-sim" <<EOF
+#!/usr/bin/env bash
+# Thin wrapper around the official Isaac Sim container ($img).
+# Host ~/docker/isaac-sim holds persistent caches; --network/--ipc host + Jazzy
+# env let the bundled ROS 2 bridge talk to the ros2-jazzy container. See
+# docs/isaac-sim.md.
+set -euo pipefail
+
+IMAGE="$img"
+NAME="isaac-sim"
+CACHE="\$HOME/docker/isaac-sim"
+
+run_args=(
+  --gpus all
+  -e ACCEPT_EULA=Y
+  -e PRIVACY_CONSENT=Y
+  -e ROS_DISTRO=jazzy
+  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+  -e ROS_DOMAIN_ID="\${ROS_DOMAIN_ID:-0}"
+  --network host
+  --ipc host
+  -v "\$CACHE/cache/main":/isaac-sim/.cache:rw
+  -v "\$CACHE/cache/computecache":/isaac-sim/.nv/ComputeCache:rw
+  -v "\$CACHE/logs":/isaac-sim/.nvidia-omniverse/logs:rw
+  -v "\$CACHE/config":/isaac-sim/.nvidia-omniverse/config:rw
+  -v "\$CACHE/data":/isaac-sim/.local/share/ov/data:rw
+  -v "\$CACHE/pkg":/isaac-sim/.local/share/ov/pkg:rw
+  -u 1234:1234
+)
+
+cmd="\${1:-shell}"
+case "\$cmd" in
+  pull)     exec docker pull "\$IMAGE" ;;
+  stop)     exec docker stop "\$NAME" ;;
+  compat)   exec docker run --rm -it --name "\$NAME" --entrypoint bash "\${run_args[@]}" "\$IMAGE" \\
+              -lc './isaac-sim.compatibility_check.sh --/app/quitAfter=10 --no-window' ;;
+  headless) exec docker run --rm -it --name "\$NAME" --entrypoint bash "\${run_args[@]}" "\$IMAGE" \\
+              -lc './runheadless.sh -v' ;;
+  shell)    exec docker run --rm -it --name "\$NAME" --entrypoint bash "\${run_args[@]}" "\$IMAGE" ;;
+  *) echo "usage: isaac-sim [pull|compat|headless|shell|stop]" >&2; exit 1 ;;
+esac
+EOF
+    chmod +x "$bin/isaac-sim" || FAILED+=("isaac:chmod-launcher")
+}
+
 # Install CUDA + cuDNN matched to the installed NVIDIA driver.
 # The repo `cuda` is rolling (always newest); a too-new toolkit needs a newer
 # driver than you have. nvidia-smi's "CUDA Version" is the MAX CUDA the current
@@ -107,6 +202,9 @@ install_cuda
 pac python python-pip python-pipx python-virtualenv python-numpy python-scipy \
            python-pandas python-scikit-learn python-matplotlib python-h5py \
            jupyterlab ipython python-pytest mypy ruff python-pylint python-black
+
+# --- Anaconda (general ML/Python; configured for fish) -----------------------
+install_anaconda
 
 # --- Node toolchain ----------------------------------------------------------
 pac node pnpm yarn
@@ -185,6 +283,11 @@ echo -e "\n### Group membership (docker, serial, wireshark)"
 sudo usermod -aG docker,uucp,lock,wireshark "$USER_NAME" \
     || FAILED+=("usermod groups")
 
+# --- Isaac Sim + Isaac Lab (containerized) -----------------------------------
+# After group membership so `docker pull` can run; if the docker group isn't yet
+# active in this session, the pull is recorded as failed and succeeds on re-run.
+install_isaac
+
 echo -e "\n### Login shell -> fish"
 if [ "$(getent passwd "$USER_NAME" | cut -d: -f7)" != /usr/bin/fish ]; then
     sudo chsh -s /usr/bin/fish "$USER_NAME" || FAILED+=("chsh fish")
@@ -210,4 +313,11 @@ Next (gh + an AUR helper are now installed, so the only auth step is manual):
   4. Verify the ghost cursor is gone and sweet-cursors renders:
        hyprctl reload
   5. ROS 2 Jazzy (pulls ~6.4GB on first use):  ros2-jazzy pull
+  6. Isaac Sim (container): after re-login so the docker group is active —
+       isaac-sim pull         # if it didn't pull during this run (NGC auth?)
+       isaac-sim compat       # verify GPU/driver/Vulkan render path
+     Isaac Lab is cloned to ~/robotics/IsaacLab — drive it with
+       cd ~/robotics/IsaacLab && ./docker/container.py start base
+  7. Anaconda (general ML; not Isaac): open a new fish shell, then
+       conda activate base    # base is not auto-activated by design
 EOF
