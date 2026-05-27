@@ -14,6 +14,7 @@ arch-hyprland-setup/
 │   ├── keybinds.md       ← keybind reference
 │   ├── coming-from-ubuntu.md
 │   └── assets/
+├── setup-home.sh         ← reproduce the HOME-DIR half (configs/scripts, no sudo)
 ├── install.sh            ← reproduce the SYSTEM half on a fresh install (sudo)
 ├── mkdocs.yml            ← site config (MkDocs Material)
 ├── requirements.txt      ← Python deps for the site build
@@ -24,17 +25,26 @@ arch-hyprland-setup/
 
 ## Rebuilding on a fresh install
 
-The home-dir configs (Hyprland overrides, `~/.local/bin` scripts, git, fish,
-Dolphin) are documented per-file in the docs. The **system half** — packages
-(repo + AUR), the DualSense udev fix, CUDA path, Docker + NVIDIA runtime, group
-membership, and switching the login shell to fish — is scripted:
+Two scripts, run in order. Both are idempotent and assume caelestia is already
+installed.
 
 ```sh
+# 1. Home-dir configs — Hyprland overrides, ~/.local/bin scripts, fish, Dolphin,
+#    git defaults. No sudo. Auto-detects your desktop connector + current mode,
+#    so it isn't pinned to one machine (DP-1 / DP-2 / HDMI all work).
+bash ~/Documents/arch-hyprland-setup/setup-home.sh
+
+# 2. System half — packages (repo + AUR), DualSense udev fix, CUDA (matched to
+#    your NVIDIA driver) + cuDNN, Docker + NVIDIA runtime, groups, fish login
+#    shell. Calls sudo itself where needed.
 bash ~/Documents/arch-hyprland-setup/install.sh
 ```
 
-It's idempotent (`--needed` everywhere) and calls `sudo` itself only where
-required. See `docs/index.md` §10 for what changed across rebuilds.
+`install.sh` picks the CUDA toolkit that fits your installed driver: it reads
+`nvidia-smi`'s max-supported CUDA and only installs the rolling repo `cuda` if
+it's within that ceiling, otherwise it reaches for an AUR `cuda-<ver>` pinned to
+the driver. Set your git identity afterward, then log out/in. See `docs/index.md`
+§10 for what changed across rebuilds.
 
 ## Updating the docs
 

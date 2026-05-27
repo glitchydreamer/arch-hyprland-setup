@@ -60,6 +60,12 @@ monitor = DP-1, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0
 monitor = , preferred, auto, 1
 ```
 
+`setup-home.sh` writes this file with the **connector and mode it detects at
+setup time** (the first connected non-eDP output and its current resolution),
+so on a different machine the `DP-1`/`3440x1440@159.96` above is filled in with
+whatever that box actually uses (`DP-2`, `HDMI-A-1`, …). The 10-bit / sRGB /
+`vrr, 0` tuning is the same regardless.
+
 The trailing args:
 
 - `bitdepth, 10` — 10-bit output (the LG panel reports 10 bpc in its EDID).

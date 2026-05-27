@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # ============================================================================
 # install.sh — rebuilds the system-level half of the Arch + Hyprland + caelestia
-# setup on a fresh minimal install (NVIDIA RTX 3060 desktop, GDM, DP-1).
+# setup on a fresh minimal install (NVIDIA + GDM).
 #
-# The home-dir configs (Hyprland overrides, ~/.local/bin scripts, git, fish,
-# dolphin) are already written by Claude. THIS script does the sudo-gated parts:
-# packages (repo + AUR), the DualSense udev fix, CUDA path, Docker + NVIDIA
-# runtime, group membership, and switching the login shell to fish.
+# Run setup-home.sh FIRST (it writes the home-dir configs, no sudo). THIS script
+# does the sudo-gated parts: packages (repo + AUR), the DualSense udev fix, CUDA
+# (matched to your driver) + cuDNN, CUDA PATH, Docker + NVIDIA runtime, group
+# membership, and switching the login shell to fish.
 #
-# Run it as your normal user (it calls sudo itself where needed):
-#     bash ~/Documents/arch-hyprland-setup/install.sh
+#     bash ~/Documents/arch-hyprland-setup/setup-home.sh   # 1. home configs
+#     bash ~/Documents/arch-hyprland-setup/install.sh      # 2. system (this)
 #
+# Run as your normal user (it calls sudo itself where needed).
 # Safe to re-run: every step uses --needed / is idempotent.
 # ============================================================================
 set -uo pipefail
@@ -29,6 +30,38 @@ pac() {  # install a group; record failure but keep going
     sudo pacman -S --needed --noconfirm "$@" || FAILED+=("pacman:$group")
 }
 
+# Install CUDA + cuDNN matched to the installed NVIDIA driver.
+# The repo `cuda` is rolling (always newest); a too-new toolkit needs a newer
+# driver than you have. nvidia-smi's "CUDA Version" is the MAX CUDA the current
+# driver supports. If the repo toolkit fits under that ceiling, install it;
+# otherwise fall back to the AUR cuda-<major.minor> pinned to the driver.
+install_cuda() {
+    if ! command -v nvidia-smi >/dev/null; then
+        echo ">>> No nvidia-smi (driver not loaded yet?) — skipping CUDA."
+        FAILED+=("cuda:no-driver"); return
+    fi
+    local maxc repoc
+    maxc=$(nvidia-smi | grep -oP 'CUDA Version:\s*\K[0-9]+\.[0-9]+' | head -1)
+    repoc=$(pacman -Si cuda 2>/dev/null | awk -F': +' '/^Version/{print $2}' | grep -oP '^[0-9]+\.[0-9]+')
+    echo ">>> Driver supports up to CUDA $maxc; repo cuda is $repoc."
+    if [ -z "$maxc" ] || [ -z "$repoc" ]; then
+        echo ">>> Could not determine versions — installing repo cuda/cudnn as-is."
+        pac cuda cuda cudnn; return
+    fi
+    # repo fits if repoc <= maxc (lowest of the two sorted == repoc)
+    if [ "$(printf '%s\n%s\n' "$repoc" "$maxc" | sort -V | head -1)" = "$repoc" ]; then
+        echo ">>> Repo toolkit is within the driver ceiling — installing cuda + cudnn."
+        pac cuda cuda cudnn
+    else
+        echo ">>> Repo cuda ($repoc) is newer than the driver supports ($maxc)."
+        echo ">>> Trying the AUR toolkit pinned to your driver: cuda-$maxc"
+        paru -S --needed "cuda-$maxc" cudnn \
+            || { echo ">>> No matching AUR cuda-$maxc. Either update the NVIDIA driver"
+                 echo ">>> (sudo pacman -S nvidia/nvidia-open) then re-run, or install a"
+                 echo ">>> CUDA <= $maxc manually."; FAILED+=("cuda:driver-too-old"); }
+    fi
+}
+
 echo "### Refreshing package databases"
 sudo pacman -Syu --noconfirm || FAILED+=("pacman -Syu")
 
@@ -36,8 +69,8 @@ sudo pacman -Syu --noconfirm || FAILED+=("pacman -Syu")
 pac build base-devel clang lld lldb cmake ninja meson ccache gdb valgrind \
           cppcheck doxygen graphviz boost eigen onetbb
 
-# --- CUDA + cuDNN (large) ----------------------------------------------------
-pac cuda cuda cudnn
+# --- CUDA + cuDNN (large, driver-matched) ------------------------------------
+install_cuda
 
 # --- Python scientific stack -------------------------------------------------
 pac python python-pip python-pipx python-virtualenv python-numpy python-scipy \

@@ -353,20 +353,23 @@ Extra args (comma-separated key/value pairs):
 
 The bind `Super + Ctrl + Alt + H` runs `~/.local/bin/hdr-toggle` which flips between HDR and sRGB on-the-fly via `hyprctl keyword monitor`. No reload required. Since SDR is the boot default, the first press of this bind enables HDR for the session; the second press returns to SDR.
 
-The script:
+The script **auto-detects the target monitor** (the first non-eDP output — i.e. the desktop ultrawide, not the laptop panel) and reads its *current* mode/position/scale, so it isn't pinned to a connector or resolution. It's written by `setup-home.sh`:
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-state=$(hyprctl monitors -j | jq -r '.[] | select(.name=="DP-1") | .colorManagementPreset')
-case "$state" in
+MON=$(hyprctl monitors -j | jq -r '([.[] | select(.name|test("eDP")|not)] + .)[0].name')
+read -r W H R X Y S STATE < <(hyprctl monitors -j | jq -r --arg m "$MON" \
+    '.[] | select(.name==$m) | "\(.width) \(.height) \(.refreshRate) \(.x) \(.y) \(.scale) \(.colorManagementPreset)"')
+MODE="${W}x${H}@${R}"
+case "$STATE" in
   srgb|unknown)
-    hyprctl keyword monitor "DP-1, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, hdr, sdrbrightness, 1.5, sdrsaturation, 1.0"
-    notify-send -i video-display "HDR enabled" "HDR10 / BT.2020"
+    hyprctl keyword monitor "$MON, $MODE, ${X}x${Y}, $S, bitdepth, 10, cm, hdr, sdrbrightness, 1.5, sdrsaturation, 1.0"
+    notify-send -i video-display "HDR enabled" "$MON • HDR10 / BT.2020"
     ;;
   *)
-    hyprctl keyword monitor "DP-1, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0"
-    notify-send -i video-display "HDR disabled" "sRGB / 10-bit / 160 Hz fixed"
+    hyprctl keyword monitor "$MON, $MODE, ${X}x${Y}, $S, bitdepth, 10, cm, srgb, vrr, 0"
+    notify-send -i video-display "HDR disabled" "$MON • sRGB / 10-bit"
     ;;
 esac
 ```
@@ -390,7 +393,7 @@ hyprctl monitors -j | jq '.[] | {name, colorManagementPreset, currentFormat}'
 
 ### 5.6 Persisting tweaks
 
-If you decide you like `sdrbrightness, 1.8`, just edit the `monitor =` line in `~/.config/caelestia/hypr-monitors-desktop.conf` to make it permanent across reboots. The toggle script's "HDR ON" branch will still use the values hard-coded in the script — update those to match if you tweak.
+If you decide you like `sdrbrightness, 1.8`, edit the `monitor =` line in `~/.config/caelestia/hypr-monitors-desktop.conf` to make it permanent across reboots. The toggle script picks up the monitor's *current* mode/position/scale automatically, but `sdrbrightness`/`sdrsaturation` are still hard-coded in `hdr-toggle` (and in `setup-home.sh`, which generates it) — update them there if you tweak.
 
 ---
 
@@ -401,8 +404,17 @@ If you decide you like `sdrbrightness, 1.8`, just edit the `monitor =` line in `
 - **Compilers/build**: gcc 16, clang 22, cmake, ninja, meson, ccache, make, pkgconf
 - **Debug/profile**: gdb, lldb, valgrind, cppcheck, doxygen, graphviz
 - **C++ libs**: boost, eigen, tbb, openssl
-- **CUDA 13.2** at `/opt/cuda` (path in `/etc/profile.d/cuda.sh`)
+- **CUDA 13.2** at `/opt/cuda` (path in `/etc/profile.d/cuda.sh`; fish gets it via `dev-env.fish`)
 - **cuDNN 9.22**
+
+> **Driver-matched CUDA.** Arch's `cuda` package is rolling — always the newest
+> toolkit, which needs a recent enough driver. `install.sh` reads the max CUDA
+> your driver supports (the `CUDA Version` field in `nvidia-smi`) and only
+> installs the repo `cuda`/`cudnn` if the repo toolkit is **≤** that ceiling.
+> If the repo toolkit is too new for your driver, it falls back to an AUR
+> `cuda-<major.minor>` pinned to the driver (and tells you to bump the driver if
+> no match exists). So the same script does the right thing across driver
+> versions — it won't install a CUDA your driver can't run.
 
 ### 6.2 Python (3.14.5)
 
@@ -677,8 +689,11 @@ the double-cursor only matters once inside the Hyprland session.
 
 Original setup performed by Claude on 2026-05-17. **Rebuilt 2026-05-27** on a
 fresh minimal Arch install (clean `archinstall`, NVIDIA drivers, GDM instead of
-SDDM). The rebuild recreated every home-dir config directly and reproduced the
-system half via [`install.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/install.sh).
+SDDM). The whole thing is now reproducible by two idempotent scripts at the repo
+root: [`setup-home.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/setup-home.sh)
+(home-dir configs, no sudo — auto-detects the desktop connector) then
+[`install.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/install.sh)
+(packages + system, sudo — CUDA matched to the driver).
 Notable deltas from the first install: desktop output moved DP-2 → **DP-1**,
 user Hyprland files moved under `~/.config/caelestia/` (since `~/.config/hypr`
 is now a symlink into the caelestia tree), and the NVIDIA ghost-cursor fix was
