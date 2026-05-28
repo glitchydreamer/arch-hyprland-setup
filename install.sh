@@ -186,6 +186,7 @@ COMPONENTS=(
     "embedded|Embedded/serial (picocom, minicom, arduino-cli, stlink, openocd, wireshark)"
     "audio|PipeWire audio apps + the DualSense fix (1.6.5 pin + touchpad udev rule)"
     "gpu|GPU/gaming (lib32 nvidia, gamemode, mangohud, nvidia-settings)"
+    "docker|Docker + NVIDIA Container Toolkit (data-root on /home; for ROS 2 Jazzy / GPU containers)"
     "media|Multimedia apps (haruna, obs, gimp, inkscape, okular, gwenview, swayimg)"
     "terminal|Terminal productivity (fzf, ripgrep, fd, bat, zoxide, lazygit, tmux, ...)"
     "kde|KDE settings apps + Dolphin (systemsettings, discover, kinfocenter)"
@@ -240,6 +241,45 @@ EOF
 }
 
 do_gpu()     { pac gpu lib32-nvidia-utils gamemode lib32-gamemode mangohud lib32-mangohud nvidia-settings; }
+
+# Docker engine + NVIDIA Container Toolkit, for GPU containers (ROS 2 Jazzy, Isaac
+# ROS). The NVIDIA toolkit injects the HOST driver into containers, so containers
+# get whatever driver the host runs (currently 580 — see nvidia-switch.sh). The
+# ros2-jazzy launcher (setup-home.sh) runs the container with --network host so
+# its DDS shares a domain with native Isaac Sim's ROS 2 bridge.
+do_docker() {
+    # xorg-xauth: host-side xauth so GUI tools (rviz2) forward X11 from the container.
+    pac docker docker docker-buildx nvidia-container-toolkit xorg-xauth
+    say "\n### Docker: data-root on /home + NVIDIA runtime + enable + docker group"
+    if [ "$DRY_RUN" -eq 1 ]; then
+        say "    [dry-run] nvidia-ctk runtime configure; daemon.json data-root=/home/docker-data"
+        say "    [dry-run] + containerd-snapshotter=false; enable docker; usermod -aG docker"
+        return
+    fi
+    command -v docker >/dev/null || { say "    · docker not installed — skipping config."; FAILED+=("docker:not-installed"); return; }
+    sudo nvidia-ctk runtime configure --runtime=docker || FAILED+=("nvidia-ctk")
+    # Root partition is small (~50G) and images are large, so put Docker's
+    # data-root on /home. data-root alone isn't enough: with the containerd image
+    # store ON, layers land under /var/lib/containerd (root) and data-root is
+    # ignored — so also disable the containerd snapshotter (overlay2 honors it).
+    sudo install -d -m 0711 /home/docker-data || FAILED+=("docker data-root dir")
+    sudo python - <<'PY' || FAILED+=("docker daemon.json")
+import json, os
+p = "/etc/docker/daemon.json"
+d = {}
+if os.path.exists(p):
+    try: d = json.load(open(p))
+    except Exception: d = {}
+d["data-root"] = "/home/docker-data"
+d.setdefault("features", {})["containerd-snapshotter"] = False
+os.makedirs("/etc/docker", exist_ok=True)
+json.dump(d, open(p, "w"), indent=2)
+PY
+    sudo systemctl enable --now docker || FAILED+=("docker enable")
+    sudo usermod -aG docker "$USER_NAME" || FAILED+=("docker group")
+    say "    · added $USER_NAME to the docker group — log out/in to activate, then:"
+    say "      ros2-jazzy pull   # fetch the ROS 2 Jazzy image (~6 GB)"
+}
 do_media()   { pac media haruna obs-studio gimp inkscape okular gwenview swayimg; }
 do_terminal() { pac terminal fzf ripgrep fd bat zoxide lazygit github-cli tmux tree yq rsync; }
 do_kde()     { pac kde dolphin systemsettings discover kinfocenter; }

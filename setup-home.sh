@@ -38,7 +38,7 @@ dry() { [ "$DRY_RUN" -eq 1 ] && { say "    [dry-run] would write: $*"; return 0;
 # ============================================================================
 COMPONENTS=(
     "hyprland|Hyprland overrides (hypr-vars, hypr-user) + per-host monitor configs & active symlink"
-    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio"
+    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "dolphin|Dolphin: show hidden files by default"
     "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
@@ -232,7 +232,54 @@ pactl set-sink-volume "$SINK" 70%
 command -v notify-send >/dev/null && notify-send -i audio-headphones "DualSense audio" "Routed to 3.5mm headphones"
 EOF
 
-    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio"
+    # ros2-jazzy: thin wrapper around the osrf/ros:jazzy-desktop-full container.
+    # --network host + a shared ROS_DOMAIN_ID/RMW let it share a DDS domain with
+    # native Isaac Sim's ROS 2 bridge (Isaac runs natively on driver 580; the
+    # NVIDIA Container Toolkit injects that same driver, so --gpus all works).
+    cat > "$BIN/ros2-jazzy" <<'EOF'
+#!/usr/bin/env bash
+# Thin wrapper around the osrf/ros:jazzy-desktop-full Docker image.
+# Host ~/robotics/ws is mounted at /root/ws. GPU + X11/Wayland sockets forwarded.
+# --network host + ROS_DOMAIN_ID/RMW match native Isaac Sim's ROS 2 bridge so the
+# two discover each other's topics over localhost DDS.
+set -euo pipefail
+
+IMAGE="osrf/ros:jazzy-desktop-full"
+NAME="ros2-jazzy"
+WS="$HOME/robotics/ws"
+mkdir -p "$WS"
+
+run_args=(
+  --gpus all
+  -e DISPLAY="${DISPLAY:-}"
+  -e WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}"
+  -e XDG_RUNTIME_DIR=/tmp
+  -e QT_X11_NO_MITSHM=1
+  -e ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
+  -e RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
+  -v /tmp/.X11-unix:/tmp/.X11-unix
+  -v "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY:-wayland-1}":"/tmp/${WAYLAND_DISPLAY:-wayland-1}"
+  -v "$WS":/root/ws
+  --network host
+)
+
+cmd="${1:-shell}"
+case "$cmd" in
+  shell)
+    if docker ps --format '{{.Names}}' | grep -qx "$NAME"; then
+      exec docker exec -it "$NAME" bash
+    fi
+    exec docker run -it --rm --name "$NAME" "${run_args[@]}" "$IMAGE" bash
+    ;;
+  run)   shift; exec docker run -it --rm --name "$NAME" "${run_args[@]}" "$IMAGE" bash -lc "$*" ;;
+  attach) exec docker exec -it "$NAME" bash ;;
+  stop)  exec docker stop "$NAME" ;;
+  pull)  exec docker pull "$IMAGE" ;;
+  *) echo "usage: ros2-jazzy [shell|run \"<cmd>\"|attach|stop|pull]" >&2; exit 1 ;;
+esac
+EOF
+
+    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-jazzy"
 }
 
 do_fish() {
