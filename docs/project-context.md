@@ -149,14 +149,16 @@ needs `gh auth login` (or SSH/PAT) — a fresh install has no credentials.
 **Repo visibility doesn't affect pushing.** Public vs private is gated by
 auth + write access, not visibility — as the owner you push the same either way.
 
-**GitHub Pages needs a PUBLIC repo on the Free plan (corrected 2026-05-28).** The
-repo is currently **private**, and on Free, Pages is unavailable for private
-repos — so the Pages site 404s and *every* `deploy-docs` run fails at
-`actions/configure-pages` ("verify that the repository has Pages enabled"; the
-API returns HTTP 422 "current plan does not support GitHub Pages"). The workflow
-now sets `enablement: true`, but that only takes effect once Pages is actually
-available. To get the docs site live: **make the repo public** (then Pages works
-on Free), or upgrade to GitHub Pro, or host the docs elsewhere.
+**GitHub Pages is LIVE (resolved 2026-05-28):**
+<https://glitchydreamer.github.io/arch-hyprland-setup/>. The repo was **made
+public** to get there — on the Free plan Pages is unavailable for *private* repos,
+which is why it 404'd and every `deploy-docs` run failed at
+`actions/configure-pages` (API HTTP 422 "current plan does not support GitHub
+Pages"). After going public, the workflow's `enablement: true` still couldn't
+create the site (token "Resource not accessible by integration"); Pages had to be
+enabled once via the owner's CLI token (`gh api -X POST .../pages -f
+build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
+"Pages stays public even if the repo is private" was wrong.)
 
 ## History
 
