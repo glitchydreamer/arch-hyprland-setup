@@ -440,9 +440,10 @@ npm 11, pnpm 10, yarn classic.
 > [`nvidia-switch.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/nvidia-switch.sh)
 > `downgrade`. **ROS 2 Jazzy is back** too (`install.sh docker` + the `ros2-jazzy`
 > launcher): the NVIDIA Container Toolkit injects the 580 host driver into
-> containers, and `--network host` + a shared `ROS_DOMAIN_ID`/RMW bridge the Jazzy
-> container to native Isaac's ROS 2 bridge. Run `ros2-jazzy pull` then
-> `ros2-jazzy shell`. CUDA + Anaconda remain for general ML; align CUDA to the 580
+> containers, and `--network host` + `--ipc host` + a shared `ROS_DOMAIN_ID`/RMW
+> (`rmw_fastrtps_cpp`) bridge the Jazzy container to native Isaac's ROS 2 bridge
+> over Fast DDS (UDP discovery + shared-memory transport). Run `ros2-jazzy pull`
+> then `ros2-jazzy shell`; enable Isaac's `isaacsim.ros2.bridge` extension. CUDA + Anaconda remain for general ML; align CUDA to the 580
 > ceiling with `nvidia-switch.sh cuda`. To remove components the clean way, use
 > [`uninstall.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/uninstall.sh).
 >

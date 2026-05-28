@@ -240,8 +240,9 @@ EOF
 #!/usr/bin/env bash
 # Thin wrapper around the osrf/ros:jazzy-desktop-full Docker image.
 # Host ~/robotics/ws is mounted at /root/ws. GPU + X11/Wayland sockets forwarded.
-# --network host + ROS_DOMAIN_ID/RMW match native Isaac Sim's ROS 2 bridge so the
-# two discover each other's topics over localhost DDS.
+# --network host + --ipc host + matching ROS_DOMAIN_ID/RMW let native Isaac Sim's
+# ROS 2 bridge and this container share a Fast DDS domain (UDP discovery + shared
+# memory transport need both host network AND host IPC/​/dev/shm).
 set -euo pipefail
 
 IMAGE="osrf/ros:jazzy-desktop-full"
@@ -261,6 +262,7 @@ run_args=(
   -v "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY:-wayland-1}":"/tmp/${WAYLAND_DISPLAY:-wayland-1}"
   -v "$WS":/root/ws
   --network host
+  --ipc host
 )
 
 cmd="${1:-shell}"

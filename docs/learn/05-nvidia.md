@@ -125,32 +125,60 @@ tested against.
 
 ### The fix: switch the whole NVIDIA stack to the validated driver
 
+**Outcome: this worked — Isaac Sim *and* Isaac Lab now run on this machine.**
+Getting there taught several lessons worth keeping.
+
 Because the userspace driver (`nvidia-utils`) is a single **global** version
 shared by every kernel, you can't run 595 for the desktop and 580 for Isaac at
 the same time — going to 580 means the *whole system* runs on 580 until you
-switch back. And driver 580 won't compile against this machine's bleeding-edge
-`linux` 7.0 kernel, so the switch also installs the **`linux-lts`** kernel (an
-older, long-support kernel 580 *does* build against) and makes it the one you
-boot for robotics work.
+switch back. And the 580 driver won't compile against a bleeding-edge kernel, so
+the switch also installs the **`linux-lts`** kernel and boots that for robotics.
 
-That's a lot of moving parts to do by hand safely — and getting it wrong can
-leave you at a black screen, because NVIDIA drives the display. So it's automated
-in a dedicated, reversible tool, `nvidia-switch.sh`:
+> **Lesson — "older driver" needs an old-*enough* kernel.** The first try used
+> driver **580.76.05**, and its DKMS module **failed to build** against `linux-lts`
+> 6.18 (a kernel DRM API had changed). `linux-lts` was itself too new for that
+> driver. The fix was the *newest* 580 (**580.119.02**), whose source has the
+> conftest for the new API. So "pin to the validated branch" really means "newest
+> point release *of* that branch."
+
+That's a lot of moving parts, and getting it wrong can leave you at a black
+screen (NVIDIA drives the display). So it's automated in a dedicated, reversible
+tool, `nvidia-switch.sh`:
 
 ```bash
 nvidia-switch.sh status      # report driver / kernels / CUDA / pins / boot default
-nvidia-switch.sh downgrade   # whole stack -> 580 (+ linux-lts) for Isaac, atomically
+nvidia-switch.sh downgrade   # whole stack -> 580.119 (+ linux-lts), atomically
 nvidia-switch.sh latest      # restore the repo-newest driver, boot back into linux
+nvidia-switch.sh cuda        # align CUDA/cuDNN to the loaded driver (post-reboot)
+nvidia-switch.sh purge       # remove everything NVIDIA (TTY/recovery only)
 ```
 
-The downgrade swaps every NVIDIA package in **one atomic transaction** (the
-system is never left driverless mid-step), **pins** the result so a routine
-update can't silently undo it, rebuilds the boot image, and prints a recovery
-note before you reboot. See the [dev environment page](07-dev-environment.md) and
-the [reproducibility page](08-reproducibility.md) for how it fits the component
-model. Once on 580, Isaac is tested **native binary first**, falling back to the
-Docker container only if Arch's rolling userspace needs the container's frozen
-libraries.
+What makes it safe:
+
+- **One atomic transaction** for the package swap — the system is never left
+  without a driver mid-step.
+- It **verifies the DKMS module actually built** before it touches the
+  bootloader. (This is the check that would have caught the 580.76 failure
+  *before* a reboot into a driverless kernel — see the lesson above.)
+- It **pins** the result (`IgnorePkg`) so a routine `pacman -Syu` can't silently
+  pull you back to 595.
+- It's **bootloader-aware.** This machine boots a **Unified Kernel Image** under
+  the **Limine** bootloader (not systemd-boot — an early assumption that was
+  wrong and only showed *one* boot entry). Limine doesn't auto-discover UKIs, so
+  the tool also writes a UKI for `linux-lts` and adds a Limine menu entry +
+  default for it.
+- It **reclaims space**: old driver/CUDA versions are pruned from the pacman
+  cache (the installed tree never keeps duplicates — pacman replaces in place).
+
+**A CUDA subtlety:** the driver caps the maximum CUDA version (`nvidia-smi`'s
+"CUDA Version"). 580 caps at 13.0, but the repo toolkit was 13.2 — and that's
+*fine*, because **CUDA minor-version compatibility** lets a newer-minor toolkit
+run on an older-minor driver of the same major (13.x). So the `cuda` action keeps
+13.2 rather than forcing a needless downgrade; it only swaps when the *major*
+version exceeds the driver's ceiling. Run it after rebooting (the ceiling is only
+readable once the new driver is loaded). See the
+[dev environment page](07-dev-environment.md#robotics-isaac-sim-ros-2) and the
+[reproducibility page](08-reproducibility.md).
 
 ## Practical NVIDIA commands
 

@@ -30,6 +30,16 @@ library) is installed alongside. The PATH is wired so `nvcc` and friends are
 found in both login shells and fish. The exact logic is in
 [`install_cuda`](08-reproducibility.md).
 
+> **Minor-version compatibility — the ceiling is a *major*-version rule.** A
+> CUDA **13.2** toolkit runs fine on a driver that maxes out at **13.0**, because
+> CUDA guarantees that a newer-*minor* toolkit works on an older-minor driver of
+> the **same major** (13.x). So after switching the driver to 580 (whose ceiling
+> is 13.0), there's no need to downgrade the 13.2 toolkit — `nvidia-switch.sh
+> cuda` only swaps CUDA when the *major* version exceeds the ceiling. (An earlier
+> over-aggressive version *did* try to force 13.0 and removed `opencl-nvidia` —
+> a driver component — in the process; the lesson: don't fight the package
+> manager for a minor version that's already compatible.)
+
 ## Python: system, venv, or conda?
 
 Python on Linux has a famous footgun: the OS itself uses Python, so installing
@@ -82,6 +92,51 @@ can differ. Zed installs as `zeditor` (not `zed`); Mission Center as
 binary with `which <name>`. The [keybinds
 reference](../keybinds.md#package-name-vs-binary-name-gotcha) keeps a list of the
 confirmed mismatches on this system.
+
+## Robotics: Isaac Sim & ROS 2
+
+This machine runs **NVIDIA Isaac Sim** + **Isaac Lab** (robotics simulation) and
+**ROS 2 Jazzy** (the robotics middleware). Two very different install strategies,
+for good reasons:
+
+- **Isaac Sim / Lab — native.** They need the GPU's full RTX renderer, which
+  talks straight to the kernel driver. The only thing that ever blocked Isaac
+  here was the *driver version* (it needs the 580 branch; see
+  [NVIDIA → the fix](05-nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver)).
+  Once the host is on 580 + `linux-lts`, Isaac runs natively.
+- **ROS 2 Jazzy — a container.** Arch isn't an officially supported ROS 2
+  platform, and ROS pins to specific Ubuntu releases. Rather than fight that on a
+  rolling distro, ROS 2 runs in the official `osrf/ros:jazzy-desktop-full`
+  container, launched by the `ros2-jazzy` helper. The
+  [NVIDIA Container Toolkit](glossary.md) injects the **host** driver (580) into
+  the container, so `--gpus all` gives ROS GPU access without installing anything
+  ROS-related on the host.
+
+### How the two talk to each other (the bridge)
+
+ROS 2 nodes find each other over **DDS** (a peer-to-peer pub/sub protocol). For
+native Isaac (on the host) and the Jazzy *container* to share topics, three
+things must line up — and the `ros2-jazzy` launcher sets all three:
+
+| Requirement | Why | How the launcher does it |
+|---|---|---|
+| Same network namespace | DDS discovery uses UDP on localhost | `--network host` |
+| Shared memory | Fast DDS moves big messages (images, point clouds) via `/dev/shm` | `--ipc host` |
+| Same domain + RMW | nodes only see peers with the same `ROS_DOMAIN_ID` and DDS vendor | `-e ROS_DOMAIN_ID` + `-e RMW_IMPLEMENTATION=rmw_fastrtps_cpp` |
+
+Then, on the Isaac side, you enable its **ROS 2 Bridge** extension
+(`isaacsim.ros2.bridge`). With matching domain/RMW, topics Isaac publishes show
+up inside `ros2-jazzy shell` via `ros2 topic list`, and vice-versa.
+
+```bash
+ros2-jazzy pull            # fetch the image once (~6 GB → /home/docker-data)
+ros2-jazzy shell           # drop into a Jazzy environment; ~/robotics/ws is /root/ws
+ros2-jazzy run "ros2 topic list"   # one-off command
+```
+
+Everything large lives on **/home** (the container image store is
+`/home/docker-data`, the workspace is `~/robotics/ws`) because the root partition
+is small — see [Reproducibility](08-reproducibility.md).
 
 ---
 
