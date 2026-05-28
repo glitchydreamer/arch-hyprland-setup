@@ -227,12 +227,13 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   the 580.119.02 `nvidia-settings` from the archive + add it to the pin. Lesson:
   the *entire* NVIDIA package set (module + userspace + settings libs) must sit on
   one version or `--gpus all` breaks.
-- **2026-05-28 — ROS 2 container, part 2: force legacy mode (CDI vs open driver).**
-  After fixing `nvidia-settings`, `ros2-jazzy shell` still failed:
-  *"open /usr/lib/libnvidia-tileiras.so.580.119.02: no such file"*. The toolkit
-  was in `mode = "auto"` and used a generated **CDI** spec (`/etc/cdi/nvidia.yaml`)
-  that lists libraries the **open** driver doesn't ship (`libnvidia-tileiras` is
-  phantom — not in any package, not on disk). The **legacy** `libnvidia-container`
-  path lists only real files and is clean. Fix: `nvidia-ctk config --in-place
-  --set nvidia-container-runtime.mode=legacy` — now baked into the `docker`
-  install component. (Legacy still injects everything rviz needs.)
+- **2026-05-28 — ROS 2 container, part 2: stale Docker CDI spec.** After fixing
+  `nvidia-settings`, `ros2-jazzy shell` still failed: *"open
+  /usr/lib/libnvidia-tileiras.so.580.119.02: no such file"*. Root cause: **Docker
+  29 resolves `--gpus all` via its NATIVE CDI** (reads `/etc/cdi/nvidia.yaml`), and
+  the spec there was stale — it listed a phantom `libnvidia-tileiras` the open
+  driver doesn't ship. (`nvidia-container-runtime.mode=legacy` was a red herring —
+  `--gpus` bypasses that runtime.) A *fresh* `nvidia-ctk cdi generate` scans real
+  files and is clean. Fix: regenerate the spec — and do it automatically: the
+  `docker` install component generates it, and **`nvidia-switch.sh` regenerates it
+  on every driver swap** so it never goes stale again.

@@ -140,6 +140,19 @@ del_pin() {
 # once its preset is UKI-enabled by ensure_lts_uki_preset).
 regen_initramfs() { run mkinitcpio sudo mkinitcpio -P; }
 
+# Regenerate the Docker CDI spec to match the freshly-installed driver. Docker
+# 25+ resolves `--gpus all` via its native CDI support, reading /etc/cdi — a spec
+# left from the OLD driver version (or generated mid-swap with phantom libs like
+# libnvidia-tileiras.so) makes container start fail with "no such file". No-op if
+# the toolkit isn't installed. Best-effort (records FAILED, never aborts).
+regen_cdi() {
+    command -v nvidia-ctk >/dev/null 2>&1 || { say "    · nvidia-ctk absent — no Docker CDI spec to refresh"; return; }
+    [ -e /etc/cdi/nvidia.yaml ] || { say "    · no /etc/cdi/nvidia.yaml — skip (docker not set up for GPUs yet)"; return; }
+    say "    · regenerating the Docker CDI spec for the new driver version"
+    if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml"; return; fi
+    sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml || FAILED+=("cdi-regen")
+}
+
 # Give linux-lts its own UKI preset, mirroring the linux preset, so `mkinitcpio
 # -P` produces a *bootable* /boot/EFI/Linux/arch-linux-lts.efi. The stock
 # linux-lts.preset emits a bare initramfs .img that systemd-boot can't boot on a
@@ -442,9 +455,10 @@ do_downgrade() {
     regen_initramfs
     set_boot_default lts
 
-    # 5. reclaim cache space from the superseded driver versions
-    say "\n### 5/5  reclaim cache"
+    # 5. reclaim cache space + refresh the Docker CDI spec to the new driver
+    say "\n### 5/5  reclaim cache + refresh Docker CDI"
     clean_cache
+    regen_cdi
 
     hr
     say "DOWNGRADE staged. RECOVERY NOTE — read before rebooting:"
@@ -484,8 +498,9 @@ do_latest() {
     say "\n### 3/4  boot default -> linux"
     set_boot_default ""
 
-    say "\n### 4/4  reclaim cache"
+    say "\n### 4/4  reclaim cache + refresh Docker CDI"
     clean_cache
+    regen_cdi
 
     hr
     say "RESTORED. Reboot into the 'linux' kernel, then verify:  nvidia-smi"

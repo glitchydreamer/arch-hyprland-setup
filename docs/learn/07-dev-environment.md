@@ -140,17 +140,23 @@ up inside `ros2-jazzy shell` via `ros2 topic list`, and vice-versa.
 > so the *whole* stack — module, userspace, and the settings libs — stays on one
 > version.
 
-> **Gotcha 2 — CDI vs the open driver: force legacy mode.** The Container Toolkit
-> has two ways to find host GPU files: the older **legacy** path
-> (`libnvidia-container`, which lists only files that exist) and the newer **CDI**
-> path (a generated `/etc/cdi/nvidia.yaml` spec). In the default `mode = "auto"`,
-> if a CDI spec exists it's used. But `nvidia-ctk cdi generate` lists libraries
-> the **open** driver doesn't ship (e.g. `libnvidia-tileiras.so.<ver>`), so the
-> spec points at a non-existent file and `--gpus all` dies with *"no such file"*.
-> Fix: force the legacy path —
-> `sudo nvidia-ctk config --in-place --set nvidia-container-runtime.mode=legacy`
-> (the `docker` install component now does this automatically). The legacy path
-> still injects everything rviz needs for GPU rendering.
+> **Gotcha 2 — a stale CDI spec breaks `--gpus all`.** Modern Docker (25+)
+> resolves `--gpus all` through its **native CDI** support: it reads a generated
+> spec at `/etc/cdi/nvidia.yaml` that lists the exact host GPU files to mount.
+> That spec is **driver-version-specific** — if it's left over from a *different*
+> driver version (or was generated mid-swap and lists a phantom library like
+> `libnvidia-tileiras.so.<ver>` that the open driver doesn't ship), the container
+> fails to start with *"open …so.<ver>: no such file"*. (Setting
+> `nvidia-container-runtime.mode=legacy` does **not** help — `--gpus all` bypasses
+> that runtime and uses Docker's own CDI reader.) The fix is simply to regenerate
+> the spec from the current driver:
+> ```bash
+> sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+> ```
+> A fresh spec scans the real filesystem, so it only lists files that exist. To
+> keep it from ever going stale, the **`docker` install component generates it**,
+> and **`nvidia-switch.sh` regenerates it on every driver swap** (`downgrade` /
+> `latest`). So in normal use you never touch it by hand.
 
 ```bash
 ros2-jazzy pull            # fetch the image once (~6 GB → /home/docker-data)
