@@ -372,4 +372,11 @@ Next (gh + an AUR helper are installed, so the only auth step is manual):
 
 To cleanly remove a component later (CUDA, Anaconda, ...), use the interactive
 uninstaller:  bash ~/Documents/arch-hyprland-setup/uninstall.sh
+
+To switch the WHOLE NVIDIA stack between repo-latest and the older driver Isaac
+Sim/Lab validates (580.x) — or to purge it entirely — use the dedicated tool
+(read its recovery notes; it can change what boots):
+  bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh status
+  bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh downgrade   # -> 580 for Isaac
+  bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh latest      # -> repo newest
 EOF

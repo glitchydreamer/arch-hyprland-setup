@@ -51,7 +51,20 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   `cuda`. Each removes its packages + data + configs + launchers and reports
   reclaimed space. Note: it measures root-owned paths with `sudo du` so the
   reclaim total is accurate (a non-root `du` can't read e.g. Docker's 0711
-  data-root and would under-count).
+  data-root and would under-count). The driver-level NVIDIA purge is deliberately
+  **not** a sweepable component here (so `all` can't nuke the display driver) — it
+  lives in `nvidia-switch.sh purge` behind a hard confirmation.
+- `nvidia-switch.sh` — dedicated, **stateful** switcher for the WHOLE NVIDIA
+  stack (driver + userspace, optionally CUDA/cuDNN). Actions: `status` (read-only
+  report), `downgrade [ver]` (whole stack → 580.x + `linux-lts`, for Isaac
+  Sim/Lab), `latest` (restore repo-newest, boot back into `linux`), `purge`
+  (remove everything NVIDIA — leaves no driver, TTY/recovery only). Higher risk
+  than the other scripts because NVIDIA drives the display, so every package swap
+  is **one atomic transaction**, the result is **pinned** (`IgnorePkg`), the
+  UKI/initramfs is rebuilt, the boot default is steered, and a recovery note is
+  printed. Honours `--dry-run` / `--yes` / `--with-cuda`. Sources pinned-older
+  packages from the Arch Linux Archive. See
+  [§NVIDIA learn page](learn/05-nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver).
 
 ## File map (live system, not the repo)
 
@@ -89,15 +102,19 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   reports `vrr=true` regardless — that's a capability readout, not the setting.
 - **Half-screen snaps omitted:** `Super+Ctrl+arrows` is caelestia's workspace
   nav; a float-based snap is unreliable on dwindle.
-- **Isaac Sim/Lab + Docker + ROS 2 were removed entirely (2026-05-28).** Isaac
-  Sim 5.1's RTX renderer segfaults on this box's NVIDIA **595** driver even in
-  the official container — the crash is in a userspace renderer plugin running
-  against the shared host *kernel* driver, so a matched-userspace container can't
-  fix it (`compat` passes; real rendering crashes). The conda route before it
-  also failed (libxml2 soname, `get_ubuntu_version`, CMake 4.x). With Isaac gone,
-  the whole container stack (Docker, buildx, containerd, NVIDIA container toolkit,
-  the ros2-jazzy image) was uninstalled — tens of GB reclaimed. **CUDA + Anaconda
-  stay** for general ML. Removal is reproducible via `uninstall.sh docker isaac ros2`.
+- **Isaac Sim/Lab is being brought back via a driver downgrade (revised
+  2026-05-28).** Earlier the same day Isaac + the container stack were removed
+  after the RTX renderer segfaulted on driver **595** even inside the official
+  container. The refined diagnosis: this is a **driver-version mismatch**, not a
+  hardware/unfixable bug — the *same* RTX 3060 runs Isaac fine on this machine's
+  separate **Ubuntu 22.04 SSD**, and Isaac Sim 5.1 validates driver **580** (Arch
+  ships 595). The container couldn't help because the NVIDIA Container Toolkit
+  *injects the host driver*, so Isaac was stuck on the host's 595. Fix path: make
+  **580 the host driver**. Because `nvidia-utils` is a single global version and
+  580 won't build on kernel 7.0, this means the whole stack moves to 580 + a
+  `linux-lts` kernel — automated in `nvidia-switch.sh downgrade`. Test order once
+  on 580: **native binary Isaac first**, container only if Arch userspace needs
+  it. **CUDA + Anaconda** stay for general ML regardless.
 
 ## Maintenance habit
 
@@ -135,10 +152,20 @@ repo is private, and the Actions deploy keeps working.
 - **2026-05-27** — tried Isaac Sim 5.1 + Isaac Lab in a conda env (Python 3.11),
   then **dropped it** after a driver-595 RTX renderer segfault and repeated Arch
   userspace breakage. Switched to the official **Docker container** route.
-- **2026-05-28** — the container route also crashed (same RTX-595 kernel-driver
-  bug; a container can't fix a kernel-driver fault). **Abandoned Isaac entirely**
-  and **removed the whole container stack** (Docker, ROS 2 Jazzy, Isaac Lab clone,
-  ~20 GB of images) from both the live system and the scripts. Added a reusable
-  interactive `uninstall.sh` (this is now the habit for any removal). Kept CUDA +
-  Anaconda. DualSense speaker pin (PipeWire 1.6.5) stays; the 3.5mm jack is a
-  controller hardware fault, not software.
+- **2026-05-28** — the container route also crashed (same driver-595 fault; a
+  container can't change the host driver the toolkit injects). First
+  **abandoned Isaac** and **removed the whole container stack** (Docker, ROS 2
+  Jazzy, Isaac Lab clone, ~20 GB of images) from the live system and scripts;
+  added a reusable interactive `uninstall.sh` (now the habit for any removal).
+  Kept CUDA + Anaconda. DualSense speaker pin (PipeWire 1.6.5) stays; the 3.5mm
+  jack is a controller hardware fault, not software.
+- **2026-05-28 (later)** — **reversed the abandonment.** Refined the diagnosis to
+  a *driver-version* mismatch (595 vs Isaac's validated 580; proven by the Ubuntu
+  SSD running the same hardware). Decided to make 580 the host driver and built
+  **`nvidia-switch.sh`** — an atomic, pinned, UKI-aware, reversible switcher for
+  the whole NVIDIA stack (`status`/`downgrade`/`latest`/`purge`), sourcing older
+  drivers from the Arch Linux Archive and installing `linux-lts` for the build.
+  Plan: `downgrade` → boot linux-lts → test Isaac (native binary first, container
+  fallback). Discovered this machine boots a **UKI** (`/boot/EFI/Linux/*.efi` via
+  mkinitcpio presets), so the tool generates a UKI for linux-lts and steers the
+  systemd-boot default by UKI id.

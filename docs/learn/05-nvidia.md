@@ -106,17 +106,51 @@ split](#kernel-module-vs-userspace-the-split-that-explains-everything).
   it ships a matched, frozen userspace. So Isaac was moved into the official
   Docker container... and it **still crashed the same way**.
 
-Why? Because a container replaces *userspace* but **shares the host's kernel**.
-The crash was in the kernel-level interaction between the RTX renderer and the
-595 driver — and no container can swap the kernel module. That realisation is
-what led to **abandoning Isaac entirely** on this machine (and removing the whole
-Docker/ROS stack with it). The detailed post-mortem lives in the project memory
-and the [reproducibility page](08-reproducibility.md).
+Why? Because a container replaces *userspace* but **shares the host's kernel
+driver**. The container can't give Isaac a different driver than the host — the
+NVIDIA Container Toolkit deliberately *injects the host driver* into the
+container. So the crash followed it in.
+
+**The refined diagnosis (the important bit):** this is not a hardware limit and
+not an unfixable bug — it's a **driver-version mismatch**. The decisive evidence:
+the *same* GPU runs Isaac Sim fine on this machine's separate **Ubuntu SSD**.
+Isaac Sim 5.1 validates NVIDIA driver **580**; Arch ships **595** (newer, not
+validated). Newer is not always better — simulators pin to the driver they were
+tested against.
 
 !!! note "The lesson"
-    When a container *doesn't* fix a "userspace" problem, suspect the kernel. The
-    layers diagram at the top of this page is the tool: match the symptom to the
-    layer, and you stop wasting time fixing the wrong one.
+    When a container *doesn't* fix a "userspace" problem, suspect the kernel
+    layer — here, the driver *version*. The layers diagram at the top of this page
+    is the tool: match the symptom to the layer, and you stop fixing the wrong one.
+
+### The fix: switch the whole NVIDIA stack to the validated driver
+
+Because the userspace driver (`nvidia-utils`) is a single **global** version
+shared by every kernel, you can't run 595 for the desktop and 580 for Isaac at
+the same time — going to 580 means the *whole system* runs on 580 until you
+switch back. And driver 580 won't compile against this machine's bleeding-edge
+`linux` 7.0 kernel, so the switch also installs the **`linux-lts`** kernel (an
+older, long-support kernel 580 *does* build against) and makes it the one you
+boot for robotics work.
+
+That's a lot of moving parts to do by hand safely — and getting it wrong can
+leave you at a black screen, because NVIDIA drives the display. So it's automated
+in a dedicated, reversible tool, `nvidia-switch.sh`:
+
+```bash
+nvidia-switch.sh status      # report driver / kernels / CUDA / pins / boot default
+nvidia-switch.sh downgrade   # whole stack -> 580 (+ linux-lts) for Isaac, atomically
+nvidia-switch.sh latest      # restore the repo-newest driver, boot back into linux
+```
+
+The downgrade swaps every NVIDIA package in **one atomic transaction** (the
+system is never left driverless mid-step), **pins** the result so a routine
+update can't silently undo it, rebuilds the boot image, and prints a recovery
+note before you reboot. See the [dev environment page](07-dev-environment.md) and
+the [reproducibility page](08-reproducibility.md) for how it fits the component
+model. Once on 580, Isaac is tested **native binary first**, falling back to the
+Docker container only if Arch's rolling userspace needs the container's frozen
+libraries.
 
 ## Practical NVIDIA commands
 
