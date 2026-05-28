@@ -28,7 +28,10 @@ arch-hyprland-setup/
 ## Rebuilding on a fresh install
 
 Two scripts, run in order. Both are idempotent and assume caelestia is already
-installed.
+installed. All three scripts (`setup-home.sh`, `install.sh`, `uninstall.sh`) are
+**interactive and component-based** and share the same interface: run with no
+args for a numbered menu, or pass component names, `all`, `--yes` (skip the
+prompt), and `--dry-run` (preview, touches nothing).
 
 ```sh
 # 1. Home-dir configs — Hyprland overrides, ~/.local/bin scripts, fish, Dolphin,
@@ -38,8 +41,12 @@ bash ~/Documents/arch-hyprland-setup/setup-home.sh
 
 # 2. System half — packages (repo + AUR), DualSense udev + audio fix, CUDA
 #    (matched to your NVIDIA driver) + cuDNN, groups, fish login shell.
-#    Calls sudo itself where needed.
+#    Calls sudo itself where needed. Prereqs (git/gh/AUR helper) always run first.
 bash ~/Documents/arch-hyprland-setup/install.sh
+
+# Pick just a few components, or preview everything without changing anything:
+bash ~/Documents/arch-hyprland-setup/install.sh cuda audio
+bash ~/Documents/arch-hyprland-setup/install.sh --dry-run all
 ```
 
 To cleanly remove a component later, use the interactive uninstaller — it strips

@@ -1,49 +1,68 @@
 #!/usr/bin/env bash
 # ============================================================================
 # setup-home.sh — recreates the *home-directory* half of the Arch + Hyprland +
-# caelestia setup. No sudo, no packages: just the user-owned config files,
-# scripts, and git defaults. Run this FIRST, then install.sh for the system half.
+# caelestia setup. No sudo, no packages: just user-owned config files, scripts,
+# and git defaults. Interactive + component-based, the mirror of install.sh.
+# Run this FIRST, then install.sh for the system half.
 #
-#     bash ~/Documents/arch-hyprland-setup/setup-home.sh
+#     bash ~/Documents/arch-hyprland-setup/setup-home.sh            # menu
+#     bash ~/Documents/arch-hyprland-setup/setup-home.sh hyprland scripts
+#     bash ~/Documents/arch-hyprland-setup/setup-home.sh --yes all
+#     bash ~/Documents/arch-hyprland-setup/setup-home.sh --dry-run all  # preview
 #
-# Generalizable: the desktop monitor connector and its current mode are detected
-# at runtime (works whether your ultrawide lands on DP-1, DP-2, HDMI-A-1, ...),
-# so this is not pinned to one machine. Idempotent — safe to re-run.
+# Flags:
+#   --dry-run   show which files each component WOULD write; touch nothing.
+#   --yes / -y  skip the confirmation prompt.
+#   all         select every component.
+#
+# Generalizable: the desktop monitor connector + its current mode are detected at
+# runtime (works whether your ultrawide lands on DP-1, DP-2, HDMI-A-1, ...), so
+# this isn't pinned to one machine. Idempotent — safe to re-run.
 #
 # Assumes caelestia is already installed (~/.config/hypr -> caelestia tree).
 # ============================================================================
 set -uo pipefail
 
-# caelestia must be installed first — these files plug into its config tree
-# (hyprland.conf sources $cConf/hypr-{vars,user}.conf). Warn but continue so the
-# non-Hyprland bits (fish, dolphin, scripts) still land.
-if [ ! -e "$HOME/.config/hypr/hyprland.conf" ]; then
-    echo "!!! caelestia not detected (~/.config/hypr/hyprland.conf missing)."
-    echo "!!! Install caelestia first, then re-run this script for the Hyprland bits."
-fi
-
 CAE="$HOME/.config/caelestia"
 BIN="$HOME/.local/bin"
-mkdir -p "$CAE" "$BIN" \
-         "$HOME/.config/fish/conf.d" \
-         "$HOME/.config/wireplumber/wireplumber.conf.d" \
-         "$HOME/.local/share/dolphin/view_properties/global"
+DRY_RUN=0
+ASSUME_YES=0
 
-# --- Detect the desktop display + its current mode --------------------------
-# Prefer a connected non-eDP output (the external/desktop monitor). Fall back to
-# the first monitor, then to DP-1 / a 1080p60 default if Hyprland isn't running.
-DESK_CONN="DP-1"; DESK_MODE="1920x1080@60"
-if command -v hyprctl >/dev/null && [ -n "${HYPRLAND_INSTANCE_SIGNATURE-}" ]; then
-    read -r c w h r < <(hyprctl monitors -j | jq -r \
-        '([.[] | select(.name|test("eDP")|not)] + .)[0] | "\(.name) \(.width) \(.height) \(.refreshRate)"')
-    [ -n "${c:-}" ] && [ "$c" != null ] && DESK_CONN="$c" && DESK_MODE="${w}x${h}@${r}"
-fi
-echo ">>> Desktop display detected: $DESK_CONN @ $DESK_MODE"
+say() { echo -e "$*"; }
+hr()  { echo "------------------------------------------------------------"; }
+# In dry-run, announce a component's outputs and bail out of the body.
+dry() { [ "$DRY_RUN" -eq 1 ] && { say "    [dry-run] would write: $*"; return 0; }; return 1; }
 
 # ============================================================================
-# Hyprland variable overrides
+# Components — a row here + a matching do_<name>() teaches setup-home a new one.
 # ============================================================================
-cat > "$CAE/hypr-vars.conf" <<'EOF'
+COMPONENTS=(
+    "hyprland|Hyprland overrides (hypr-vars, hypr-user) + per-host monitor configs & active symlink"
+    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio"
+    "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
+    "dolphin|Dolphin: show hidden files by default"
+    "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
+    "git|Global git defaults (branch, autoSetupRemote, rerere, editor, ...)"
+)
+
+do_hyprland() {
+    if [ ! -e "$HOME/.config/hypr/hyprland.conf" ]; then
+        say "!!! caelestia not detected (~/.config/hypr/hyprland.conf missing)."
+        say "!!! Install caelestia first; these files plug into its config tree."
+    fi
+    # Detect the desktop display + its current mode. Prefer a connected non-eDP
+    # output; fall back to DP-1 / 1080p60 if Hyprland isn't running.
+    local DESK_CONN="DP-1" DESK_MODE="1920x1080@60" c w h r
+    if command -v hyprctl >/dev/null && [ -n "${HYPRLAND_INSTANCE_SIGNATURE-}" ]; then
+        read -r c w h r < <(hyprctl monitors -j | jq -r \
+            '([.[] | select(.name|test("eDP")|not)] + .)[0] | "\(.name) \(.width) \(.height) \(.refreshRate)"')
+        [ -n "${c:-}" ] && [ "$c" != null ] && DESK_CONN="$c" && DESK_MODE="${w}x${h}@${r}"
+    fi
+    say ">>> Desktop display detected: $DESK_CONN @ $DESK_MODE"
+    dry "$CAE/{hypr-vars,hypr-user,hypr-monitors-desktop,hypr-monitors-laptop}.conf + hypr-monitors.conf symlink" && return
+    mkdir -p "$CAE"
+
+    cat > "$CAE/hypr-vars.conf" <<'EOF'
 # User variable overrides — sourced after caelestia's variables.conf,
 # before keybinds.conf, so the $kb* app launchers pick these up.
 
@@ -57,10 +76,7 @@ $cursorTheme = sweet-cursors
 $cursorSize  = 24
 EOF
 
-# ============================================================================
-# Hyprland user overrides (sourced LAST — always wins)
-# ============================================================================
-cat > "$CAE/hypr-user.conf" <<'EOF'
+    cat > "$CAE/hypr-user.conf" <<'EOF'
 # ============================================================================
 # User Hyprland overrides — sourced LAST, so anything here wins.
 # Generated by setup-home.sh. Primary display is auto-detected by hdr-toggle.
@@ -126,10 +142,7 @@ bind = Super+Shift, H, togglespecialworkspace, minimized
 bind = Super+Ctrl+Alt, H, exec, ~/.local/bin/hdr-toggle
 EOF
 
-# ============================================================================
-# Per-host monitor configs + active symlink
-# ============================================================================
-cat > "$CAE/hypr-monitors-desktop.conf" <<EOF
+    cat > "$CAE/hypr-monitors-desktop.conf" <<EOF
 # Desktop: external ultrawide on $DESK_CONN (auto-detected at setup time).
 # 10-bit SDR (sRGB), VRR off (overrides global misc { vrr = 1 }) → locked refresh.
 # HDR is opt-in per session via Super+Ctrl+Alt+H (hdr-toggle).
@@ -137,24 +150,26 @@ monitor = $DESK_CONN, $DESK_MODE, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0
 monitor = , preferred, auto, 1
 EOF
 
-cat > "$CAE/hypr-monitors-laptop.conf" <<'EOF'
+    cat > "$CAE/hypr-monitors-laptop.conf" <<'EOF'
 # Laptop: internal panel on eDP-1. 8-bit (panel max), VRR inherits global misc{vrr=1}.
 monitor = eDP-1, 2560x1600@240, 0x0, 1.25
 monitor = , preferred, auto, 1
 EOF
 
-# Point the active symlink at the right file for the machine we're on now.
-if [ -e /sys/class/drm/card*-eDP-1/status ] 2>/dev/null && \
-   grep -qx connected /sys/class/drm/card*-eDP-1/status 2>/dev/null; then
-    ln -sfn hypr-monitors-laptop.conf "$CAE/hypr-monitors.conf"
-else
-    ln -sfn hypr-monitors-desktop.conf "$CAE/hypr-monitors.conf"
-fi
+    # Point the active symlink at the right file for the machine we're on now.
+    if [ -e /sys/class/drm/card*-eDP-1/status ] 2>/dev/null && \
+       grep -qx connected /sys/class/drm/card*-eDP-1/status 2>/dev/null; then
+        ln -sfn hypr-monitors-laptop.conf "$CAE/hypr-monitors.conf"
+    else
+        ln -sfn hypr-monitors-desktop.conf "$CAE/hypr-monitors.conf"
+    fi
+}
 
-# ============================================================================
-# Scripts in ~/.local/bin
-# ============================================================================
-cat > "$BIN/select-monitors.sh" <<'EOF'
+do_scripts() {
+    dry "$BIN/{select-monitors.sh,hdr-toggle,dualsense-audio}" && return
+    mkdir -p "$BIN"
+
+    cat > "$BIN/select-monitors.sh" <<'EOF'
 #!/usr/bin/env bash
 # Flip ~/.config/caelestia/hypr-monitors.conf to the right per-host file.
 # Laptop = a connected eDP-1 panel exists; otherwise desktop.
@@ -176,7 +191,7 @@ if [ "$current" != "$target" ]; then
 fi
 EOF
 
-cat > "$BIN/hdr-toggle" <<'EOF'
+    cat > "$BIN/hdr-toggle" <<'EOF'
 #!/usr/bin/env bash
 # Toggle HDR <-> sRGB on the primary (non-eDP) display, live (no reload).
 # Bound to Super+Ctrl+Alt+H. Detects the monitor and its current mode, so it
@@ -198,7 +213,7 @@ case "$STATE" in
 esac
 EOF
 
-cat > "$BIN/dualsense-audio" <<'EOF'
+    cat > "$BIN/dualsense-audio" <<'EOF'
 #!/usr/bin/env bash
 # Route a DualSense controller's audio to the 3.5mm headphone jack and make it
 # the default output. The DualSense exposes Speaker vs Headphones as separate
@@ -217,12 +232,13 @@ pactl set-sink-volume "$SINK" 70%
 command -v notify-send >/dev/null && notify-send -i audio-headphones "DualSense audio" "Routed to 3.5mm headphones"
 EOF
 
-chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio"
+    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio"
+}
 
-# ============================================================================
-# Fish dev-env additions (caelestia owns config.fish — don't touch it)
-# ============================================================================
-cat > "$HOME/.config/fish/conf.d/dev-env.fish" <<'EOF'
+do_fish() {
+    dry "$HOME/.config/fish/conf.d/dev-env.fish" && return
+    mkdir -p "$HOME/.config/fish/conf.d"
+    cat > "$HOME/.config/fish/conf.d/dev-env.fish" <<'EOF'
 # Personal dev-env additions (caelestia owns config.fish — don't edit that).
 
 # PATH: personal scripts + CUDA
@@ -243,11 +259,12 @@ if type -q zoxide
     zoxide init fish | source
 end
 EOF
+}
 
-# ============================================================================
-# Dolphin: hidden files shown by default
-# ============================================================================
-cat > "$HOME/.config/dolphinrc" <<'EOF'
+do_dolphin() {
+    dry "~/.config/dolphinrc + ~/.local/share/dolphin/.../global/.directory" && return
+    mkdir -p "$HOME/.local/share/dolphin/view_properties/global"
+    cat > "$HOME/.config/dolphinrc" <<'EOF'
 [General]
 GlobalViewProps=true
 
@@ -255,8 +272,7 @@ GlobalViewProps=true
 Places Icons Auto-resize=false
 Places Icons Static Size=22
 EOF
-
-cat > "$HOME/.local/share/dolphin/view_properties/global/.directory" <<'EOF'
+    cat > "$HOME/.local/share/dolphin/view_properties/global/.directory" <<'EOF'
 [Dolphin]
 HiddenFilesShown=true
 Version=4
@@ -264,14 +280,15 @@ Version=4
 [Settings]
 HiddenFilesShown=true
 EOF
+}
 
-# ============================================================================
-# WirePlumber: let the DualSense auto-switch to the headphone jack
-# ============================================================================
-# The controller ships with ACP auto-profile/auto-port OFF, so plugging
-# earphones into its jack never moves audio off the internal speaker. Turn them
-# on so WirePlumber follows the jack. (Manual fallback: `dualsense-audio`.)
-cat > "$HOME/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf" <<'EOF'
+do_wireplumber() {
+    # The controller ships with ACP auto-profile/auto-port OFF, so plugging
+    # earphones into its jack never moves audio off the internal speaker. Turn
+    # them on so WirePlumber follows the jack. (Manual fallback: `dualsense-audio`.)
+    dry "~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf" && return
+    mkdir -p "$HOME/.config/wireplumber/wireplumber.conf.d"
+    cat > "$HOME/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf" <<'EOF'
 monitor.alsa.rules = [
   {
     matches = [
@@ -286,30 +303,95 @@ monitor.alsa.rules = [
   }
 ]
 EOF
+}
+
+do_git() {
+    dry "global git config (init.defaultBranch, push.autoSetupRemote, ...)" && return
+    git config --global init.defaultBranch main
+    git config --global push.autoSetupRemote true
+    git config --global pull.rebase false
+    git config --global fetch.prune true
+    git config --global rerere.enabled true
+    git config --global core.editor nvim
+}
 
 # ============================================================================
-# Git defaults (identity is left to you — see reminder below)
+# Arg parsing + interactive menu (shared shape with install.sh)
 # ============================================================================
-git config --global init.defaultBranch main
-git config --global push.autoSetupRemote true
-git config --global pull.rebase false
-git config --global fetch.prune true
-git config --global rerere.enabled true
-git config --global core.editor nvim
+SELECTED=()
+ALL_NAMES=(); for row in "${COMPONENTS[@]}"; do ALL_NAMES+=("${row%%|*}"); done
+is_component() { local n; for n in "${ALL_NAMES[@]}"; do [ "$n" = "$1" ] && return 0; done; return 1; }
 
-# ============================================================================
-# Apply live if we're inside a Hyprland session
-# ============================================================================
-if command -v hyprctl >/dev/null && [ -n "${HYPRLAND_INSTANCE_SIGNATURE-}" ]; then
-    "$BIN/select-monitors.sh" || true
-    hyprctl reload >/dev/null 2>&1 || true
-    echo ">>> Hyprland reloaded."
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run) DRY_RUN=1 ;;
+        -y|--yes)  ASSUME_YES=1 ;;
+        all)       SELECTED=("${ALL_NAMES[@]}") ;;
+        -h|--help)
+            say "usage: setup-home.sh [--dry-run] [--yes] [all | <component>...]"
+            say "components: ${ALL_NAMES[*]}"; exit 0 ;;
+        *)
+            if is_component "$arg"; then SELECTED+=("$arg")
+            else say "Unknown component '$arg'. Known: ${ALL_NAMES[*]}"; exit 1; fi ;;
+    esac
+done
+
+if [ "${#SELECTED[@]}" -eq 0 ]; then
+    hr; say "Interactive home setup — pick what to write."
+    [ "$DRY_RUN" -eq 1 ] && say "(dry-run: nothing will actually be written)"
+    hr
+    i=1
+    for row in "${COMPONENTS[@]}"; do say "  $i) ${row%%|*} — ${row#*|}"; i=$((i+1)); done
+    say "  a) all of the above"
+    say "  q) quit"
+    hr
+    read -rp "Enter numbers (space/comma separated), 'a', or 'q': " reply
+    case "$reply" in
+        q|Q|"") say "Nothing selected — exiting."; exit 0 ;;
+        a|A)    SELECTED=("${ALL_NAMES[@]}") ;;
+        *)
+            reply=${reply//,/ }
+            for tok in $reply; do
+                if [[ "$tok" =~ ^[0-9]+$ ]] && [ "$tok" -ge 1 ] && [ "$tok" -le "${#ALL_NAMES[@]}" ]; then
+                    SELECTED+=("${ALL_NAMES[$((tok-1))]}")
+                else
+                    say "  (ignoring invalid choice '$tok')"
+                fi
+            done ;;
+    esac
 fi
 
+[ "${#SELECTED[@]}" -eq 0 ] && { say "Nothing selected — exiting."; exit 0; }
+in_selected() { local s; for s in "${SELECTED[@]}"; do [ "$s" = "$1" ] && return 0; done; return 1; }
+
+hr
+say "Will set up: ${SELECTED[*]}"
+[ "$DRY_RUN" -eq 1 ] && say "Mode: DRY-RUN (no changes)."
+hr
+if [ "$ASSUME_YES" -eq 0 ] && [ "$DRY_RUN" -eq 0 ]; then
+    read -rp "Proceed? [y/N]: " ok
+    case "$ok" in y|Y|yes|YES) ;; *) say "Aborted."; exit 0 ;; esac
+fi
+
+# Run selected components in canonical order.
+for row in "${COMPONENTS[@]}"; do
+    name="${row%%|*}"
+    if in_selected "$name"; then hr; "do_${name}"; fi
+done
+
+# Apply live if we wrote Hyprland/scripts config inside a running session.
+if [ "$DRY_RUN" -eq 0 ] && { in_selected hyprland || in_selected scripts; } \
+   && command -v hyprctl >/dev/null && [ -n "${HYPRLAND_INSTANCE_SIGNATURE-}" ]; then
+    [ -x "$BIN/select-monitors.sh" ] && "$BIN/select-monitors.sh" || true
+    hyprctl reload >/dev/null 2>&1 || true
+    say ">>> Hyprland reloaded."
+fi
+
+hr
+[ "$DRY_RUN" -eq 1 ] && say "(dry-run: nothing was changed)"
 cat <<EOF
 
-Home setup complete. Files written under ~/.config/caelestia, ~/.local/bin,
-~/.config/fish/conf.d, and Dolphin config.
+Home setup complete.
 
 Set your git identity (not done automatically):
     git config --global user.name  "Your Name"

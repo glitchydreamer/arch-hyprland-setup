@@ -30,20 +30,28 @@ bash install.sh      # 2. packages + system, calls sudo itself
 gh auth login && git push   # 3. the only step that can't be scripted
 ```
 
-Both are **idempotent**. After them: set `git config --global user.name`, then
-log out/in (fish shell + group changes need a fresh session).
+**All three scripts are interactive + component-based and share one shape.** Run
+with no args for a numbered menu; or pass component names, `all`, `--yes` (skip
+the prompt), and `--dry-run` (preview only). Examples:
+`bash install.sh cuda audio`, `bash install.sh --dry-run all`,
+`bash uninstall.sh docker isaac ros2`. install.sh always runs its prereqs (DB
+refresh, git/base-devel/gh/ssh, an AUR helper) before the chosen components.
 
-- `setup-home.sh` — generates Hyprland overrides, `~/.local/bin` scripts, fish
-  `dev-env.fish`, Dolphin config, WirePlumber DualSense drop-in, git defaults.
-  It is the **source of truth** for those files; edit the script, re-run it.
-- `install.sh` — bootstraps git/`gh`/AUR-helper first, then installs the dev
-  stack, **driver-matched CUDA** + cuDNN, gaming/media, KDE settings apps,
-  sweet-cursors, the DualSense touchpad udev rule + PipeWire audio pin; adds
-  groups, switches the login shell to fish.
+Both setup scripts are **idempotent**. After them: set `git config --global
+user.name`, then log out/in (fish shell + group changes need a fresh session).
+
+- `setup-home.sh` — components: `hyprland`, `scripts`, `fish`, `dolphin`,
+  `wireplumber`, `git`. The **source of truth** for those files; edit & re-run.
+- `install.sh` — components: `build`, `cuda`, `python`, `anaconda`, `node`,
+  `editors`, `embedded`, `audio` (incl. the DualSense PipeWire 1.6.5 pin +
+  touchpad udev rule), `gpu`, `media`, `terminal`, `kde`, `display`, `aurapps`,
+  `groups`, `shell`. CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
-  counterpart to `install.sh`): pick components (e.g. `docker`, `cuda`,
-  `anaconda`) and each removes its packages + data + configs + launchers and
-  reports reclaimed space. Supports `--dry-run` and `--yes`.
+  counterpart to `install.sh`): components `docker`, `isaac`, `ros2`, `anaconda`,
+  `cuda`. Each removes its packages + data + configs + launchers and reports
+  reclaimed space. Note: it measures root-owned paths with `sudo du` so the
+  reclaim total is accurate (a non-root `du` can't read e.g. Docker's 0711
+  data-root and would under-count).
 
 ## File map (live system, not the repo)
 

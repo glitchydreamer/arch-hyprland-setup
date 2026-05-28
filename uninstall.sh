@@ -73,15 +73,27 @@ run_sh() {
     bash -c "$*" || FAILED+=("$tag")
 }
 
-# Measure a path's size (KB) and add to the running reclaim tally, then delete it
-# (root-owned paths via sudo). No-op if the path is absent.
+# Pretty-print a size given in KB.
+human_kb() {
+    awk -v k="$1" 'BEGIN{
+        split("KB MB GB TB", u); s=k; i=1;
+        while (s>=1024 && i<4){ s/=1024; i++ }
+        printf "%.1f %s", s, u[i] }'
+}
+
+# Measure a path's size (KB) and add to the running reclaim tally, then delete it.
+# Pass "sudo" as $3 for root-owned paths: BOTH the measurement and the delete then
+# run via sudo — otherwise a non-root `du` can't descend a root-owned dir (e.g.
+# Docker's mode-0711 data-root) and the reclaim total is wildly under-counted.
+# No-op if the path is absent.
 reclaim() {
     local tag="$1" path="$2" sudo_rm="${3:-}"
     [ -e "$path" ] || { say "    · $path — absent, skip"; return; }
-    local kb; kb=$(du -sk "$path" 2>/dev/null | awk '{print $1}'); kb=${kb:-0}
+    local du_pfx=""
+    [ "$sudo_rm" = "sudo" ] && du_pfx="sudo"
+    local kb; kb=$($du_pfx du -sk "$path" 2>/dev/null | awk '{print $1}'); kb=${kb:-0}
     RECLAIMED_KB=$((RECLAIMED_KB + kb))
-    local human; human=$(du -sh "$path" 2>/dev/null | awk '{print $1}')
-    say "    · $path  ($human)"
+    say "    · $path  ($(human_kb "$kb"))"
     if [ "$sudo_rm" = "sudo" ]; then
         run "$tag" sudo rm -rf "$path"
     else
@@ -129,7 +141,9 @@ do_docker() {
 
 do_isaac() {
     say ">>> Isaac Sim / Isaac Lab"
-    reclaim isaac-cache "$HOME/docker/isaac-sim"
+    # The cache is owned by the container's internal UID 1234, not by the user —
+    # it MUST be removed with sudo or rm hits permission-denied.
+    reclaim isaac-cache "$HOME/docker/isaac-sim" sudo
     reclaim isaac-lab   "$HOME/robotics/IsaacLab"
     # Drop the parent ~/docker only if now empty (don't nuke unrelated containers).
     if [ -d "$HOME/docker" ] && [ -z "$(ls -A "$HOME/docker" 2>/dev/null)" ]; then
@@ -250,11 +264,7 @@ hr
 if [ "$DRY_RUN" -eq 1 ]; then
     say "Dry-run complete — nothing was changed."
 else
-    awk_h=$(awk -v k="$RECLAIMED_KB" 'BEGIN{
-        split("KB MB GB TB", u); s=k; i=1;
-        while (s>=1024 && i<4){ s/=1024; i++ }
-        printf "%.1f %s", s, u[i] }')
-    say "Done. Approx space reclaimed: ${awk_h}."
+    say "Done. Approx space reclaimed: $(human_kb "$RECLAIMED_KB")."
     if [ "${#FAILED[@]}" -eq 0 ]; then
         say "All steps succeeded."
     else
