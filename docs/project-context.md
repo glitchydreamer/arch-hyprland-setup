@@ -78,11 +78,11 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   Secondary, separate issue: the DualSense **touchpad** registers as an absolute
   pointer — handled by a libinput `LIBINPUT_IGNORE_DEVICE` udev rule (+ Hyprland
   `device{enabled=false}`), which only take effect when the device re-attaches
-  (replug/reboot). → [§8.7](index.md#87-two-mouse-cursors-one-moving-one-stuck-at-centre)
+  (replug/reboot). → [§8.7](reference.md#87-two-mouse-cursors-one-moving-one-stuck-at-centre)
 - **DualSense audio = profile routing**, not the old `PCM Playback Volume`
   amixer hack (this UCM card has no mixer controls). Speaker vs the 3.5mm jack
   are separate PipeWire *profiles*; auto-switching ships disabled. Fixed with a
-  WirePlumber drop-in (re-enable auto) + a `dualsense-audio` helper. → [§8.1](index.md#81-dualsense-audio-silent-earphones-in-the-controller-jack)
+  WirePlumber drop-in (re-enable auto) + a `dualsense-audio` helper. → [§8.1](reference.md#81-dualsense-audio-silent-earphones-in-the-controller-jack)
 - **CUDA is matched to the driver.** `install.sh` reads `nvidia-smi`'s max CUDA
   and only installs the rolling repo `cuda` if it fits, else an AUR `cuda-<ver>`.
 - **VRR on the desktop:** `vrr, 0` on the monitor line (locked 160 Hz). NVIDIA

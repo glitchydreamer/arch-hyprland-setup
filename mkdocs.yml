@@ -5,6 +5,27 @@ repo_url: https://github.com/glitchydreamer/arch-hyprland-setup
 repo_name: glitchydreamer/arch-hyprland-setup
 edit_uri: edit/main/docs/
 
+nav:
+  - Home: index.md
+  - Learning Path:
+      - Start here — the big picture: learn/index.md
+      - 1. Arch Linux & pacman: learn/01-arch-and-pacman.md
+      - 2. Wayland & Hyprland: learn/02-wayland-and-hyprland.md
+      - 3. The caelestia shell: learn/03-caelestia-shell.md
+      - 4. Displays — resolution, refresh, HDR: learn/04-displays.md
+      - 5. NVIDIA on Linux: learn/05-nvidia.md
+      - 6. Audio on Linux: learn/06-audio.md
+      - 7. The developer environment: learn/07-dev-environment.md
+      - 8. Reproducibility & the scripts: learn/08-reproducibility.md
+      - 9. The troubleshooting mindset: learn/09-troubleshooting-mindset.md
+      - Glossary: learn/glossary.md
+  - Full Reference: reference.md
+  - Guides:
+      - Coming from Ubuntu: coming-from-ubuntu.md
+      - Display setup: display.md
+      - Keybinds: keybinds.md
+  - Project context: project-context.md
+
 theme:
   name: material
   language: en

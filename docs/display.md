@@ -75,7 +75,7 @@ The trailing args:
 
 HDR is opt-in per session via `Super+Ctrl+Alt+H` (the `hdr-toggle` script flips
 the live mode to 10-bit HDR via `hyprctl keyword monitor` without touching this
-file). See the HDR section of [the main reference](index.md#5-hdr--color-management).
+file). See the HDR section of [the main reference](reference.md#5-hdr-color-management).
 
 ### `~/.local/bin/select-monitors.sh`
 
