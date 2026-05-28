@@ -166,6 +166,19 @@ repo is private, and the Actions deploy keeps working.
   the whole NVIDIA stack (`status`/`downgrade`/`latest`/`purge`), sourcing older
   drivers from the Arch Linux Archive and installing `linux-lts` for the build.
   Plan: `downgrade` → boot linux-lts → test Isaac (native binary first, container
-  fallback). Discovered this machine boots a **UKI** (`/boot/EFI/Linux/*.efi` via
-  mkinitcpio presets), so the tool generates a UKI for linux-lts and steers the
-  systemd-boot default by UKI id.
+  fallback). This machine boots **UKIs** (`/boot/EFI/Linux/*.efi` via mkinitcpio
+  presets) under the **Limine** bootloader — Limine does NOT auto-discover UKIs,
+  so the tool also gives linux-lts a UKI preset AND adds a `linux-lts` entry to
+  `/boot/limine/limine.conf` + sets `default_entry` (bootctl kept as a fallback
+  for other machines).
+- **2026-05-28 (later still) — first `downgrade` run partially failed; tool
+  fixed.** The 580 `pacman -U` aborted with "installing nvidia-utils breaks
+  dependency `nvidia-utils=595.71.05` required by nvidia-open": pacman won't
+  auto-remove the version-pinned, conflicting prebuilt `nvidia-open` under
+  `--noconfirm`. Fix: the swap now **explicitly `pacman -Rdd nvidia-open` first**
+  (running module persists in RAM), then `-U` the 580 set, then **verifies**
+  `nvidia-open-dkms` installed before pinning/boot changes (restores `nvidia-open`
+  and aborts if not). Also found the bootloader is **Limine, not systemd-boot**
+  (the earlier `bootctl set-default` was a no-op; only one menu entry showed
+  because Limine needs a manual entry). The partial run left `linux-lts`+`dkms`
+  installed and a stale 595 IgnorePkg pin (now auto-cleared at downgrade step 0).

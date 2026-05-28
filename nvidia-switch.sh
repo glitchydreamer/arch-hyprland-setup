@@ -70,6 +70,11 @@ EFI_LINUX_DIR=/boot/EFI/Linux
 LINUX_UKI_ID="arch-linux.efi"
 LTS_UKI_ID="arch-linux-lts.efi"
 LTS_PRESET=/etc/mkinitcpio.d/linux-lts.preset
+# This machine's bootloader is Limine (manual config — its pacman hook only
+# redeploys the EFI binaries, it does NOT generate entries). Limine does not
+# auto-discover the UKIs under /boot/EFI/Linux, so an entry must be added by hand.
+# bootctl/systemd-boot is kept as a fallback for other machines.
+LIMINE_CONF=/boot/limine/limine.conf
 
 # ---- helpers ----------------------------------------------------------------
 say() { echo -e "$*"; }
@@ -152,25 +157,94 @@ EOF
     [ $? -eq 0 ] || FAILED+=("lts-uki-preset")
 }
 
-# Steer the systemd-boot default to a UKI by its id (filename). Arg: "lts" for
-# linux-lts, "" for the plain linux UKI. Refuses to point the default at a UKI
-# that doesn't exist (that would be an unbootable default), printing the manual
-# command instead — this is a boot-critical setting, so never guess.
-set_boot_default() {
-    local want="$1" id img
-    if ! command -v bootctl >/dev/null 2>&1; then
-        say "    · no bootctl — set your boot default manually."; return
+# Remove an installed NVIDIA kernel-module package that would otherwise block the
+# swap. pacman will NOT auto-remove a version-pinned conflicting package under
+# --noconfirm (the prebuilt `nvidia-open` hard-pins `nvidia-utils=<its version>`,
+# so downgrading nvidia-utils is rejected with "breaks dependency ... required by
+# nvidia-open"). Removing it first clears that; the *running* module stays loaded
+# in RAM until reboot, so the desktop keeps working. -Rdd skips the dep check
+# (the pinned dep is exactly what we're changing; the pkg is a leaf).
+remove_module_pkg() {
+    local tag="$1"; shift
+    local present; present=$(installed_of "$@")
+    if [ -z "$present" ]; then say "    · no conflicting module pkg of [$*] installed — skip"; return; fi
+    say "    · removing conflicting module pkg(s): $present (running module persists in RAM)"
+    run "$tag" sudo pacman -Rdd --noconfirm $present
+}
+
+# Which bootloader is in use? Limine (manual config) here; bootctl elsewhere.
+boot_kind() {
+    [ -f "$LIMINE_CONF" ] && { echo limine; return; }
+    command -v bootctl >/dev/null 2>&1 && { echo systemd-boot; return; }
+    echo unknown
+}
+
+# Add a "Arch Linux (linux-lts)" entry to limine.conf, cloning the cmdline from
+# the existing linux entry (so root=, modeset, etc. carry over). Idempotent.
+limine_ensure_lts_entry() {
+    grep -q "$LTS_UKI_ID" "$LIMINE_CONF" 2>/dev/null && { say "    · limine linux-lts entry already present"; return; }
+    local cmdline; cmdline=$(grep -m1 -E '^[[:space:]]*cmdline:' "$LIMINE_CONF" | sed -E 's/^[[:space:]]*cmdline:[[:space:]]*//')
+    say "    · adding 'Arch Linux (linux-lts)' entry to $LIMINE_CONF"
+    if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] append lts entry (cmdline: $cmdline)"; return; fi
+    sudo tee -a "$LIMINE_CONF" >/dev/null <<EOF
+
+/Arch Linux (linux-lts)
+    protocol: efi
+    path: boot():/EFI/Linux/$LTS_UKI_ID
+    cmdline: $cmdline
+EOF
+    [ $? -eq 0 ] || FAILED+=("limine-lts-entry")
+}
+
+# Set Limine's default_entry (1-based, by file order of top-level '/' entries).
+# Arg: "lts" or "linux". Manages a single top-level default_entry: directive.
+limine_set_default() {
+    local want="$1" n=0 target=0 line
+    while IFS= read -r line; do
+        case "$line" in
+            /*) n=$((n+1))
+                if [ "$want" = lts ]   && printf '%s' "$line" | grep -q 'linux-lts' && [ "$target" -eq 0 ]; then target=$n; fi
+                if [ "$want" = linux ] && ! printf '%s' "$line" | grep -q 'linux-lts' && [ "$target" -eq 0 ]; then target=$n; fi
+                ;;
+        esac
+    done < "$LIMINE_CONF"
+    if [ "$target" -eq 0 ]; then
+        if [ "$DRY_RUN" -eq 1 ]; then
+            say "    [dry-run] would set default_entry to the $want entry (added just above)"; return
+        fi
+        say "    ! couldn't find the $want entry in limine.conf — set default manually."; FAILED+=("limine-default"); return
     fi
+    say "    · limine default_entry -> $target ($want)"
+    if [ "$DRY_RUN" -eq 1 ]; then return; fi
+    if grep -qE '^[[:space:]]*default_entry:' "$LIMINE_CONF"; then
+        sudo sed -i -E "s/^[[:space:]]*default_entry:.*/default_entry: $target/" "$LIMINE_CONF" || FAILED+=("limine-default")
+    else
+        sudo sed -i "1i default_entry: $target" "$LIMINE_CONF" || FAILED+=("limine-default")
+    fi
+}
+
+# Steer the boot default to the wanted kernel. Arg: "lts" or "" (=linux).
+# Dispatches on the bootloader. For the target UKI it refuses to set a default
+# that points at a non-existent image (would be unbootable).
+set_boot_default() {
+    local want="$1" id img kind
     if [ "$want" = "lts" ]; then id="$LTS_UKI_ID"; else id="$LINUX_UKI_ID"; fi
     img="$EFI_LINUX_DIR/$id"
     say "    · discovered UKIs:"; ls -1 "$EFI_LINUX_DIR"/*.efi 2>/dev/null | sed 's/^/        /'
     if [ "$DRY_RUN" -ne 1 ] && [ ! -f "$img" ]; then
         say "    ! $img does not exist — NOT changing the boot default (would be unbootable)."
-        say "    ! build it first (mkinitcpio -P) or set manually: sudo bootctl set-default <id>.efi"
         FAILED+=("boot-default:no-uki"); return
     fi
-    run bootctl-default sudo bootctl set-default "$id"
-    say "    · boot default -> $id"
+    kind=$(boot_kind); say "    · bootloader: $kind"
+    case "$kind" in
+        limine)
+            [ "$want" = "lts" ] && limine_ensure_lts_entry
+            limine_set_default "${want:-linux}"
+            say "    · (Limine timeout is shown so you can pick the other kernel for recovery)" ;;
+        systemd-boot)
+            run bootctl-default sudo bootctl set-default "$id"; say "    · boot default -> $id" ;;
+        *)  say "    ! unknown bootloader — set your default to boot $id manually." ;;
+    esac
 }
 
 # Print only the installed subset of a package list (so -R/-U don't choke).
@@ -207,7 +281,15 @@ do_status() {
     say ""
     say "initramfs MODULES line: $(grep -E '^MODULES=' "$MKINITCPIO" 2>/dev/null)"
     say "nvidia IgnorePkg pin:   $(grep -A1 "$PIN_BEGIN" "$PACMAN_CONF" 2>/dev/null | grep IgnorePkg || echo 'none')"
-    command -v bootctl >/dev/null 2>&1 && { say ""; say "Boot default:"; bootctl list 2>/dev/null | grep -iE 'title|default' | sed 's/^/    /' | head -20; }
+    say "UKIs present:           $(ls -1 "$EFI_LINUX_DIR"/*.efi 2>/dev/null | xargs -r -n1 basename | paste -sd' ' - || echo none)"
+    say ""
+    say "Bootloader: $(boot_kind)"
+    if [ -f "$LIMINE_CONF" ]; then
+        say "  limine entries / default:"
+        { grep -nE '^[[:space:]]*default_entry:|^/' "$LIMINE_CONF" 2>/dev/null | sed 's/^/    /'; } || true
+    elif command -v bootctl >/dev/null 2>&1; then
+        bootctl list 2>/dev/null | grep -iE 'title|default' | sed 's/^/    /' | head -20
+    fi
     hr
 }
 
@@ -228,6 +310,11 @@ do_downgrade() {
     say "the 'linux' entry only as a TTY recovery option. Revert with: latest"
     say ""
     confirm "Proceed with the downgrade to $ver?" || return
+
+    # 0. clear any stale pin from a previous (possibly failed) run so it can't
+    # block the -Syu/-U below with IgnorePkg prompts. Re-pinned after success.
+    say "\n### 0/4  clear any stale nvidia pin"
+    del_pin
 
     # 1. second kernel + dkms (full sync = the Arch-correct, no-partial-upgrade way)
     say "\n### 1/4  linux-lts + headers + dkms"
@@ -251,15 +338,28 @@ do_downgrade() {
         say "    ! (see https://archive.archlinux.org/packages/n/nvidia-utils/)."
         FAILED+=("downgrade:missing-pkgs"); return
     fi
-    say "\n### swap to $ver (single atomic pacman -U; resolves nvidia-open -> -dkms)"
-    # pacman -U on URLs fetches each pkg + its .sig, verifies, and applies as ONE
-    # transaction: nvidia-open(prebuilt) is removed via the -dkms conflict and the
-    # userspace is downgraded together. dkms then builds the module for linux-lts
-    # (its build attempt for 'linux' 7.0 may fail — that's expected and is why you
-    # must boot linux-lts).
+    say "\n### swap to $ver"
+    # Remove the prebuilt nvidia-open first (pacman won't auto-remove a
+    # version-pinned conflict under --noconfirm — see remove_module_pkg). Then -U
+    # the 580 set: pacman fetches each pkg + .sig, verifies, and downgrades the
+    # userspace + installs the dkms module in one transaction. dkms builds the 580
+    # module for linux-lts (its attempt against 'linux' 7.0 may fail — expected,
+    # which is exactly why you boot linux-lts).
+    remove_module_pkg nv-rm-open nvidia-open nvidia
     run nv-swap sudo pacman -U --noconfirm "${urls[@]}"
 
-    # 3. pin
+    # verify the swap actually applied before pinning / touching boot. If not,
+    # restore nvidia-open so the system stays consistent on 595.
+    if [ "$DRY_RUN" -ne 1 ] && ! pacman -Qq nvidia-open-dkms >/dev/null 2>&1; then
+        say "    ! SWAP FAILED — nvidia-open-dkms is not installed."
+        say "    ! restoring nvidia-open to keep the system consistent on the current driver..."
+        sudo pacman -S --needed --noconfirm nvidia-open || say "    ! restore also failed — run 'nvidia-switch.sh latest' from a TTY."
+        FAILED+=("downgrade:swap-failed")
+        say "    ! aborting the downgrade (no pin, no boot change made)."
+        return
+    fi
+
+    # 3. pin (only reached on a verified swap)
     say "\n### 3/4  pin the swapped packages"
     local pin_set=(nvidia-open-dkms "${NV_USERSPACE[@]}")
     [ "$WITH_CUDA" -eq 1 ] && pin_set+=(cuda cudnn)
@@ -292,8 +392,10 @@ do_latest() {
 
     say "\n### 1/3  drop the pin, then sync to repo-latest"
     del_pin
-    # Full sync so we don't do a partial upgrade; explicitly name the set so the
-    # prebuilt nvidia-open replaces nvidia-open-dkms in the same transaction.
+    # Remove the dkms module first (same conflict reason as the downgrade, in
+    # reverse), then full-sync the repo-latest prebuilt set. Running module stays
+    # in RAM until reboot.
+    remove_module_pkg nv-rm-dkms nvidia-open-dkms
     run nv-latest sudo pacman -Syu --needed --noconfirm \
         nvidia-open nvidia-utils lib32-nvidia-utils opencl-nvidia
     if [ "$WITH_CUDA" -eq 1 ]; then
