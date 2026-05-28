@@ -532,11 +532,13 @@ do_purge() {
     say "Reinstall BEFORE rebooting into the GUI:  nvidia-switch.sh latest"
 }
 
-# Align CUDA + cuDNN to the CURRENTLY LOADED driver, clean-removing the old ones
-# (reclaims space) and reinstalling a version that fits under the driver's CUDA
-# ceiling. Run this AFTER rebooting into a new driver — the ceiling is read from
-# nvidia-smi, which needs the new module actually loaded. Mirrors install.sh's
-# install_cuda logic: repo cuda if it fits, else the AUR cuda-<major.minor>.
+# Align CUDA + cuDNN to the CURRENTLY LOADED driver. Run AFTER rebooting into the
+# target driver — the ceiling is read from nvidia-smi, which needs the module
+# loaded. Compares CUDA MAJOR versions: CUDA "minor-version compatibility" means a
+# newer-MINOR toolkit (e.g. 13.2) runs fine on an older-minor driver of the SAME
+# major (13.0), so we keep the repo toolkit in that case — only a MAJOR mismatch
+# needs an older cuda from the AUR. Also REPAIRS a missing opencl-nvidia (it's
+# driver userspace, not just a cuda dep) so the cuda dependency is satisfiable.
 do_cuda() {
     hr; say ">>> Align CUDA + cuDNN to the loaded NVIDIA driver"; hr
     if ! command -v nvidia-smi >/dev/null 2>&1 || ! nvidia-smi >/dev/null 2>&1; then
@@ -544,31 +546,41 @@ do_cuda() {
         say "! then re-run. (CUDA's max version is the loaded driver's ceiling.)"
         FAILED+=("cuda:no-driver"); return
     fi
-    local maxc repoc inst
+    local maxc repoc inst maxmaj repomaj nvver
     maxc=$(nvidia-smi | grep -oP 'CUDA Version:\s*\K[0-9]+\.[0-9]+' | head -1)
     repoc=$(pacman -Si cuda 2>/dev/null | awk -F': +' '/^Version/{print $2}' | grep -oP '^[0-9]+\.[0-9]+')
-    inst=$(pacman -Q cuda 2>/dev/null | awk '{print $2}')
+    inst=$(exact_ver cuda); maxmaj=${maxc%%.*}; repomaj=${repoc%%.*}
     say "Driver ceiling: CUDA $maxc | repo cuda: $repoc | installed: ${inst:-none}"
-    say "Plan: clean-remove cuda+cudnn (reclaim space), reinstall <= $maxc, prune cache."
-    confirm "Proceed?" || return
 
-    # 1. clean removal (reclaims the installed footprint — cuda alone is multi-GB)
-    say "\n### 1/3  clean-remove cuda + cudnn"
-    local present; present=$(installed_of cuda cudnn)
-    if [ -n "$present" ]; then run cuda-remove sudo pacman -Rns --noconfirm $present
-    else say "    · cuda/cudnn not installed — skip"; fi
+    # 0. REPAIR: opencl-nvidia is part of the driver userspace (pinned). If it's
+    # missing (e.g. an earlier -Rns cascade removed it), reinstall it at the
+    # driver's version from the archive — otherwise cuda's opencl-nvidia dep can't
+    # be met (the repo copy is a different version and pinned/ignored).
+    if is_installed nvidia-utils && ! is_installed opencl-nvidia; then
+        nvver=$(exact_ver nvidia-utils)            # e.g. 580.119.02-1
+        say "\n### 0  repair: reinstall opencl-nvidia $nvver (driver userspace) from the archive"
+        local ou; ou=$(ala_url opencl-nvidia "${nvver%-*}")   # ala_url wants bare pkgver
+        if [ -n "$ou" ]; then run opencl-repair sudo pacman -U --noconfirm "$ou"
+        else say "    ! couldn't find opencl-nvidia $nvver in the archive — install it manually."; FAILED+=("cuda:opencl-repair"); fi
+    fi
 
-    # 2. install matched to the driver ceiling
-    say "\n### 2/3  install CUDA matched to the driver"
+    confirm "Install/align CUDA+cuDNN for driver ceiling $maxc?" || return
+
+    say "\n### install CUDA matched to the driver (by MAJOR version)"
     if [ -z "$maxc" ] || [ -z "$repoc" ]; then
         say "    ! couldn't read versions — installing repo cuda/cudnn as-is."
         run cuda-install sudo pacman -S --needed --noconfirm cuda cudnn
-    elif [ "$(printf '%s\n%s\n' "$repoc" "$maxc" | sort -V | head -1)" = "$repoc" ]; then
-        say "    · repo cuda ($repoc) fits under the ceiling ($maxc) — installing repo cuda+cudnn."
+    elif [ "$repomaj" -le "$maxmaj" ] 2>/dev/null; then
+        say "    · repo cuda major ($repomaj) <= driver major ($maxmaj): compatible via CUDA"
+        say "      minor-version compatibility — installing repo cuda $repoc + cudnn (no downgrade)."
         run cuda-install sudo pacman -S --needed --noconfirm cuda cudnn
     else
         local helper; helper=$(command -v paru || command -v yay)
-        say "    · repo cuda ($repoc) > ceiling ($maxc) — installing AUR cuda-$maxc + cudnn."
+        say "    · repo cuda MAJOR ($repomaj) > driver MAJOR ($maxmaj) — needs an older cuda."
+        # switch versions: drop cuda/cudnn ONLY (plain -R, never -s — -s would
+        # cascade into opencl-nvidia/driver stack), then build the AUR major.
+        local present; present=$(installed_of cuda cudnn)
+        [ -n "$present" ] && run cuda-remove sudo pacman -R --noconfirm $present
         if [ -n "$helper" ]; then
             if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] $helper -S --needed cuda-$maxc cudnn";
             else "$helper" -S --needed --noconfirm "cuda-$maxc" cudnn || FAILED+=("cuda:aur-$maxc"); fi
@@ -577,11 +589,11 @@ do_cuda() {
         fi
     fi
 
-    # 3. reclaim cache
-    say "\n### 3/3  reclaim cache"
+    say "\n### reclaim cache"
     clean_cache
     hr
-    say "CUDA aligned. Verify:  nvcc --version  (should be <= $maxc)."
+    say "CUDA done. Verify:  nvcc --version  and  nvidia-smi  (toolkit runs on the"
+    say "$maxc driver via minor-version compatibility)."
 }
 
 # ============================================================================
