@@ -182,3 +182,17 @@ repo is private, and the Actions deploy keeps working.
   (the earlier `bootctl set-default` was a no-op; only one menu entry showed
   because Limine needs a manual entry). The partial run left `linux-lts`+`dkms`
   installed and a stale 595 IgnorePkg pin (now auto-cleared at downgrade step 0).
+- **2026-05-28 (final fix) — 580.76.05 won't compile on linux-lts 6.18; default
+  bumped to 580.119.02.** Second run installed the 580.76.05 packages but the
+  **DKMS module failed to build** (`dkms status: added`, never `installed`), so
+  linux-lts booted with NO driver (`nvidia-smi` failed). Cause: kernel 6.18
+  changed the DRM `.fb_create` / `drm_helper_mode_fill_fb_struct` API (commit
+  `81112eaac559`, 2025-07-16); the Aug-2025 580.76.05 source has a hard 3-arg
+  call. **`linux-lts` (6.18) is itself too new for the old 580** — same wall as
+  kernel 7.0. 580.105.08+ add a conftest for the new API; **580.119.02** (newest
+  580, Isaac needs the 580 *branch* anyway) builds fine. Fixes: default target →
+  `580.119.02`; the downgrade now also **verifies the DKMS module actually built**
+  (`dkms status` shows `installed`, not just the package present) before pinning /
+  changing boot — the check that would have prevented the driverless boot. Also
+  fixed `installed_of` to match exact names (was a false positive: `pacman -Q
+  nvidia-open` resolves to nvidia-open-dkms via `provides`).

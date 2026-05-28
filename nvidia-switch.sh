@@ -7,7 +7,7 @@
 #
 #     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh              # menu
 #     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh status       # report
-#     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh downgrade    # -> 580.76.05
+#     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh downgrade    # -> 580.119.02
 #     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh downgrade 580.95.05
 #     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh latest       # -> repo newest
 #     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh purge        # remove ALL nvidia
@@ -47,10 +47,13 @@ ASSUME_YES=0
 WITH_CUDA=0
 FAILED=()
 
-# Default downgrade target: the closest 580.x Arch ever packaged to Isaac Sim
-# 5.1's validated 580.65.06 (Arch never shipped exactly .65.06). Override by
-# passing a version, e.g. `downgrade 580.95.05`.
-DEFAULT_NV_VER="580.76.05"
+# Default downgrade target: the NEWEST 580.x in the archive. Isaac Sim 5.1 needs
+# the 580 *branch* (validates 580.65.06; Arch never shipped exactly that), and the
+# newest point release is what compiles against current kernels. The older
+# 580.76.05 does NOT build against linux-lts 6.18 (a DRM .fb_create API change,
+# kernel commit 81112eaac559); 580.105.08+ added the conftest for it. Override by
+# passing a version, e.g. `downgrade 580.105.08`.
+DEFAULT_NV_VER="580.119.02"
 
 # Packages that make up the NVIDIA userspace (one global version, shared by all
 # kernels). The kernel-module package differs: prebuilt `nvidia-open` for the
@@ -247,8 +250,14 @@ set_boot_default() {
     esac
 }
 
-# Print only the installed subset of a package list (so -R/-U don't choke).
-installed_of() { local p; for p in "$@"; do pacman -Qq "$p" >/dev/null 2>&1 && echo "$p"; done; }
+# Print only the installed subset of a package list, matching EXACT installed
+# package names (not `provides`). `pacman -Q nvidia-open` would otherwise resolve
+# to nvidia-open-dkms via its `provides=nvidia-open`, a false positive; matching
+# against the real `pacman -Qq` name list avoids that.
+installed_of() {
+    local all p; all=$(pacman -Qq 2>/dev/null)
+    for p in "$@"; do printf '%s\n' "$all" | grep -Fxq "$p" && echo "$p"; done
+}
 
 confirm() {  # $1 = prompt; honours --yes
     [ "$ASSUME_YES" -eq 1 ] && return 0
@@ -348,15 +357,32 @@ do_downgrade() {
     remove_module_pkg nv-rm-open nvidia-open nvidia
     run nv-swap sudo pacman -U --noconfirm "${urls[@]}"
 
-    # verify the swap actually applied before pinning / touching boot. If not,
-    # restore nvidia-open so the system stays consistent on 595.
-    if [ "$DRY_RUN" -ne 1 ] && ! pacman -Qq nvidia-open-dkms >/dev/null 2>&1; then
-        say "    ! SWAP FAILED — nvidia-open-dkms is not installed."
-        say "    ! restoring nvidia-open to keep the system consistent on the current driver..."
-        sudo pacman -S --needed --noconfirm nvidia-open || say "    ! restore also failed — run 'nvidia-switch.sh latest' from a TTY."
-        FAILED+=("downgrade:swap-failed")
-        say "    ! aborting the downgrade (no pin, no boot change made)."
-        return
+    # verify the swap BEFORE pinning / touching boot. Two failure modes:
+    #  (a) the package didn't install at all -> restore nvidia-open;
+    #  (b) the package installed but the DKMS MODULE failed to BUILD (dkms shows
+    #      'added', not 'installed') -> the driver version can't compile against
+    #      this kernel. This is the trap that bricked the first attempt: do NOT
+    #      pin or change the boot default, or you reboot into a driverless kernel.
+    if [ "$DRY_RUN" -ne 1 ]; then
+        if ! pacman -Qq nvidia-open-dkms >/dev/null 2>&1; then
+            say "    ! SWAP FAILED — nvidia-open-dkms is not installed."
+            say "    ! restoring nvidia-open to keep the system consistent..."
+            sudo pacman -S --needed --noconfirm nvidia-open || say "    ! restore failed — run 'nvidia-switch.sh latest' from a TTY."
+            FAILED+=("downgrade:swap-failed")
+            say "    ! aborting (no pin, no boot change made)."
+            return
+        fi
+        say "    · dkms status: $(dkms status nvidia 2>/dev/null | paste -sd'; ' -)"
+        if ! dkms status nvidia 2>/dev/null | grep -q ': installed'; then
+            say "    ! SWAP INCOMPLETE — nvidia-open-dkms $ver installed but the DKMS"
+            say "    ! MODULE FAILED TO BUILD (status 'added', not 'installed'). Driver"
+            say "    ! $ver cannot compile against your kernel. Try a NEWER 580, e.g.:"
+            say "    !     nvidia-switch.sh downgrade 580.119.02"
+            say "    ! Build log: /var/lib/dkms/nvidia/$ver/build/make.log"
+            say "    ! NOT pinning and NOT changing the boot default (would boot driverless)."
+            FAILED+=("downgrade:dkms-build-failed")
+            return
+        fi
     fi
 
     # 3. pin (only reached on a verified swap)
