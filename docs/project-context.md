@@ -46,7 +46,9 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   `editors`, `embedded`, `audio` (incl. the DualSense PipeWire 1.6.5 pin +
   touchpad udev rule), `gpu`, `docker` (Docker + NVIDIA Container Toolkit;
   data-root on /home/docker-data + containerd-snapshotter=false; for ROS 2 Jazzy /
-  GPU containers), `media`, `terminal`, `kde`, `display`, `aurapps`, `groups`,
+  GPU containers), `media`, `terminal`, `kde`, `display`, `inputremap`
+  (input-remapper from the AUR — remaps mouse/keyboard buttons at the evdev layer,
+  works on Wayland; for the Razer Basilisk side keys), `aurapps`, `groups`,
   `shell`. CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
   counterpart to `install.sh`): components `docker`, `isaac`, `ros2`, `anaconda`,
@@ -237,3 +239,9 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   files and is clean. Fix: regenerate the spec — and do it automatically: the
   `docker` install component generates it, and **`nvidia-switch.sh` regenerates it
   on every driver swap** so it never goes stale again.
+- **2026-05-28 — ROS 2 Jazzy ↔ Isaac Sim bridge VERIFIED.** After the CDI fix,
+  `ros2-jazzy shell` starts and `ros2 topic list` works; Isaac's
+  `isaacsim.ros2.bridge` was enabled by default, so topics crossed immediately.
+  The full robotics stack (Isaac Sim + Lab native on 580.119 + ROS 2 Jazzy
+  container) is functional on Arch. Next: remap the Razer Basilisk V3 side keys
+  via `input-remapper` (the `inputremap` install component).
