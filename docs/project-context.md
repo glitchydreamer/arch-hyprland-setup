@@ -55,15 +55,23 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   **not** a sweepable component here (so `all` can't nuke the display driver) — it
   lives in `nvidia-switch.sh purge` behind a hard confirmation.
 - `nvidia-switch.sh` — dedicated, **stateful** switcher for the WHOLE NVIDIA
-  stack (driver + userspace, optionally CUDA/cuDNN). Actions: `status` (read-only
-  report), `downgrade [ver]` (whole stack → 580.x + `linux-lts`, for Isaac
-  Sim/Lab), `latest` (restore repo-newest, boot back into `linux`), `purge`
-  (remove everything NVIDIA — leaves no driver, TTY/recovery only). Higher risk
-  than the other scripts because NVIDIA drives the display, so every package swap
-  is **one atomic transaction**, the result is **pinned** (`IgnorePkg`), the
-  UKI/initramfs is rebuilt, the boot default is steered, and a recovery note is
-  printed. Honours `--dry-run` / `--yes` / `--with-cuda`. Sources pinned-older
-  packages from the Arch Linux Archive. See
+  stack (driver + userspace; CUDA/cuDNN via a separate action). Actions: `status`
+  (read-only report), `downgrade [ver]` (whole stack → 580.x + `linux-lts`, for
+  Isaac Sim/Lab; default target **580.119.02**), `latest` (restore repo-newest,
+  boot back into `linux`), `cuda` (align CUDA+cuDNN to the LOADED driver's ceiling
+  — clean-remove + reinstall — run post-reboot), `purge` (remove everything NVIDIA
+  — leaves no driver, TTY/recovery only). Higher risk than the other scripts
+  because NVIDIA drives the display, so every package swap is **one atomic
+  transaction**, the result is **pinned** (`IgnorePkg`), the swap is **verified to
+  actually build under dkms** before boot is touched, the UKI/initramfs is
+  rebuilt, the boot default is steered, and the **pacman cache is pruned** of the
+  superseded driver/CUDA versions to reclaim space (the install tree itself never
+  holds duplicates — pacman replaces in place). Honours `--dry-run` / `--yes`.
+  Sources pinned-older packages from the Arch Linux Archive.
+  **CUDA note:** the driver caps the max CUDA (`nvidia-smi`'s "CUDA Version"); 580
+  caps at 13.0, 595 at 13.2 — that ceiling is only readable once the new driver is
+  *loaded*, which is why CUDA alignment is the separate post-reboot `cuda` action,
+  not bundled into `downgrade`. See
   [§NVIDIA learn page](learn/05-nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver).
 
 ## File map (live system, not the repo)
@@ -139,9 +147,16 @@ account), *not* the Claude-context account email. Remote is HTTPS; pushing
 needs `gh auth login` (or SSH/PAT) — a fresh install has no credentials.
 
 **Repo visibility doesn't affect pushing.** Public vs private is gated by
-auth + write access, not visibility — as the owner you push the same either
-way. On a free plan the GitHub Pages docs site stays **public** even if the
-repo is private, and the Actions deploy keeps working.
+auth + write access, not visibility — as the owner you push the same either way.
+
+**GitHub Pages needs a PUBLIC repo on the Free plan (corrected 2026-05-28).** The
+repo is currently **private**, and on Free, Pages is unavailable for private
+repos — so the Pages site 404s and *every* `deploy-docs` run fails at
+`actions/configure-pages` ("verify that the repository has Pages enabled"; the
+API returns HTTP 422 "current plan does not support GitHub Pages"). The workflow
+now sets `enablement: true`, but that only takes effect once Pages is actually
+available. To get the docs site live: **make the repo public** (then Pages works
+on Free), or upgrade to GitHub Pro, or host the docs elsewhere.
 
 ## History
 
