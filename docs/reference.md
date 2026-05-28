@@ -432,24 +432,26 @@ npm 11, pnpm 10, yarn classic.
 - **Neovim 0.12** with LazyVim starter at `~/.config/nvim`.
 - **Zed** — binary is `zeditor` on Arch (`zed` is taken by something else). Fish abbr `zed` aliases to `zeditor`.
 
-> **Robotics status (revised 2026-05-28).** Docker, ROS 2 Jazzy and Isaac Sim/Lab
-> were removed earlier in the day after Isaac's RTX renderer segfaulted on this
-> box's NVIDIA **595** driver — even inside the official container, because the
-> NVIDIA Container Toolkit *injects the host driver*, so the container was still
-> stuck on 595. The refined diagnosis is a **driver-version mismatch**, not
-> hardware: the same RTX 3060 runs Isaac on this machine's Ubuntu SSD, and Isaac
-> Sim 5.1 validates driver **580**. Plan now: make 580 the host driver via
+> **Robotics status (working, 2026-05-28).** Isaac Sim **and** Isaac Lab run
+> **natively** on this box after the NVIDIA stack was switched to driver
+> **580.119.02** on the **`linux-lts`** kernel (Isaac's RTX renderer needs the
+> 580 branch; Arch's 595 segfaults it — a driver-*version* mismatch, not
+> hardware). The switch is automated/reversible via
 > [`nvidia-switch.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/nvidia-switch.sh)
-> `downgrade` (whole stack → 580 + `linux-lts`, atomic + pinned + reversible),
-> boot linux-lts, then test Isaac (native binary first, container fallback). CUDA
-> + Anaconda remain for general ML. To remove other components the same clean way,
-> use [`uninstall.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/uninstall.sh).
+> `downgrade`. **ROS 2 Jazzy is back** too (`install.sh docker` + the `ros2-jazzy`
+> launcher): the NVIDIA Container Toolkit injects the 580 host driver into
+> containers, and `--network host` + a shared `ROS_DOMAIN_ID`/RMW bridge the Jazzy
+> container to native Isaac's ROS 2 bridge. Run `ros2-jazzy pull` then
+> `ros2-jazzy shell`. CUDA + Anaconda remain for general ML; align CUDA to the 580
+> ceiling with `nvidia-switch.sh cuda`. To remove components the clean way, use
+> [`uninstall.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/uninstall.sh).
 >
 > **NVIDIA stack switching** — `nvidia-switch.sh status | downgrade [ver] | latest
-> | purge`. Switches the *whole* NVIDIA stack (driver + userspace, optionally
-> CUDA/cuDNN) atomically, pins the result (`IgnorePkg`), rebuilds the UKI, steers
-> the boot default, and prints a recovery note. `--dry-run` previews everything;
-> read [NVIDIA learn §the fix](learn/05-nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver).
+> | cuda | purge`. Switches the *whole* NVIDIA stack (driver + userspace)
+> atomically, pins the result (`IgnorePkg`), verifies the dkms build, rebuilds the
+> UKI, steers the Limine boot default, prunes the cache, and prints a recovery
+> note. `cuda` aligns CUDA+cuDNN to the loaded driver. `--dry-run` previews
+> everything; read [NVIDIA learn §the fix](learn/05-nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver).
 
 ### 6.5 Audio / DualSense
 

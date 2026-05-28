@@ -44,8 +44,10 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   `wireplumber`, `git`. The **source of truth** for those files; edit & re-run.
 - `install.sh` — components: `build`, `cuda`, `python`, `anaconda`, `node`,
   `editors`, `embedded`, `audio` (incl. the DualSense PipeWire 1.6.5 pin +
-  touchpad udev rule), `gpu`, `media`, `terminal`, `kde`, `display`, `aurapps`,
-  `groups`, `shell`. CUDA is driver-matched.
+  touchpad udev rule), `gpu`, `docker` (Docker + NVIDIA Container Toolkit;
+  data-root on /home/docker-data + containerd-snapshotter=false; for ROS 2 Jazzy /
+  GPU containers), `media`, `terminal`, `kde`, `display`, `aurapps`, `groups`,
+  `shell`. CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
   counterpart to `install.sh`): components `docker`, `isaac`, `ros2`, `anaconda`,
   `cuda`. Each removes its packages + data + configs + launchers and reports
@@ -81,7 +83,7 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
 | caelestia upstream (never edit) | `~/.local/share/caelestia/` (and `~/.config/hypr` → symlink into it) |
 | User Hyprland overrides | `~/.config/caelestia/hypr-user.conf`, `hypr-vars.conf` |
 | Per-host monitors + active symlink | `~/.config/caelestia/hypr-monitors-{desktop,laptop}.conf`, `hypr-monitors.conf` |
-| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, dualsense-audio}` |
+| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy}` |
 | Fish additions | `~/.config/fish/conf.d/dev-env.fish` |
 | WirePlumber DualSense | `~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf` |
 | DualSense touchpad ignore | `/etc/udev/rules.d/71-dualsense-touchpad-ignore.rules` |
@@ -110,19 +112,20 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   reports `vrr=true` regardless — that's a capability readout, not the setting.
 - **Half-screen snaps omitted:** `Super+Ctrl+arrows` is caelestia's workspace
   nav; a float-based snap is unreliable on dwindle.
-- **Isaac Sim/Lab is being brought back via a driver downgrade (revised
-  2026-05-28).** Earlier the same day Isaac + the container stack were removed
-  after the RTX renderer segfaulted on driver **595** even inside the official
-  container. The refined diagnosis: this is a **driver-version mismatch**, not a
-  hardware/unfixable bug — the *same* RTX 3060 runs Isaac fine on this machine's
-  separate **Ubuntu 22.04 SSD**, and Isaac Sim 5.1 validates driver **580** (Arch
-  ships 595). The container couldn't help because the NVIDIA Container Toolkit
-  *injects the host driver*, so Isaac was stuck on the host's 595. Fix path: make
-  **580 the host driver**. Because `nvidia-utils` is a single global version and
-  580 won't build on kernel 7.0, this means the whole stack moves to 580 + a
-  `linux-lts` kernel — automated in `nvidia-switch.sh downgrade`. Test order once
-  on 580: **native binary Isaac first**, container only if Arch userspace needs
-  it. **CUDA + Anaconda** stay for general ML regardless.
+- **Isaac Sim/Lab WORK on Arch now, and ROS 2 Jazzy is back (2026-05-28).** Isaac
+  failed earlier because the RTX renderer needs driver **580** (validated) but
+  Arch ships **595** — a driver-*version* mismatch, not hardware (the same RTX
+  3060 runs Isaac on the Ubuntu 22.04 SSD). The NVIDIA Container Toolkit *injects
+  the host driver*, so a container couldn't fix it either; the only cure was
+  making **580 the host driver**. `nvidia-switch.sh downgrade` does that (whole
+  stack → 580.119.02 + `linux-lts`, since `nvidia-utils` is a single global
+  version and 580 won't build on kernel 7.0). Isaac Sim **and** Isaac Lab now run
+  **natively** on that stack. With the driver sorted, **ROS 2 Jazzy was re-added**
+  (Docker + NVIDIA Container Toolkit + the `ros2-jazzy` launcher) — the toolkit
+  injects the 580 driver into containers, and `--network host` + a shared DDS
+  domain bridge it to native Isaac's ROS 2 bridge. **CUDA must be aligned to the
+  580 ceiling (13.0) via `nvidia-switch.sh cuda`** — it had stayed at the 595-era
+  13.2. **CUDA + Anaconda** stay for general ML regardless.
 
 ## Maintenance habit
 
