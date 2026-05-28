@@ -32,6 +32,11 @@ jobs:
       - run: mkdocs build
 
       - uses: actions/configure-pages@v5
+        with:
+          # Pages was never enabled on the repo, so every deploy failed here
+          # ("verify that the repository has Pages enabled"). enablement:true makes
+          # the action enable Pages (build_type=workflow) itself on the next run.
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:

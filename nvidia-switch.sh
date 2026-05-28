@@ -10,13 +10,16 @@
 #     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh downgrade    # -> 580.119.02
 #     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh downgrade 580.95.05
 #     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh latest       # -> repo newest
+#     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh cuda         # align CUDA to driver
 #     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh purge        # remove ALL nvidia
 #     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh --dry-run downgrade
 #
 # Flags:  --dry-run  print every command, change nothing.
 #         --yes/-y   skip confirmations (still prints the plan + recovery note).
-#         --with-cuda  also move CUDA/cuDNN (default: leave them; CUDA 13.x runs
-#                      on driver 580, so they usually don't need to move).
+#
+# CUDA/cuDNN are handled by the separate `cuda` action (run AFTER rebooting into
+# the target driver): the driver caps the max CUDA, and that ceiling is only
+# readable from nvidia-smi once the new module is loaded.
 #
 # WHY this is more dangerous than the other scripts in this repo: NVIDIA drives
 # the display (early-KMS MODULES in the initramfs + nvidia_drm.modeset=1 +
@@ -44,7 +47,6 @@ fi
 
 DRY_RUN=0
 ASSUME_YES=0
-WITH_CUDA=0
 FAILED=()
 
 # Default downgrade target: the NEWEST 580.x in the archive. Isaac Sim 5.1 needs
@@ -250,13 +252,53 @@ set_boot_default() {
     esac
 }
 
-# Print only the installed subset of a package list, matching EXACT installed
-# package names (not `provides`). `pacman -Q nvidia-open` would otherwise resolve
-# to nvidia-open-dkms via its `provides=nvidia-open`, a false positive; matching
-# against the real `pacman -Qq` name list avoids that.
-installed_of() {
-    local all p; all=$(pacman -Qq 2>/dev/null)
-    for p in "$@"; do printf '%s\n' "$all" | grep -Fxq "$p" && echo "$p"; done
+# True iff an EXACT package name is installed (ignores `provides` — `pacman -Q
+# nvidia-open` would otherwise resolve to nvidia-open-dkms via provides). Uses a
+# captured list + case match, NOT `pacman -Qq | grep -q`: under `set -o pipefail`
+# grep -q's early exit gives pacman a SIGPIPE (141), which pipefail reports as a
+# failure — silently making installed packages look absent.
+is_installed() {
+    case $'\n'"$(pacman -Qq 2>/dev/null)"$'\n' in *$'\n'"$1"$'\n'*) return 0 ;; *) return 1 ;; esac
+}
+
+# Print only the truly-installed subset of a package list (exact names).
+installed_of() { local p; for p in "$@"; do is_installed "$p" && echo "$p"; done; }
+
+# Echo the installed "pkgver-pkgrel" for an EXACT package name, or nothing.
+exact_ver() { is_installed "$1" && pacman -Q "$1" 2>/dev/null | awk '{print $2}'; }
+
+# Reclaim space: prune the pacman cache of superseded NVIDIA/CUDA/container
+# package files — every version of these families EXCEPT the one currently
+# installed. This is where a driver/CUDA swap's old versions pile up (the install
+# tree itself has no duplicates — pacman replaces in place). Scoped to these
+# families so it's predictable; for a full cache trim use `paccache -ruk0`.
+NV_CACHE_FAMILIES="nvidia-utils nvidia-open nvidia-open-dkms lib32-nvidia-utils opencl-nvidia nvidia-settings cuda cudnn libnvidia-container nvidia-container-toolkit linux-firmware-nvidia"
+clean_cache() {
+    say "\n### reclaim: prune old NVIDIA/CUDA packages from the pacman cache"
+    local cache=/var/cache/pacman/pkg pkg cur f base rel rest2 fver fname kb=0 ksz
+    local victims=()
+    for pkg in $NV_CACHE_FAMILIES; do
+        cur=$(exact_ver "$pkg")
+        for f in "$cache/$pkg"-*-*.pkg.tar.zst; do
+            [ -e "$f" ] || continue
+            base=$(basename "$f" .pkg.tar.zst)        # name-ver-rel-arch
+            rest2=${base%-*}; rest2=${rest2%-*}        # name-ver
+            rel=${base%-*}; rel=${rel##*-}             # rel
+            fver=${rest2##*-}; fname=${rest2%-*}       # ver / name
+            [ "$fname" = "$pkg" ] || continue          # exact family (not a longer name)
+            [ -n "$cur" ] && [ "$fver-$rel" = "$cur" ] && continue  # keep installed version
+            victims+=("$f")
+        done
+    done
+    if [ "${#victims[@]}" -eq 0 ]; then say "    · cache already free of old NVIDIA/CUDA packages"; return; fi
+    for f in "${victims[@]}"; do
+        ksz=$(du -k "$f" 2>/dev/null | awk '{print $1}'); kb=$((kb + ${ksz:-0}))
+        say "    · $(basename "$f")"
+    done
+    say "    · reclaiming ~$((kb/1024)) MB"
+    if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] sudo rm the above (+ .sig)"; return; fi
+    local rmlist=(); for f in "${victims[@]}"; do rmlist+=("$f" "$f.sig"); done
+    run cache-rm sudo rm -f "${rmlist[@]}"
 }
 
 confirm() {  # $1 = prompt; honours --yes
@@ -310,13 +352,16 @@ do_downgrade() {
     say "     'linux' $(pacman -Q linux 2>/dev/null | awk '{print $2}') kernel stays installed),"
     say "  2. atomically swap nvidia-open(prebuilt)+595 userspace -> nvidia-open-dkms"
     say "     $ver + matching nvidia-utils/lib32/opencl from the Arch Linux Archive,"
-    [ "$WITH_CUDA" -eq 1 ] && say "  2b. also move cuda+cudnn to the $ver-era archive (--with-cuda),"
     say "  3. pin all of it (IgnorePkg) so -Syu can't pull it back to 595,"
-    say "  4. rebuild the initramfs and make linux-lts the boot default."
+    say "  4. rebuild the initramfs and make linux-lts the boot default,"
+    say "  5. prune the old NVIDIA packages from the pacman cache (reclaim space)."
     say ""
     say "AFTER THIS: the whole system runs on driver $ver. Your 'linux' 7.0 entry"
     say "will have NO nvidia module (580 can't build on 7.0) — boot linux-lts. Keep"
     say "the 'linux' entry only as a TTY recovery option. Revert with: latest"
+    say "CUDA/cuDNN are NOT touched here — the driver caps the max CUDA, and that"
+    say "ceiling is only readable once the new driver is LOADED. So after rebooting,"
+    say "run 'nvidia-switch.sh cuda' to align CUDA/cuDNN to the new driver + reclaim."
     say ""
     confirm "Proceed with the downgrade to $ver?" || return
 
@@ -337,11 +382,6 @@ do_downgrade() {
         if [ -n "$u" ]; then say "    · $p -> $u"; urls+=("$u")
         else say "    ! could not find $p-$ver in the archive"; missing=1; fi
     done
-    if [ "$WITH_CUDA" -eq 1 ]; then
-        say "    (cuda/cudnn move requested — resolving newest archived builds <= driver era)"
-        say "    ! NOTE: pick cuda/cudnn versions by hand if the auto-pick is wrong; CUDA 13.x"
-        say "    ! already runs on driver 580, so leaving them is usually fine."
-    fi
     if [ "$missing" -eq 1 ]; then
         say "    ! aborting: not all $ver packages are in the archive. Try another 580.x"
         say "    ! (see https://archive.archlinux.org/packages/n/nvidia-utils/)."
@@ -386,16 +426,19 @@ do_downgrade() {
     fi
 
     # 3. pin (only reached on a verified swap)
-    say "\n### 3/4  pin the swapped packages"
+    say "\n### 3/5  pin the swapped packages"
     local pin_set=(nvidia-open-dkms "${NV_USERSPACE[@]}")
-    [ "$WITH_CUDA" -eq 1 ] && pin_set+=(cuda cudnn)
     add_pin "${pin_set[@]}"
 
     # 4. UKI preset for linux-lts + rebuild + boot default
-    say "\n### 4/4  linux-lts UKI + initramfs + boot default -> linux-lts"
+    say "\n### 4/5  linux-lts UKI + initramfs + boot default -> linux-lts"
     ensure_lts_uki_preset
     regen_initramfs
     set_boot_default lts
+
+    # 5. reclaim cache space from the superseded driver versions
+    say "\n### 5/5  reclaim cache"
+    clean_cache
 
     hr
     say "DOWNGRADE staged. RECOVERY NOTE — read before rebooting:"
@@ -403,6 +446,7 @@ do_downgrade() {
     say "  * If the desktop doesn't come up, at the boot menu choose the 'linux'"
     say "    7.0 entry to reach a TTY, then run:  nvidia-switch.sh latest"
     say "  * Verify after reboot:  nvidia-smi   (should read $ver)"
+    say "  * Align CUDA to the new driver + reclaim space:  nvidia-switch.sh cuda"
     say "  * Then test Isaac: native BINARY download first; if Arch userspace"
     say "    breaks it, fall back to the Docker container (toolkit injects 580)."
 }
@@ -416,7 +460,7 @@ do_latest() {
     say ""
     confirm "Proceed back to repo-latest NVIDIA?" || return
 
-    say "\n### 1/3  drop the pin, then sync to repo-latest"
+    say "\n### 1/4  drop the pin, then sync to repo-latest"
     del_pin
     # Remove the dkms module first (same conflict reason as the downgrade, in
     # reverse), then full-sync the repo-latest prebuilt set. Running module stays
@@ -424,19 +468,20 @@ do_latest() {
     remove_module_pkg nv-rm-dkms nvidia-open-dkms
     run nv-latest sudo pacman -Syu --needed --noconfirm \
         nvidia-open nvidia-utils lib32-nvidia-utils opencl-nvidia
-    if [ "$WITH_CUDA" -eq 1 ]; then
-        say "    · restoring cuda + cudnn to repo-latest"
-        run cuda-latest sudo pacman -S --needed --noconfirm cuda cudnn
-    fi
 
-    say "\n### 2/3  rebuild initramfs"
+    say "\n### 2/4  rebuild initramfs"
     regen_initramfs
 
-    say "\n### 3/3  boot default -> linux"
+    say "\n### 3/4  boot default -> linux"
     set_boot_default ""
+
+    say "\n### 4/4  reclaim cache"
+    clean_cache
 
     hr
     say "RESTORED. Reboot into the 'linux' kernel, then verify:  nvidia-smi"
+    say "To bring CUDA/cuDNN back up to the latest driver's ceiling + reclaim the"
+    say "old toolkit's space, after reboot run:  nvidia-switch.sh cuda"
 }
 
 do_purge() {
@@ -465,7 +510,7 @@ do_purge() {
     fi
     run cuda-profile sudo rm -f /etc/profile.d/cuda.sh
 
-    say "\n### 3/4  strip nvidia early-KMS modules from the initramfs config"
+    say "\n### 3/5  strip nvidia early-KMS modules from the initramfs config"
     if grep -qE '^MODULES=.*nvidia' "$MKINITCPIO" 2>/dev/null; then
         # Surgically drop only the nvidia tokens (keeps any other modules), then
         # tidy the leftover spaces inside the parens.
@@ -477,11 +522,66 @@ do_purge() {
     fi
     regen_initramfs
 
-    say "\n### 4/4  done"
+    say "\n### 4/5  reclaim cache (all NVIDIA/CUDA packages — none are installed now)"
+    clean_cache
+
+    say "\n### 5/5  done"
     hr
     say "PURGED. (nvidia_drm.modeset=1 may remain on the kernel cmdline — harmless"
     say "with no driver; remove it from your bootloader config if you like.)"
     say "Reinstall BEFORE rebooting into the GUI:  nvidia-switch.sh latest"
+}
+
+# Align CUDA + cuDNN to the CURRENTLY LOADED driver, clean-removing the old ones
+# (reclaims space) and reinstalling a version that fits under the driver's CUDA
+# ceiling. Run this AFTER rebooting into a new driver — the ceiling is read from
+# nvidia-smi, which needs the new module actually loaded. Mirrors install.sh's
+# install_cuda logic: repo cuda if it fits, else the AUR cuda-<major.minor>.
+do_cuda() {
+    hr; say ">>> Align CUDA + cuDNN to the loaded NVIDIA driver"; hr
+    if ! command -v nvidia-smi >/dev/null 2>&1 || ! nvidia-smi >/dev/null 2>&1; then
+        say "! No working NVIDIA driver is loaded — boot into your target driver first,"
+        say "! then re-run. (CUDA's max version is the loaded driver's ceiling.)"
+        FAILED+=("cuda:no-driver"); return
+    fi
+    local maxc repoc inst
+    maxc=$(nvidia-smi | grep -oP 'CUDA Version:\s*\K[0-9]+\.[0-9]+' | head -1)
+    repoc=$(pacman -Si cuda 2>/dev/null | awk -F': +' '/^Version/{print $2}' | grep -oP '^[0-9]+\.[0-9]+')
+    inst=$(pacman -Q cuda 2>/dev/null | awk '{print $2}')
+    say "Driver ceiling: CUDA $maxc | repo cuda: $repoc | installed: ${inst:-none}"
+    say "Plan: clean-remove cuda+cudnn (reclaim space), reinstall <= $maxc, prune cache."
+    confirm "Proceed?" || return
+
+    # 1. clean removal (reclaims the installed footprint — cuda alone is multi-GB)
+    say "\n### 1/3  clean-remove cuda + cudnn"
+    local present; present=$(installed_of cuda cudnn)
+    if [ -n "$present" ]; then run cuda-remove sudo pacman -Rns --noconfirm $present
+    else say "    · cuda/cudnn not installed — skip"; fi
+
+    # 2. install matched to the driver ceiling
+    say "\n### 2/3  install CUDA matched to the driver"
+    if [ -z "$maxc" ] || [ -z "$repoc" ]; then
+        say "    ! couldn't read versions — installing repo cuda/cudnn as-is."
+        run cuda-install sudo pacman -S --needed --noconfirm cuda cudnn
+    elif [ "$(printf '%s\n%s\n' "$repoc" "$maxc" | sort -V | head -1)" = "$repoc" ]; then
+        say "    · repo cuda ($repoc) fits under the ceiling ($maxc) — installing repo cuda+cudnn."
+        run cuda-install sudo pacman -S --needed --noconfirm cuda cudnn
+    else
+        local helper; helper=$(command -v paru || command -v yay)
+        say "    · repo cuda ($repoc) > ceiling ($maxc) — installing AUR cuda-$maxc + cudnn."
+        if [ -n "$helper" ]; then
+            if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] $helper -S --needed cuda-$maxc cudnn";
+            else "$helper" -S --needed --noconfirm "cuda-$maxc" cudnn || FAILED+=("cuda:aur-$maxc"); fi
+        else
+            say "    ! no AUR helper (paru/yay) — install cuda-$maxc manually."; FAILED+=("cuda:no-helper")
+        fi
+    fi
+
+    # 3. reclaim cache
+    say "\n### 3/3  reclaim cache"
+    clean_cache
+    hr
+    say "CUDA aligned. Verify:  nvcc --version  (should be <= $maxc)."
 }
 
 # ============================================================================
@@ -491,6 +591,7 @@ ACTIONS=(
     "status|Read-only report: driver, packages, kernels, dkms, pin, boot default"
     "downgrade|Switch the whole stack to 580.x (+ linux-lts) for Isaac Sim / Lab"
     "latest|Restore the repo-latest NVIDIA (prebuilt nvidia-open) + boot linux"
+    "cuda|Align CUDA+cuDNN to the LOADED driver (clean-swap + reclaim; run post-reboot)"
     "purge|Remove ALL nvidia + CUDA (leaves NO driver — TTY/recovery only)"
 )
 ALL_NAMES=(); for row in "${ACTIONS[@]}"; do ALL_NAMES+=("${row%%|*}"); done
@@ -502,9 +603,8 @@ for a in "$@"; do
     case "$a" in
         --dry-run)   DRY_RUN=1 ;;
         -y|--yes)    ASSUME_YES=1 ;;
-        --with-cuda) WITH_CUDA=1 ;;
         -h|--help)
-            say "usage: nvidia-switch.sh [--dry-run] [--yes] [--with-cuda] <action> [version]"
+            say "usage: nvidia-switch.sh [--dry-run] [--yes] <action> [version]"
             say "actions: ${ALL_NAMES[*]}"; exit 0 ;;
         *)
             if is_action "$a"; then ACTION="$a"
@@ -536,6 +636,7 @@ case "$ACTION" in
     status)    do_status ;;
     downgrade) do_downgrade "$ARG" ;;
     latest)    do_latest ;;
+    cuda)      do_cuda ;;
     purge)     do_purge ;;
 esac
 
