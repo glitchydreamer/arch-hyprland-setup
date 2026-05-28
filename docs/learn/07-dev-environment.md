@@ -140,6 +140,18 @@ up inside `ros2-jazzy shell` via `ros2 topic list`, and vice-versa.
 > so the *whole* stack — module, userspace, and the settings libs — stays on one
 > version.
 
+> **Gotcha 2 — CDI vs the open driver: force legacy mode.** The Container Toolkit
+> has two ways to find host GPU files: the older **legacy** path
+> (`libnvidia-container`, which lists only files that exist) and the newer **CDI**
+> path (a generated `/etc/cdi/nvidia.yaml` spec). In the default `mode = "auto"`,
+> if a CDI spec exists it's used. But `nvidia-ctk cdi generate` lists libraries
+> the **open** driver doesn't ship (e.g. `libnvidia-tileiras.so.<ver>`), so the
+> spec points at a non-existent file and `--gpus all` dies with *"no such file"*.
+> Fix: force the legacy path —
+> `sudo nvidia-ctk config --in-place --set nvidia-container-runtime.mode=legacy`
+> (the `docker` install component now does this automatically). The legacy path
+> still injects everything rviz needs for GPU rendering.
+
 ```bash
 ros2-jazzy pull            # fetch the image once (~6 GB → /home/docker-data)
 ros2-jazzy shell           # drop into a Jazzy environment; ~/robotics/ws is /root/ws

@@ -258,6 +258,12 @@ do_docker() {
     fi
     command -v docker >/dev/null || { say "    · docker not installed — skipping config."; FAILED+=("docker:not-installed"); return; }
     sudo nvidia-ctk runtime configure --runtime=docker || FAILED+=("nvidia-ctk")
+    # Force the LEGACY mount path (not CDI). With the OPEN driver, `nvidia-ctk cdi
+    # generate` lists libraries the open variant doesn't ship (e.g.
+    # libnvidia-tileiras.so.<ver>); in the default "auto" mode the runtime then
+    # uses that CDI spec and `--gpus all` dies with "no such file". The legacy
+    # libnvidia-container path enumerates only real files and is clean.
+    sudo nvidia-ctk config --in-place --set nvidia-container-runtime.mode=legacy || FAILED+=("nvidia-ctk-mode")
     # Root partition is small (~50G) and images are large, so put Docker's
     # data-root on /home. data-root alone isn't enough: with the containerd image
     # store ON, layers land under /var/lib/containerd (root) and data-root is

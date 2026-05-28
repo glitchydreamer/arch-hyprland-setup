@@ -227,3 +227,12 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   the 580.119.02 `nvidia-settings` from the archive + add it to the pin. Lesson:
   the *entire* NVIDIA package set (module + userspace + settings libs) must sit on
   one version or `--gpus all` breaks.
+- **2026-05-28 — ROS 2 container, part 2: force legacy mode (CDI vs open driver).**
+  After fixing `nvidia-settings`, `ros2-jazzy shell` still failed:
+  *"open /usr/lib/libnvidia-tileiras.so.580.119.02: no such file"*. The toolkit
+  was in `mode = "auto"` and used a generated **CDI** spec (`/etc/cdi/nvidia.yaml`)
+  that lists libraries the **open** driver doesn't ship (`libnvidia-tileiras` is
+  phantom — not in any package, not on disk). The **legacy** `libnvidia-container`
+  path lists only real files and is clean. Fix: `nvidia-ctk config --in-place
+  --set nvidia-container-runtime.mode=legacy` — now baked into the `docker`
+  install component. (Legacy still injects everything rviz needs.)
