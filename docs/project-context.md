@@ -216,3 +216,14 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   changing boot — the check that would have prevented the driverless boot. Also
   fixed `installed_of` to match exact names (was a false positive: `pacman -Q
   nvidia-open` resolves to nvidia-open-dkms via `provides`).
+- **2026-05-28 — ROS 2 container wouldn't start: `nvidia-settings` left at 595.**
+  `ros2-jazzy shell` (`docker --gpus all`) failed: *"open
+  /usr/lib/libnvidia-gtk3.so.580.119.02: no such file or directory"*. The NVIDIA
+  Container Toolkit injects host NVIDIA libs **by the driver version**, but
+  `nvidia-settings` (ships `libnvidia-gtk3` / `libnvidia-wayland-client`) wasn't
+  in the swap set, so it stayed at 595 and the 580 file didn't exist. Fix:
+  `nvidia-switch.sh` now includes **and pins `nvidia-settings`** in `downgrade`
+  (and restores it in `latest`) when it's installed. Immediate repair: `pacman -U`
+  the 580.119.02 `nvidia-settings` from the archive + add it to the pin. Lesson:
+  the *entire* NVIDIA package set (module + userspace + settings libs) must sit on
+  one version or `--gpus all` breaks.

@@ -128,6 +128,18 @@ Then, on the Isaac side, you enable its **ROS 2 Bridge** extension
 (`isaacsim.ros2.bridge`). With matching domain/RMW, topics Isaac publishes show
 up inside `ros2-jazzy shell` via `ros2 topic list`, and vice-versa.
 
+> **Gotcha — every host NVIDIA library must match the driver version.** The
+> Container Toolkit injects host NVIDIA libraries into the container *by the
+> driver's version string* (e.g. `libnvidia-gtk3.so.580.119.02`). If even one
+> NVIDIA package is left at a different version, `docker --gpus all` fails to
+> start with *"open …so.580.119.02: no such file or directory"*. This bit us:
+> `nvidia-settings` (which ships `libnvidia-gtk3` / `libnvidia-wayland-client`)
+> was left at **595** after the driver moved to **580** — so the toolkit looked
+> for the 580 file that didn't exist. The fix (now built into
+> `nvidia-switch.sh`): the driver swap includes **and pins `nvidia-settings`** too,
+> so the *whole* stack — module, userspace, and the settings libs — stays on one
+> version.
+
 ```bash
 ros2-jazzy pull            # fetch the image once (~6 GB → /home/docker-data)
 ros2-jazzy shell           # drop into a Jazzy environment; ~/robotics/ws is /root/ws

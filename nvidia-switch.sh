@@ -375,9 +375,15 @@ do_downgrade() {
     run kernel-lts sudo pacman -Syu --needed --noconfirm linux-lts linux-lts-headers dkms
 
     # 2. resolve ALA URLs for the whole 580 set, then ONE atomic transaction.
+    # nvidia-settings ships libnvidia-gtk3 / libnvidia-wayland-client, which the
+    # NVIDIA Container Toolkit injects by the DRIVER version — so it MUST match the
+    # driver, or `docker --gpus all` fails mounting libnvidia-gtk3.so.<ver>.
+    # Include it (and pin it) only if it's actually installed.
     say "\n### 2/4  resolve $ver packages from the Arch Linux Archive"
-    local urls=() u missing=0
-    for p in nvidia-open-dkms "${NV_USERSPACE[@]}"; do
+    local swap_pkgs=(nvidia-open-dkms "${NV_USERSPACE[@]}")
+    is_installed nvidia-settings && swap_pkgs+=(nvidia-settings)
+    local urls=() u missing=0 p
+    for p in "${swap_pkgs[@]}"; do
         u=$(ala_url "$p" "$ver")
         if [ -n "$u" ]; then say "    · $p -> $u"; urls+=("$u")
         else say "    ! could not find $p-$ver in the archive"; missing=1; fi
@@ -425,10 +431,10 @@ do_downgrade() {
         fi
     fi
 
-    # 3. pin (only reached on a verified swap)
+    # 3. pin (only reached on a verified swap) — pin exactly what we swapped,
+    # including nvidia-settings, so -Syu can't drag any of it back to 595.
     say "\n### 3/5  pin the swapped packages"
-    local pin_set=(nvidia-open-dkms "${NV_USERSPACE[@]}")
-    add_pin "${pin_set[@]}"
+    add_pin "${swap_pkgs[@]}"
 
     # 4. UKI preset for linux-lts + rebuild + boot default
     say "\n### 4/5  linux-lts UKI + initramfs + boot default -> linux-lts"
@@ -466,8 +472,11 @@ do_latest() {
     # reverse), then full-sync the repo-latest prebuilt set. Running module stays
     # in RAM until reboot.
     remove_module_pkg nv-rm-dkms nvidia-open-dkms
-    run nv-latest sudo pacman -Syu --needed --noconfirm \
-        nvidia-open nvidia-utils lib32-nvidia-utils opencl-nvidia
+    # include nvidia-settings if installed so it returns to the repo version too
+    # (it ships driver-versioned libs the container toolkit injects).
+    local latest_set=(nvidia-open nvidia-utils lib32-nvidia-utils opencl-nvidia)
+    is_installed nvidia-settings && latest_set+=(nvidia-settings)
+    run nv-latest sudo pacman -Syu --needed --noconfirm "${latest_set[@]}"
 
     say "\n### 2/4  rebuild initramfs"
     regen_initramfs
