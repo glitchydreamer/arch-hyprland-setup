@@ -24,7 +24,7 @@ fi
 
 CAE="$HOME/.config/caelestia"
 BIN="$HOME/.local/bin"
-mkdir -p "$CAE" "$BIN" "$HOME/robotics/ws" \
+mkdir -p "$CAE" "$BIN" \
          "$HOME/.config/fish/conf.d" \
          "$HOME/.config/wireplumber/wireplumber.conf.d" \
          "$HOME/.local/share/dolphin/view_properties/global"
@@ -198,45 +198,6 @@ case "$STATE" in
 esac
 EOF
 
-cat > "$BIN/ros2-jazzy" <<'EOF'
-#!/usr/bin/env bash
-# Thin wrapper around the osrf/ros:jazzy-desktop-full Docker image.
-# Host ~/robotics/ws is mounted at /root/ws. GPU + X11/Wayland sockets forwarded.
-set -euo pipefail
-
-IMAGE="osrf/ros:jazzy-desktop-full"
-NAME="ros2-jazzy"
-WS="$HOME/robotics/ws"
-mkdir -p "$WS"
-
-run_args=(
-  --gpus all
-  -e DISPLAY="${DISPLAY:-}"
-  -e WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}"
-  -e XDG_RUNTIME_DIR=/tmp
-  -e QT_X11_NO_MITSHM=1
-  -v /tmp/.X11-unix:/tmp/.X11-unix
-  -v "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY:-wayland-1}":"/tmp/${WAYLAND_DISPLAY:-wayland-1}"
-  -v "$WS":/root/ws
-  --network host
-)
-
-cmd="${1:-shell}"
-case "$cmd" in
-  shell)
-    if docker ps --format '{{.Names}}' | grep -qx "$NAME"; then
-      exec docker exec -it "$NAME" bash
-    fi
-    exec docker run -it --rm --name "$NAME" "${run_args[@]}" "$IMAGE" bash
-    ;;
-  run)   shift; exec docker run -it --rm --name "$NAME" "${run_args[@]}" "$IMAGE" bash -lc "$*" ;;
-  attach) exec docker exec -it "$NAME" bash ;;
-  stop)  exec docker stop "$NAME" ;;
-  pull)  exec docker pull "$IMAGE" ;;
-  *) echo "usage: ros2-jazzy [shell|run \"<cmd>\"|attach|stop|pull]" >&2; exit 1 ;;
-esac
-EOF
-
 cat > "$BIN/dualsense-audio" <<'EOF'
 #!/usr/bin/env bash
 # Route a DualSense controller's audio to the 3.5mm headphone jack and make it
@@ -256,7 +217,7 @@ pactl set-sink-volume "$SINK" 70%
 command -v notify-send >/dev/null && notify-send -i audio-headphones "DualSense audio" "Routed to 3.5mm headphones"
 EOF
 
-chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/ros2-jazzy" "$BIN/dualsense-audio"
+chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio"
 
 # ============================================================================
 # Fish dev-env additions (caelestia owns config.fish — don't touch it)

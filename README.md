@@ -1,6 +1,6 @@
 # arch-hyprland-setup
 
-Personal documentation for an Arch Linux + Hyprland (caelestia) setup, plus all the customisation built around it: NVIDIA RTX 3060 + LG ultrawide, DualSense audio fix, HDR toggle, robotics dev environment, and more.
+Personal documentation for an Arch Linux + Hyprland (caelestia) setup, plus all the customisation built around it: NVIDIA RTX 3060 + LG ultrawide, DualSense audio fix, HDR toggle, CUDA/ML dev environment, and more.
 
 **📖 Read the docs:** <https://glitchydreamer.github.io/arch-hyprland-setup/>
 
@@ -13,11 +13,11 @@ arch-hyprland-setup/
 │   ├── index.md          ← main reference
 │   ├── display.md        ← monitors / HDR / VRR
 │   ├── keybinds.md       ← keybind reference
-│   ├── isaac-sim.md      ← Isaac Sim + Isaac Lab install (conda)
 │   ├── coming-from-ubuntu.md
 │   └── assets/
 ├── setup-home.sh         ← reproduce the HOME-DIR half (configs/scripts, no sudo)
 ├── install.sh            ← reproduce the SYSTEM half on a fresh install (sudo)
+├── uninstall.sh          ← interactive clean uninstaller (per-component)
 ├── mkdocs.yml            ← site config (MkDocs Material)
 ├── requirements.txt      ← Python deps for the site build
 ├── sync.sh               ← edit → commit → push helper
@@ -36,10 +36,18 @@ installed.
 #    so it isn't pinned to one machine (DP-1 / DP-2 / HDMI all work).
 bash ~/Documents/arch-hyprland-setup/setup-home.sh
 
-# 2. System half — packages (repo + AUR), DualSense udev fix, CUDA (matched to
-#    your NVIDIA driver) + cuDNN, Docker + NVIDIA runtime, groups, fish login
-#    shell. Calls sudo itself where needed.
+# 2. System half — packages (repo + AUR), DualSense udev + audio fix, CUDA
+#    (matched to your NVIDIA driver) + cuDNN, groups, fish login shell.
+#    Calls sudo itself where needed.
 bash ~/Documents/arch-hyprland-setup/install.sh
+```
+
+To cleanly remove a component later, use the interactive uninstaller — it strips
+the packages, data, configs, and launchers and reports the space reclaimed:
+
+```sh
+bash ~/Documents/arch-hyprland-setup/uninstall.sh            # interactive menu
+bash ~/Documents/arch-hyprland-setup/uninstall.sh --dry-run docker   # preview
 ```
 
 `install.sh` bootstraps the essentials first — `git`, `base-devel`, the GitHub

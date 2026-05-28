@@ -10,7 +10,7 @@
 > Per-host monitor config switches automatically on session start — see [Display setup](display.md).
 >
 > **Rebuilt 2026-05-27** on a fresh minimal Arch install (NVIDIA + GDM). The
-> system-level half (packages, DualSense fix, CUDA, Docker/NVIDIA, fish shell)
+> system-level half (packages, DualSense fix, CUDA, fish shell)
 > is reproduced by [`install.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/install.sh)
 > at the repo root; the home-dir configs below were recreated directly. Two
 > things changed vs. the previous install: the desktop output is now **DP-1**
@@ -33,9 +33,6 @@
 | Fish shell config (caelestia) | `~/.config/fish/config.fish` |
 | **Your fish dev-env additions** | `~/.config/fish/conf.d/dev-env.fish` |
 | Personal scripts (in PATH) | `~/.local/bin/` |
-| Robotics workspace (ROS 2) | `~/robotics/ws` |
-| Isaac Sim (container) | `nvcr.io/nvidia/isaac-sim:5.1.0` via `~/.local/bin/isaac-sim`; caches in `~/docker/isaac-sim` — see [Isaac Sim + Isaac Lab](isaac-sim.md) |
-| Isaac Lab repo | `~/robotics/IsaacLab` (driven by `docker/container.py`) |
 | Anaconda (general ML) | `/opt/anaconda`, `conda init fish`, base not auto-activated |
 | DualSense audio → headphone jack | `~/.local/bin/dualsense-audio` + `~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf` |
 | DualSense touchpad ignore (cursor) | `~/.config/caelestia/hypr-user.conf` (device block) + `/etc/udev/rules.d/71-dualsense-touchpad-ignore.rules` |
@@ -431,24 +428,19 @@ npm 11, pnpm 10, yarn classic.
 
 ### 6.4 Editors
 
-- **VS Code** (MS official build) — binary `code`. Extensions: Python, Pylance, C++, CMake Tools, ROS, Docker, YAML, Ruff, Jupyter.
+- **VS Code** (MS official build) — binary `code`. Extensions: Python, Pylance, C++, CMake Tools, YAML, Ruff, Jupyter.
 - **Neovim 0.12** with LazyVim starter at `~/.config/nvim`.
 - **Zed** — binary is `zeditor` on Arch (`zed` is taken by something else). Fish abbr `zed` aliases to `zeditor`.
 
-### 6.5 Containers / robotics
+> **Removed 2026-05-28: Docker, ROS 2 Jazzy, Isaac Sim/Lab.** The whole container
+> stack was uninstalled. Isaac Sim's RTX renderer segfaults on this box's NVIDIA
+> 595 driver even inside the official container (the crash is in a userspace
+> renderer plugin against the shared host *kernel* driver, so the container can't
+> fix it), and the images were eating tens of GB. CUDA + Anaconda remain for
+> general ML. To remove other components the same clean way, use
+> [`uninstall.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/uninstall.sh).
 
-- **Docker 29.5** with NVIDIA runtime. You're in the `docker` group.
-- **ROS 2 Jazzy** via Docker image `osrf/ros:jazzy-desktop-full` (6.35 GB).
-- Launcher: `ros2-jazzy` (subcommands `shell`, `run "..."`, `attach`, `stop`, `pull`).
-- Workspace: `~/robotics/ws` mounted as `/root/ws` in the container.
-- **Isaac Sim 5.1 + Isaac Lab** — NVIDIA's robotics simulator + RL framework, run
-  via the official **Docker container** (`nvcr.io/nvidia/isaac-sim:5.1.0`,
-  launcher `~/.local/bin/isaac-sim`). Isaac Lab is cloned to `~/robotics/IsaacLab`
-  and driven by `docker/container.py`. The container route replaced an earlier
-  native/conda install that broke on Arch userspace + a driver-595 RTX segfault.
-  Full route + ROS 2 Jazzy bridge integration: [Isaac Sim + Isaac Lab](isaac-sim.md).
-
-### 6.6 Audio / DualSense
+### 6.5 Audio / DualSense
 
 - PipeWire + WirePlumber.
 - DualSense earphone-jack output: a WirePlumber drop-in re-enables ACP
@@ -456,27 +448,27 @@ npm 11, pnpm 10, yarn classic.
   manually. (The old `PCM Playback Volume` amixer hack no longer applies — this
   controller is UCM/profile-based. See [troubleshooting §8.1](#81-dualsense-audio-silent-earphones-in-the-controller-jack).)
 - DualSense touchpad is disabled as a pointer so it doesn't park a second cursor
-  at screen centre (see [§8.8](#88-two-mouse-cursors-one-moving-one-stuck-at-centre)).
+  at screen centre (see [§8.7](#87-two-mouse-cursors-one-moving-one-stuck-at-centre)).
 
-### 6.7 GPU / gaming
+### 6.6 GPU / gaming
 
 - NVIDIA driver 595.71 (nvidia-open), 12 GB RTX 3060.
 - gamemode + lib32-gamemode (CPU governor boost while gaming).
 - mangohud + lib32-mangohud (FPS / GPU overlay — enable per app with env `MANGOHUD=1` or as a Steam launch option).
 
-### 6.8 Multimedia
+### 6.7 Multimedia
 
 - mpv (video), haruna (Qt video frontend), easyeffects (PipeWire EQ/effects), pavucontrol (audio mixer), obs-studio (recording/streaming), gimp/inkscape (if installed), okular (PDF), gwenview/swayimg (image).
 
-### 6.9 Embedded / robotics CLI
+### 6.8 Embedded / robotics CLI
 
 - picocom + minicom (serial terminals — talk to `/dev/ttyUSB0`, etc.)
 - arduino-cli
 - stlink (STM32 flashing)
 - openocd (JTAG/SWD)
-- wireshark-qt (network protocol analysis; ROS DDS debugging)
+- wireshark-qt (network protocol analysis)
 
-### 6.10 Terminal productivity
+### 6.9 Terminal productivity
 
 fish (shell, with caelestia config), starship (prompt), fzf, ripgrep (`rg`), fd, bat, eza, zoxide (`cd` replacement), lazygit (`lg`), gh (GitHub CLI), tmux, tree, jq, yq.
 
@@ -549,30 +541,7 @@ amixer -c N contents                            # raw ALSA controls for card N
 amixer -c N cset numid=N VALUE                  # set a raw control
 ```
 
-### 7.4 ROS 2 Jazzy via Docker
-
-```bash
-ros2-jazzy                              # open interactive ROS shell
-ros2-jazzy run "ros2 topic list"        # one-off command
-ros2-jazzy attach                       # attach to existing container
-ros2-jazzy stop                         # kill the container
-ros2-jazzy pull                         # pull latest image
-```
-
-Inside the container, your host `~/robotics/ws` is at `/root/ws`. GPU is passed through. X11 + Wayland sockets are forwarded so `rviz2`, `rqt`, `gz sim` all open windows on your desktop. The container runs `--network host --ipc host`, which lets it exchange DDS traffic (incl. FastDDS shared memory) with the Isaac Sim container's bundled ROS 2 Jazzy bridge (also run with host network/IPC) — see [ROS 2 Jazzy integration](isaac-sim.md#ros-2-jazzy-integration).
-
-### 7.5 Docker
-
-```bash
-docker ps                          # running containers
-docker ps -a                       # all containers
-docker images                      # local images
-docker logs -f NAME                # follow logs
-docker exec -it NAME bash          # shell into a running container
-docker system prune                # reclaim space (careful)
-```
-
-### 7.6 Serial / microcontroller
+### 7.4 Serial / microcontroller
 
 ```bash
 picocom -b 115200 /dev/ttyUSB0     # serial term at 115200 baud (Ctrl-A Ctrl-X to quit)
@@ -584,7 +553,7 @@ st-info --probe                    # STM32 board info
 st-flash write fw.bin 0x8000000    # flash STM32
 ```
 
-### 7.7 Git (your defaults)
+### 7.5 Git (your defaults)
 
 Already configured globally: `init.defaultBranch=main`, `push.autoSetupRemote=true`, `pull.rebase=false`, `fetch.prune=true`, `rerere.enabled=true`, `core.editor=nvim`.
 
@@ -681,16 +650,7 @@ systemctl --user restart pipewire pipewire-pulse wireplumber
 
 Hyprland keeps a log at `~/.local/share/hyprland/hyprland.log` (or run `hyprctl logs`). If a bad keybind crashes reload, edit `~/.config/caelestia/hypr-user.conf` from a TTY (Ctrl+Alt+F2) and re-launch.
 
-### 8.3 No GPU in Docker
-
-```bash
-sudo docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi
-# If it errors:
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
-```
-
-### 8.4 Need to talk to /dev/ttyUSB0 but get permission denied
+### 8.3 Need to talk to /dev/ttyUSB0 but get permission denied
 
 You should be in the `uucp` group (Arch's convention for serial devices). Check with `groups`. If missing:
 
@@ -699,14 +659,14 @@ sudo usermod -aG uucp,lock $USER
 # Then log out and back in.
 ```
 
-### 8.5 Wireshark says "you need to be in wireshark group"
+### 8.4 Wireshark says "you need to be in wireshark group"
 
 ```bash
 sudo usermod -aG wireshark $USER
 newgrp wireshark      # apply to current shell, or just log out/in
 ```
 
-### 8.6 HDR looks washed out / colors wrong
+### 8.5 HDR looks washed out / colors wrong
 
 Try in order:
 
@@ -714,11 +674,11 @@ Try in order:
 2. Swap `cm, hdr` → `cm, hdredid` (let monitor declare its own HDR metadata).
 3. If still bad, just toggle off with `Super + Ctrl + Alt + H` and only enable HDR for mpv / gamescope sessions.
 
-### 8.7 Gazebo natively (gz-harmonic) won't build
+### 8.6 Gazebo natively (gz-harmonic) won't build
 
-The AUR `gz-harmonic` package currently fails on gcc 16 because of `ogre-next2`, `fcl`, `libccd`, `octomap`. Use Gazebo via the ROS 2 Jazzy Docker image instead (`ros2-jazzy` → `gz sim ...`). Re-check in a few months once AUR maintainers patch.
+The AUR `gz-harmonic` package currently fails on gcc 16 because of `ogre-next2`, `fcl`, `libccd`, `octomap`. Re-check in a few months once AUR maintainers patch.
 
-### 8.8 Two mouse cursors (one moving, one stuck at centre)
+### 8.7 Two mouse cursors (one moving, one stuck at centre)
 
 There are **two independent causes**, and the persistent one is the NVIDIA
 renderer. Both fixes are baked into the rebuild scripts, so a clean install
@@ -784,7 +744,6 @@ login-screen cursor is unrelated.
 - Hyprland dispatchers: <https://wiki.hyprland.org/Configuring/Dispatchers/>
 - Hyprland monitor config (HDR): <https://wiki.hyprland.org/Configuring/Monitors/>
 - Caelestia dotfiles: <https://github.com/caelestia-dots/shell>
-- ROS 2 Jazzy docs: <https://docs.ros.org/en/jazzy/>
 - Arch wiki Hyprland: <https://wiki.archlinux.org/title/Hyprland>
 - DualSense Linux info: <https://www.kernel.org/doc/html/latest/hid/hid-playstation.html>
 
@@ -802,5 +761,5 @@ root: [`setup-home.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/bl
 Notable deltas from the first install: desktop output moved DP-2 → **DP-1**,
 user Hyprland files moved under `~/.config/caelestia/` (since `~/.config/hypr`
 is now a symlink into the caelestia tree), and the NVIDIA ghost-cursor fix was
-added (`cursor { no_hardware_cursors = true }` — see §8.8). Update or delete
+added (`cursor { no_hardware_cursors = true }` — see §8.7). Update or delete
 this file freely — it's yours.

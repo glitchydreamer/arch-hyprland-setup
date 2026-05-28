@@ -17,8 +17,8 @@ and can regenerate it.
   LG 34" ultrawide, currently on **DP-1**) and a **laptop** (Intel + RTX 4070
   Mobile, internal panel on **eDP-1**). Configs must work on both; per-host
   switching is automatic.
-- **User workflow:** robotics / ML dev (CUDA, ROS 2, embedded serial),
-  terminal-first, fish shell, came from Ubuntu/GNOME.
+- **User workflow:** robotics / ML dev (CUDA, embedded serial), terminal-first,
+  fish shell, came from Ubuntu/GNOME.
 
 ## The two-script rebuild
 
@@ -37,9 +37,13 @@ log out/in (fish shell + group changes need a fresh session).
   `dev-env.fish`, Dolphin config, WirePlumber DualSense drop-in, git defaults.
   It is the **source of truth** for those files; edit the script, re-run it.
 - `install.sh` — bootstraps git/`gh`/AUR-helper first, then installs the dev
-  stack, **driver-matched CUDA** + cuDNN, Docker + NVIDIA runtime, gaming/media,
-  KDE settings apps, sweet-cursors, the DualSense touchpad udev rule; enables
-  docker, adds groups, switches the login shell to fish.
+  stack, **driver-matched CUDA** + cuDNN, gaming/media, KDE settings apps,
+  sweet-cursors, the DualSense touchpad udev rule + PipeWire audio pin; adds
+  groups, switches the login shell to fish.
+- `uninstall.sh` — interactive, component-based **clean** uninstaller (the
+  counterpart to `install.sh`): pick components (e.g. `docker`, `cuda`,
+  `anaconda`) and each removes its packages + data + configs + launchers and
+  reports reclaimed space. Supports `--dry-run` and `--yes`.
 
 ## File map (live system, not the repo)
 
@@ -48,7 +52,7 @@ log out/in (fish shell + group changes need a fresh session).
 | caelestia upstream (never edit) | `~/.local/share/caelestia/` (and `~/.config/hypr` → symlink into it) |
 | User Hyprland overrides | `~/.config/caelestia/hypr-user.conf`, `hypr-vars.conf` |
 | Per-host monitors + active symlink | `~/.config/caelestia/hypr-monitors-{desktop,laptop}.conf`, `hypr-monitors.conf` |
-| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, ros2-jazzy, dualsense-audio}` |
+| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, dualsense-audio}` |
 | Fish additions | `~/.config/fish/conf.d/dev-env.fish` |
 | WirePlumber DualSense | `~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf` |
 | DualSense touchpad ignore | `/etc/udev/rules.d/71-dualsense-touchpad-ignore.rules` |
@@ -66,7 +70,7 @@ log out/in (fish shell + group changes need a fresh session).
   Secondary, separate issue: the DualSense **touchpad** registers as an absolute
   pointer — handled by a libinput `LIBINPUT_IGNORE_DEVICE` udev rule (+ Hyprland
   `device{enabled=false}`), which only take effect when the device re-attaches
-  (replug/reboot). → [§8.8](index.md#88-two-mouse-cursors-one-moving-one-stuck-at-centre)
+  (replug/reboot). → [§8.7](index.md#87-two-mouse-cursors-one-moving-one-stuck-at-centre)
 - **DualSense audio = profile routing**, not the old `PCM Playback Volume`
   amixer hack (this UCM card has no mixer controls). Speaker vs the 3.5mm jack
   are separate PipeWire *profiles*; auto-switching ships disabled. Fixed with a
@@ -77,25 +81,27 @@ log out/in (fish shell + group changes need a fresh session).
   reports `vrr=true` regardless — that's a capability readout, not the setting.
 - **Half-screen snaps omitted:** `Super+Ctrl+arrows` is caelestia's workspace
   nav; a float-based snap is unreliable on dwindle.
-- **Isaac Sim/Lab runs via the official Docker container, not native/conda.** The
-  earlier conda route broke repeatedly on Arch's rolling userspace (libxml2
-  soname, `get_ubuntu_version`, CMake 4.x) and finally on a driver-595 RTX
-  renderer segfault. The container ships a matched Ubuntu userspace + its own
-  Vulkan loader, sharing only the host kernel driver. Launcher `~/.local/bin/isaac-sim`;
-  Isaac Lab at `~/robotics/IsaacLab` via `docker/container.py`; ROS 2 = Isaac's
-  bundled Jazzy bridge over host network/IPC to the ros2-jazzy container.
-  Anaconda is still installed but for **general ML only**. → [Isaac Sim + Isaac Lab](isaac-sim.md)
+- **Isaac Sim/Lab + Docker + ROS 2 were removed entirely (2026-05-28).** Isaac
+  Sim 5.1's RTX renderer segfaults on this box's NVIDIA **595** driver even in
+  the official container — the crash is in a userspace renderer plugin running
+  against the shared host *kernel* driver, so a matched-userspace container can't
+  fix it (`compat` passes; real rendering crashes). The conda route before it
+  also failed (libxml2 soname, `get_ubuntu_version`, CMake 4.x). With Isaac gone,
+  the whole container stack (Docker, buildx, containerd, NVIDIA container toolkit,
+  the ros2-jazzy image) was uninstalled — tens of GB reclaimed. **CUDA + Anaconda
+  stay** for general ML. Removal is reproducible via `uninstall.sh docker isaac ros2`.
 
 ## Maintenance habit
 
 Every fix or feature is followed — deliberately, without being asked — by:
 **fold it into the automated scripts** (`install.sh` for system/sudo steps,
-`setup-home.sh` for home configs/launchers; committed helper scripts like
-`migrate-docker-to-home.sh` for one-off migrations), **make it robust** (idempotent,
+`setup-home.sh` for home configs/launchers; `uninstall.sh` gets a matching
+component when something is *removed*), **make it robust** (idempotent,
 self-limiting, `FAILED=()`-tracked — rolling Arch breaks things), **update the
 docs** (and this page if a decision/root-cause changed), **update memory**, and
-**`git push`**. A clean reinstall must reproduce the *fixed* system. Nothing is
-left as an ad-hoc `/tmp` one-off.
+**`git push`**. A clean reinstall must reproduce the *fixed* system, and a clean
+uninstall must leave no trace. Nothing is left as an ad-hoc `/tmp` one-off —
+removals go through `uninstall.sh`, not throwaway scripts.
 
 Gotcha: the login shell is **fish**, which has **no heredocs**. To write a
 root-owned file, use `printf '…\n' | sudo tee /path` (not `sudo tee … <<'EOF'`).
@@ -120,6 +126,11 @@ repo is private, and the Actions deploy keeps working.
   audio after discovering the first round's diagnoses were the wrong root cause.
 - **2026-05-27** — tried Isaac Sim 5.1 + Isaac Lab in a conda env (Python 3.11),
   then **dropped it** after a driver-595 RTX renderer segfault and repeated Arch
-  userspace breakage. Switched to the official **Docker container** route, wired
-  into `install.sh` (`install_isaac`), plus anaconda for general ML. Documented in
-  [Isaac Sim + Isaac Lab](isaac-sim.md).
+  userspace breakage. Switched to the official **Docker container** route.
+- **2026-05-28** — the container route also crashed (same RTX-595 kernel-driver
+  bug; a container can't fix a kernel-driver fault). **Abandoned Isaac entirely**
+  and **removed the whole container stack** (Docker, ROS 2 Jazzy, Isaac Lab clone,
+  ~20 GB of images) from both the live system and the scripts. Added a reusable
+  interactive `uninstall.sh` (this is now the habit for any removal). Kept CUDA +
+  Anaconda. DualSense speaker pin (PipeWire 1.6.5) stays; the 3.5mm jack is a
+  controller hardware fault, not software.
