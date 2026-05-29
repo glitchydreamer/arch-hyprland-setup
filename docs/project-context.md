@@ -42,7 +42,8 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
 
 - `setup-home.sh` — components: `hyprland`, `caelestia` (merges `shell.json`
   shell/dashboard tweaks — e.g. weather in °C via `services.useFahrenheit=false`),
-  `nautilus` (sets candy rainbow icons as the GTK icon theme — see History),
+  `nautilus` (sets a Sweet icon theme — synthwave **Sweet-Purple** folders +
+  candy app icons — as the GTK icon theme; `ICON_THEME=<variant>` to pick another),
   `scripts`, `fish`, `dolphin`, `wireplumber`, `git`. The **source of truth** for
   those files; edit & re-run.
 - `install.sh` — components: `build`, `cuda`, `python`, `anaconda`, `node`,
@@ -56,7 +57,9 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   `shell`. CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
   counterpart to `install.sh`): components `docker`, `isaac`, `ros2`, `anaconda`,
-  `cuda`. Each removes its packages + data + configs + launchers and reports
+  `cuda`, `icons` (switch the GTK icon theme back to the caelestia default
+  Papirus-Dark; keeps the Sweet/candy packages so `setup-home.sh nautilus`
+  re-applies instantly). Each removes its packages + data + configs + launchers and reports
   reclaimed space. Note: it measures root-owned paths with `sudo du` so the
   reclaim total is accurate (a non-root `du` can't read e.g. Docker's 0711
   data-root and would under-count). The driver-level NVIDIA purge is deliberately
@@ -277,3 +280,12 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   `install.sh`) and set them as the GTK icon theme via the new `nautilus`
   component in `setup-home.sh` (gsettings + gtk-3.0/gtk-4.0 `settings.ini`). Icon
   themes are system-wide for GTK apps; KDE/Qt and the QML bar are unaffected.
+- **2026-05-29 — synthwave folders via Sweet-folders + easy revert.** candy-icons'
+  own folders are cyan; the user wanted the synthwave (purple) Sweet-folders look.
+  Key insight: each `sweet-folders` variant (`Sweet-Purple`, `Sweet-Rainbow`, …)
+  ships **only folder icons** and its `index.theme` already `Inherits=candy-icons`
+  — so setting the icon theme to `Sweet-Purple` gives purple folders + candy app
+  icons in one setting. `setup-home.sh nautilus` now defaults to `Sweet-Purple`
+  (override `ICON_THEME=<variant>`). Added a `uninstall.sh icons` component to
+  switch back to the caelestia default (Papirus-Dark) + strip the gtk ini
+  overrides, keeping the packages so re-applying is instant.

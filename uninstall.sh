@@ -43,6 +43,7 @@ COMPONENTS=(
     "ros2|The ros2-jazzy launcher + its Docker image (image only if Docker is still present)"
     "anaconda|Anaconda (AUR) + the conda fish init; leaves your project envs' data under ~/anaconda3 if external"
     "cuda|CUDA toolkit + cuDNN + the /etc/profile.d/cuda.sh PATH (leaves the NVIDIA driver alone)"
+    "icons|Switch the GTK icon theme back to the caelestia default (Papirus-Dark); keeps the Sweet/candy packages so you can re-apply"
 )
 
 # ---- helpers ----------------------------------------------------------------
@@ -185,6 +186,22 @@ do_cuda() {
     say ">>> CUDA toolkit + cuDNN (driver is left installed)"
     remove_pkgs cuda-pkgs cuda cudnn
     reclaim cuda-profile /etc/profile.d/cuda.sh sudo
+}
+
+do_icons() {
+    say ">>> Switch GTK icon theme back to the caelestia default"
+    # Restore the prior icon theme (Papirus-Dark; override with ICON_THEME=<name>)
+    # and drop the gtk-icon-theme-name override lines so gsettings/caelestia decide.
+    local default="${ICON_THEME:-Papirus-Dark}"
+    command -v gsettings >/dev/null && \
+        run icons-gsettings gsettings set org.gnome.desktop.interface icon-theme "$default"
+    local f
+    for f in "$HOME/.config/gtk-3.0/settings.ini" "$HOME/.config/gtk-4.0/settings.ini"; do
+        [ -f "$f" ] && run_sh icons-ini "sed -i '/^gtk-icon-theme-name=/d' '$f'"
+    done
+    say "    · icon theme restored to $default (Sweet/candy packages kept)."
+    say "    · re-apply the Sweet icons:        bash setup-home.sh nautilus"
+    say "    · to also remove the packages:     paru -Rns candy-icons-git sweet-folders-icons-git"
 }
 
 # ---- arg parsing ------------------------------------------------------------

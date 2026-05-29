@@ -144,6 +144,17 @@ very differently:
   machine that's the `theme` component of `install.sh` (installs the icons) plus
   the `nautilus` component of `setup-home.sh` (sets them).
 
+    !!! tip "Icon *inheritance* — how folders and app icons combine"
+        An icon theme can `Inherits=` others: a lookup falls through the chain until
+        an icon is found. The **Sweet-folders** sets (`Sweet-Purple`, `Sweet-Rainbow`,
+        …) ship *only folder icons* and declare `Inherits=candy-icons`. So setting
+        the theme to `Sweet-Purple` yields **purple (synthwave) folders** with the
+        **candy gradient app icons** for everything else — in a single setting. Pick
+        a different colour with `ICON_THEME=Sweet-Rainbow bash setup-home.sh nautilus`,
+        and switch back to the caelestia default (Papirus-Dark) with
+        `bash uninstall.sh icons` (which keeps the packages, so re-applying is one
+        command).
+
 - **Window colours are the hard part — because of libadwaita.** Modern GNOME apps
   (nautilus included) are built with **libadwaita**, which deliberately *ignores*
   the system GTK theme **and** the `GTK_THEME` environment variable. It takes its

@@ -51,7 +51,7 @@ set_ini_key() {
 COMPONENTS=(
     "hyprland|Hyprland overrides (hypr-vars, hypr-user) + per-host monitor configs & active symlink"
     "caelestia|Caelestia shell.json tweaks (weather/dashboard temperature in °C, not °F)"
-    "nautilus|Candy rainbow icons as the GTK icon theme (rainbow icons in nautilus & other GTK apps)"
+    "nautilus|Sweet icons: synthwave Sweet-Purple folders + candy app icons as the GTK icon theme (ICON_THEME=<variant> to pick another)"
     "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "dolphin|Dolphin: show hidden files by default"
@@ -204,26 +204,32 @@ PY
 }
 
 do_nautilus() {
-    # The "Sweet-Mars on nautilus" request reduces to ICONS. nautilus is a
-    # GTK4/libadwaita app, and libadwaita takes its window colours ONLY from the
-    # global ~/.config/gtk-4.0/gtk.css @define-color palette — which caelestia owns
-    # and rewrites from its colour scheme. libadwaita ignores both the system
-    # gtk-theme and the GTK_THEME env var, so a per-app Sweet-Mars window theme
-    # isn't achievable without fighting caelestia. What DOES work (and shows in
-    # nautilus) is the icon theme: set the candy rainbow icons. Icon themes are
-    # system-wide for GTK apps; KDE/Qt apps keep their own, and caelestia's QML bar
-    # is unaffected. Window colours are intentionally left to caelestia.
-    dry "icon-theme=candy-icons (gsettings + gtk-3.0/gtk-4.0 settings.ini)" && return
-    if [ ! -d /usr/share/icons/candy-icons ] && [ ! -d "$HOME/.local/share/icons/candy-icons" ]; then
-        say "!!! candy-icons not installed — run 'bash install.sh theme' first, then re-run this."
+    # "Sweet" icons for nautilus & all GTK apps. Two pieces from the 'theme' install
+    # component combine into ONE setting:
+    #   · candy-icons      — the rainbow/gradient APP icons
+    #   · Sweet-<variant>  — coloured FOLDER icons that already Inherit candy-icons
+    # So selecting a Sweet-folders variant gives synthwave folders + candy app icons
+    # at once. Default Sweet-Purple (synthwave); override with e.g.
+    #   ICON_THEME=Sweet-Rainbow bash setup-home.sh nautilus
+    # Variants: Sweet-{Purple,Purple-Filled,Rainbow,Red,Blue,Teal,Yellow,Mars}(-Filled).
+    #
+    # Icons only, no window theme: nautilus is GTK4/libadwaita, whose colours come
+    # solely from caelestia's global ~/.config/gtk-4.0/gtk.css palette (gtk-theme /
+    # GTK_THEME are ignored), so a per-app window theme isn't feasible.
+    # Switch back to the caelestia default with:  bash uninstall.sh icons
+    local variant="${ICON_THEME:-Sweet-Purple}"
+    dry "icon-theme=$variant (gsettings + gtk-3.0/gtk-4.0 settings.ini)" && return
+    if [ ! -d "/usr/share/icons/$variant" ] && [ ! -d "$HOME/.local/share/icons/$variant" ]; then
+        say "!!! icon theme '$variant' not installed — run 'bash install.sh theme' (candy-icons + sweet-folders) first."
         return
     fi
     command -v gsettings >/dev/null && \
-        gsettings set org.gnome.desktop.interface icon-theme "candy-icons" 2>/dev/null || true
-    set_ini_key "$HOME/.config/gtk-3.0/settings.ini" gtk-icon-theme-name candy-icons
-    set_ini_key "$HOME/.config/gtk-4.0/settings.ini" gtk-icon-theme-name candy-icons
-    say ">>> GTK icon theme set to candy-icons (rainbow icons in nautilus & other GTK apps)."
+        gsettings set org.gnome.desktop.interface icon-theme "$variant" 2>/dev/null || true
+    set_ini_key "$HOME/.config/gtk-3.0/settings.ini" gtk-icon-theme-name "$variant"
+    set_ini_key "$HOME/.config/gtk-4.0/settings.ini" gtk-icon-theme-name "$variant"
+    say ">>> GTK icon theme set to $variant (Sweet folders + candy app icons; nautilus & other GTK apps)."
     say "    · relaunch to see them:  nautilus -q   then reopen nautilus."
+    say "    · switch back to caelestia default:  bash uninstall.sh icons"
 }
 
 do_scripts() {
