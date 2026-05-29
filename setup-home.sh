@@ -52,7 +52,7 @@ COMPONENTS=(
     "hyprland|Hyprland overrides (hypr-vars, hypr-user) + per-host monitor configs & active symlink"
     "caelestia|Caelestia shell.json tweaks (weather/dashboard temperature in °C, not °F)"
     "nautilus|Sweet icons: synthwave Sweet-Purple folders + candy app icons as the GTK icon theme (ICON_THEME=<variant> to pick another)"
-    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy, vnc-server, remote"
+    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, vnc-server, remote"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "dolphin|Dolphin: show hidden files by default"
     "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
@@ -299,26 +299,67 @@ pactl set-sink-volume "$SINK" 70%
 command -v notify-send >/dev/null && notify-send -i audio-headphones "DualSense audio" "Routed to 3.5mm headphones"
 EOF
 
-    # ros2-jazzy: thin wrapper around the osrf/ros:jazzy-desktop-full container.
-    # --network host + a shared ROS_DOMAIN_ID/RMW let it share a DDS domain with
-    # native Isaac Sim's ROS 2 bridge (Isaac runs natively on driver 580; the
-    # NVIDIA Container Toolkit injects that same driver, so --gpus all works).
-    cat > "$BIN/ros2-jazzy" <<'EOF'
+    # ros2-humble: thin wrapper around the osrf/ros:humble-desktop-full container.
+    # Humble (NOT Jazzy) on purpose — it matches Isaac Sim's BUNDLED ROS 2 bridge,
+    # which is Humble / Fast DDS 2.6. A Jazzy container crashed Isaac: the two
+    # distros encode the ros_discovery_info graph message differently, so Isaac's
+    # listener mis-deserialized it and aborted. --network host + a shared
+    # ROS_DOMAIN_ID/RMW let it share a DDS domain with Isaac's bridge (Isaac runs
+    # natively on driver 580; the NVIDIA Container Toolkit injects that same driver,
+    # so --gpus all works).
+    cat > "$BIN/ros2-humble" <<'EOF'
 #!/usr/bin/env bash
-# Thin wrapper around the osrf/ros:jazzy-desktop-full Docker image.
+# Thin wrapper around the osrf/ros:humble-desktop-full Docker image.
+# WHY Humble, not Jazzy: Isaac Sim's bundled ROS 2 bridge is Humble (Fast DDS 2.6).
+# A Jazzy container (Fast DDS 2.14) crashed Isaac because the two distros serialize
+# the rmw_dds_common ros_discovery_info (ParticipantEntitiesInfo) graph message
+# differently (XCDR v2 vs v1) — Isaac's discovery listener mis-read a length field,
+# tried a huge allocation and aborted. Matching the distro removes the mismatch.
+#
 # Host ~/robotics/ws is mounted at /root/ws. GPU + X11/Wayland sockets forwarded.
-# --network host + matching ROS_DOMAIN_ID/RMW let native Isaac Sim's ROS 2 bridge
-# and this container share a Fast DDS domain. FASTDDS_BUILTIN_TRANSPORTS=UDPv4
-# forces data over UDP instead of shared memory: discovery (UDP) works across the
-# host↔container boundary, but the default SHM data transport silently drops every
-# message because the host (UID 1000) and container (root) can't share /dev/shm
-# segments — so `ros2 topic echo`/`hz` saw a publisher but zero data. UDP fixes it.
+# --network host + matching ROS_DOMAIN_ID/RMW let this container share a Fast DDS
+# domain with Isaac's bridge.
+#
+# A Fast DDS XML profile forces UDP-only transport (useBuiltinTransports=false +
+# a single UDPv4 transport). Discovery already rides UDP fine across the
+# host↔container boundary, but the default shared-MEMORY data transport silently
+# drops every sample because native Isaac (UID 1000) and the container (root) can't
+# share /dev/shm segments — so `ros2 topic echo`/`hz` saw a publisher but zero data.
+# On Jazzy we used FASTDDS_BUILTIN_TRANSPORTS=UDPv4, but that env var doesn't exist
+# in Humble's Fast DDS 2.6 (added in 2.10/Iron), so we use the XML profile instead.
 set -euo pipefail
 
-IMAGE="osrf/ros:jazzy-desktop-full"
-NAME="ros2-jazzy"
+IMAGE="osrf/ros:humble-desktop-full"
+NAME="ros2-humble"
 WS="$HOME/robotics/ws"
-mkdir -p "$WS"
+PROFILE="$HOME/.config/ros2/fastdds-udp-only.xml"
+mkdir -p "$WS" "$(dirname "$PROFILE")"
+
+# Fast DDS 2.6 transport profile: replace the builtin transports (which include
+# shared memory) with one UDPv4 transport. Written once — delete it to regenerate.
+if [ ! -f "$PROFILE" ]; then
+  cat > "$PROFILE" <<'PROFILEEOF'
+<?xml version="1.0" encoding="UTF-8" ?>
+<dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <profiles>
+    <transport_descriptors>
+      <transport_descriptor>
+        <transport_id>udp_only</transport_id>
+        <type>UDPv4</type>
+      </transport_descriptor>
+    </transport_descriptors>
+    <participant profile_name="udp_only_participant" is_default_profile="true">
+      <rtps>
+        <userTransports>
+          <transport_id>udp_only</transport_id>
+        </userTransports>
+        <useBuiltinTransports>false</useBuiltinTransports>
+      </rtps>
+    </participant>
+  </profiles>
+</dds>
+PROFILEEOF
+fi
 
 run_args=(
   --gpus all
@@ -328,7 +369,8 @@ run_args=(
   -e QT_X11_NO_MITSHM=1
   -e ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
   -e RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
-  -e FASTDDS_BUILTIN_TRANSPORTS="${FASTDDS_BUILTIN_TRANSPORTS:-UDPv4}"
+  -e FASTRTPS_DEFAULT_PROFILES_FILE=/opt/fastdds-udp-only.xml
+  -v "$PROFILE":/opt/fastdds-udp-only.xml:ro
   -v /tmp/.X11-unix:/tmp/.X11-unix
   -v "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY:-wayland-1}":"/tmp/${WAYLAND_DISPLAY:-wayland-1}"
   -v "$WS":/root/ws
@@ -348,7 +390,7 @@ case "$cmd" in
   attach) exec docker exec -it "$NAME" bash ;;
   stop)  exec docker stop "$NAME" ;;
   pull)  exec docker pull "$IMAGE" ;;
-  *) echo "usage: ros2-jazzy [shell|run \"<cmd>\"|attach|stop|pull]" >&2; exit 1 ;;
+  *) echo "usage: ros2-humble [shell|run \"<cmd>\"|attach|stop|pull]" >&2; exit 1 ;;
 esac
 EOF
 
@@ -406,7 +448,7 @@ case "${1:-status}" in
 esac
 EOF
 
-    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-jazzy" "$BIN/vnc-server" "$BIN/remote"
+    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-humble" "$BIN/vnc-server" "$BIN/remote"
 }
 
 do_fish() {

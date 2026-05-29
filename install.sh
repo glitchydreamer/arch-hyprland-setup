@@ -186,7 +186,7 @@ COMPONENTS=(
     "embedded|Embedded/serial (picocom, minicom, arduino-cli, stlink, openocd, wireshark)"
     "audio|PipeWire audio apps + the DualSense fix (1.6.5 pin + touchpad udev rule)"
     "gpu|GPU/gaming (lib32 nvidia, gamemode, mangohud, nvidia-settings)"
-    "docker|Docker + NVIDIA Container Toolkit (data-root on /home; for ROS 2 Jazzy / GPU containers)"
+    "docker|Docker + NVIDIA Container Toolkit (data-root on /home; for ROS 2 Humble / GPU containers)"
     "media|Multimedia apps (haruna, obs, gimp, inkscape, okular, gwenview, swayimg)"
     "terminal|Terminal productivity (fzf, ripgrep, fd, bat, zoxide, lazygit, tmux, ...)"
     "kde|KDE settings apps + Dolphin (systemsettings, discover, kinfocenter)"
@@ -245,11 +245,12 @@ EOF
 
 do_gpu()     { pac gpu lib32-nvidia-utils gamemode lib32-gamemode mangohud lib32-mangohud nvidia-settings; }
 
-# Docker engine + NVIDIA Container Toolkit, for GPU containers (ROS 2 Jazzy, Isaac
+# Docker engine + NVIDIA Container Toolkit, for GPU containers (ROS 2 Humble, Isaac
 # ROS). The NVIDIA toolkit injects the HOST driver into containers, so containers
 # get whatever driver the host runs (currently 580 — see nvidia-switch.sh). The
-# ros2-jazzy launcher (setup-home.sh) runs the container with --network host so
-# its DDS shares a domain with native Isaac Sim's ROS 2 bridge.
+# ros2-humble launcher (setup-home.sh) runs the container with --network host so
+# its DDS shares a domain with native Isaac Sim's ROS 2 bridge (Humble matches the
+# bridge's bundled Fast DDS — a Jazzy container crashed Isaac on discovery).
 do_docker() {
     # xorg-xauth: host-side xauth so GUI tools (rviz2) forward X11 from the container.
     pac docker docker docker-buildx nvidia-container-toolkit xorg-xauth
@@ -290,7 +291,7 @@ PY
     sudo systemctl enable --now docker || FAILED+=("docker enable")
     sudo usermod -aG docker "$USER_NAME" || FAILED+=("docker group")
     say "    · added $USER_NAME to the docker group — log out/in to activate, then:"
-    say "      ros2-jazzy pull   # fetch the ROS 2 Jazzy image (~6 GB)"
+    say "      ros2-humble pull  # fetch the ROS 2 Humble image (~4 GB)"
 }
 do_media()   { pac media haruna obs-studio gimp inkscape okular gwenview swayimg; }
 do_terminal() { pac terminal fzf ripgrep fd bat zoxide lazygit github-cli tmux tree yq rsync; }

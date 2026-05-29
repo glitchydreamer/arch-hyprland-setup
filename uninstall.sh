@@ -40,7 +40,7 @@ RECLAIMED_KB=0
 COMPONENTS=(
     "docker|Docker engine, buildx, containerd, NVIDIA container toolkit, all images/data, the docker group"
     "isaac|Isaac Sim container caches, the IsaacLab clone, the isaac-sim launcher, xorg-xauth"
-    "ros2|The ros2-jazzy launcher + its Docker image (image only if Docker is still present)"
+    "ros2|The ros2-humble launcher + its Docker image + the Fast DDS UDP profile (also clears a leftover Jazzy image/launcher; image only if Docker is still present)"
     "anaconda|Anaconda (AUR) + the conda fish init; leaves your project envs' data under ~/anaconda3 if external"
     "cuda|CUDA toolkit + cuDNN + the /etc/profile.d/cuda.sh PATH (leaves the NVIDIA driver alone)"
     "icons|Switch the GTK icon theme back to the caelestia default (Papirus-Dark); keeps the Sweet/candy packages so you can re-apply"
@@ -157,18 +157,27 @@ do_isaac() {
 }
 
 do_ros2() {
-    say ">>> ROS 2 Jazzy (container wrapper)"
-    # Remove the cached image first (only possible while docker is still here).
+    say ">>> ROS 2 Humble (container wrapper)"
+    # Remove the cached image(s) first (only possible while docker is still here).
+    # Includes a leftover osrf/ros:jazzy-desktop-full from the pre-Humble setup.
     if command -v docker >/dev/null 2>&1; then
-        if docker image inspect osrf/ros:jazzy-desktop-full >/dev/null 2>&1; then
-            run ros2-image docker rmi osrf/ros:jazzy-desktop-full
-        else
-            say "    · ros2 image not pulled — skip"
-        fi
+        local img found=0
+        for img in osrf/ros:humble-desktop-full osrf/ros:jazzy-desktop-full; do
+            if docker image inspect "$img" >/dev/null 2>&1; then
+                run ros2-image docker rmi "$img"; found=1
+            fi
+        done
+        [ "$found" -eq 0 ] && say "    · no ros2 image pulled — skip"
     else
         say "    · docker already gone — its images went with it"
     fi
-    reclaim ros2-launcher "$HOME/.local/bin/ros2-jazzy"
+    reclaim ros2-launcher "$HOME/.local/bin/ros2-humble"
+    reclaim ros2-launcher-old "$HOME/.local/bin/ros2-jazzy"   # pre-Humble name
+    reclaim ros2-ddsprofile "$HOME/.config/ros2/fastdds-udp-only.xml"
+    # Drop the ~/.config/ros2 dir only if now empty (don't nuke other ROS configs).
+    if [ -d "$HOME/.config/ros2" ] && [ -z "$(ls -A "$HOME/.config/ros2" 2>/dev/null)" ]; then
+        run ros2-cfgdir rmdir "$HOME/.config/ros2"
+    fi
     # ~/robotics/ws is the user's own workspace — never delete it. Drop the empty
     # ~/robotics only if nothing else (IsaacLab/ws) lives under it.
     if [ -d "$HOME/robotics" ] && [ -z "$(ls -A "$HOME/robotics" 2>/dev/null)" ]; then

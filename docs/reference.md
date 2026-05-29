@@ -438,12 +438,14 @@ npm 11, pnpm 10, yarn classic.
 > 580 branch; Arch's 595 segfaults it — a driver-*version* mismatch, not
 > hardware). The switch is automated/reversible via
 > [`nvidia-switch.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/nvidia-switch.sh)
-> `downgrade`. **ROS 2 Jazzy is back** too (`install.sh docker` + the `ros2-jazzy`
-> launcher): the NVIDIA Container Toolkit injects the 580 host driver into
-> containers, and `--network host` + `--ipc host` + a shared `ROS_DOMAIN_ID`/RMW
-> (`rmw_fastrtps_cpp`) bridge the Jazzy container to native Isaac's ROS 2 bridge
-> over Fast DDS (UDP discovery + shared-memory transport). Run `ros2-jazzy pull`
-> then `ros2-jazzy shell`; enable Isaac's `isaacsim.ros2.bridge` extension. CUDA + Anaconda remain for general ML; align CUDA to the 580
+> `downgrade`. **ROS 2 Humble is wired up** too (`install.sh docker` + the
+> `ros2-humble` launcher): the NVIDIA Container Toolkit injects the 580 host driver
+> into containers, and `--network host` + `--ipc host` + a shared `ROS_DOMAIN_ID`/RMW
+> (`rmw_fastrtps_cpp`) bridge the container to native Isaac's ROS 2 bridge over Fast
+> DDS, with a UDP-only transport profile (a Jazzy container *crashed* Isaac on the
+> cross-distro `ros_discovery_info` message — Humble matches Isaac's bundled Fast DDS
+> 2.6, see §8). Run `ros2-humble pull` then `ros2-humble shell`; enable Isaac's
+> `isaacsim.ros2.bridge` extension. CUDA + Anaconda remain for general ML; align CUDA to the 580
 > ceiling with `nvidia-switch.sh cuda`. To remove components the clean way, use
 > [`uninstall.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/uninstall.sh).
 >
@@ -749,6 +751,53 @@ That addresses a *different* NVIDIA-Wayland class of stale-cursor bug (the GPU
 leaving a stale image on the hardware cursor plane) and is harmless to keep on.
 Verify: `hyprctl getoption cursor:no_hardware_cursors` → `int: 1`. GDM's own
 login-screen cursor is unrelated.
+
+### 8.8 Isaac Sim ↔ ROS 2 bridge: crashes or silent topics
+
+The container is **`ros2-humble`** on purpose. Two distinct failure modes, both
+already handled by the launcher:
+
+**(a) Isaac Sim *crashes* when the container runs `ros2 topic list`.**
+The Omniverse crash log backtrace ends in `cdr_deserialize(... ParticipantEntitiesInfo
+...)` → `vector<NodeEntitiesInfo>::resize(<huge>)` → `operator new` → `abort`, inside
+`libfastrtps.so.2.6`. Cause: a **cross-distro DDS mismatch.** Isaac's *bundled* ROS 2
+bridge is **Humble** (Fast DDS 2.6); a **Jazzy** container (Fast DDS 2.14) encodes the
+`ros_discovery_info` graph message (`rmw_dds_common`) with a different CDR layout (XCDR
+v2 vs v1), so Isaac's discovery listener reads a bogus vector length and aborts. **Fix:
+match the distro** — use `osrf/ros:humble-desktop-full` (the `ros2-humble` launcher),
+not Jazzy. Tell-tale: the version in the backtrace (`.so.2.6` = Humble).
+
+**(b) `ros2 topic echo` / `hz` show a publisher but *zero data*.**
+Fast DDS *discovery* rides UDP (fine across `--network host`), but its default *data*
+transport is **shared memory** — and native Isaac (UID 1000) and the root container
+can't share `/dev/shm` segments, so every sample is silently dropped. **Fix: force
+UDP-only.** On Humble's Fast DDS 2.6 there is **no `FASTDDS_BUILTIN_TRANSPORTS` env var**
+(that arrived in 2.10/Iron), so the launcher mounts a Fast DDS XML profile and points
+`FASTRTPS_DEFAULT_PROFILES_FILE` at it:
+
+```xml title="~/.config/ros2/fastdds-udp-only.xml"
+<dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <profiles>
+    <transport_descriptors>
+      <transport_descriptor>
+        <transport_id>udp_only</transport_id>
+        <type>UDPv4</type>
+      </transport_descriptor>
+    </transport_descriptors>
+    <participant profile_name="udp_only_participant" is_default_profile="true">
+      <rtps>
+        <userTransports><transport_id>udp_only</transport_id></userTransports>
+        <useBuiltinTransports>false</useBuiltinTransports>
+      </rtps>
+    </participant>
+  </profiles>
+</dds>
+```
+
+Verify the bridge end-to-end: play the sim, then `ros2-humble shell` →
+`ros2 topic list` (Isaac topics appear) → `ros2 topic hz /isaac_joint_states`
+(~60 Hz). If `topic list` is empty, check `ROS_DOMAIN_ID` matches and Isaac's
+`isaacsim.ros2.bridge` extension is enabled.
 
 ---
 

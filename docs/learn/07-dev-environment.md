@@ -96,7 +96,7 @@ confirmed mismatches on this system.
 ## Robotics: Isaac Sim & ROS 2
 
 This machine runs **NVIDIA Isaac Sim** + **Isaac Lab** (robotics simulation) and
-**ROS 2 Jazzy** (the robotics middleware). Two very different install strategies,
+**ROS 2 Humble** (the robotics middleware). Two very different install strategies,
 for good reasons:
 
 - **Isaac Sim / Lab — native.** They need the GPU's full RTX renderer, which
@@ -104,29 +104,33 @@ for good reasons:
   here was the *driver version* (it needs the 580 branch; see
   [NVIDIA → the fix](05-nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver)).
   Once the host is on 580 + `linux-lts`, Isaac runs natively.
-- **ROS 2 Jazzy — a container.** Arch isn't an officially supported ROS 2
+- **ROS 2 Humble — a container.** Arch isn't an officially supported ROS 2
   platform, and ROS pins to specific Ubuntu releases. Rather than fight that on a
-  rolling distro, ROS 2 runs in the official `osrf/ros:jazzy-desktop-full`
-  container, launched by the `ros2-jazzy` helper. The
+  rolling distro, ROS 2 runs in the official `osrf/ros:humble-desktop-full`
+  container, launched by the `ros2-humble` helper. The
   [NVIDIA Container Toolkit](glossary.md) injects the **host** driver (580) into
   the container, so `--gpus all` gives ROS GPU access without installing anything
-  ROS-related on the host.
+  ROS-related on the host. **Why Humble and not the newer Jazzy?** Isaac Sim's
+  *bundled* ROS 2 bridge is built against Humble (Fast DDS 2.6); a Jazzy container
+  (Fast DDS 2.14) actually **crashed Isaac** on a cross-distro discovery message —
+  see Gotcha 4 below. Matching the distro is the fix.
 
 ### How the two talk to each other (the bridge)
 
 ROS 2 nodes find each other over **DDS** (a peer-to-peer pub/sub protocol). For
-native Isaac (on the host) and the Jazzy *container* to share topics, three
-things must line up — and the `ros2-jazzy` launcher sets all three:
+native Isaac (on the host) and the Humble *container* to share topics, four
+things must line up — and the `ros2-humble` launcher sets all of them:
 
 | Requirement | Why | How the launcher does it |
 |---|---|---|
+| Same ROS distro | the two sides must serialize the DDS *discovery* messages the same way, or one crashes deserializing the other's (see Gotcha 4) | use **Humble** — `osrf/ros:humble-desktop-full`, matching Isaac's bundled bridge |
 | Same network namespace | DDS discovery uses UDP on localhost | `--network host` |
 | Same domain + RMW | nodes only see peers with the same `ROS_DOMAIN_ID` and DDS vendor | `-e ROS_DOMAIN_ID` + `-e RMW_IMPLEMENTATION=rmw_fastrtps_cpp` |
-| UDP data transport | the default shared-memory transport can't cross the host↔container UID boundary (see Gotcha 3) | `-e FASTDDS_BUILTIN_TRANSPORTS=UDPv4` |
+| UDP data transport | the default shared-memory transport can't cross the host↔container UID boundary (see Gotcha 3) | a mounted Fast DDS XML profile + `-e FASTRTPS_DEFAULT_PROFILES_FILE` |
 
 Then, on the Isaac side, you enable its **ROS 2 Bridge** extension
-(`isaacsim.ros2.bridge`). With matching domain/RMW, topics Isaac publishes show
-up inside `ros2-jazzy shell` via `ros2 topic list`, and vice-versa.
+(`isaacsim.ros2.bridge`). With matching distro/domain/RMW, topics Isaac publishes
+show up inside `ros2-humble shell` via `ros2 topic list`, and vice-versa.
 
 > **Gotcha — every host NVIDIA library must match the driver version.** The
 > Container Toolkit injects host NVIDIA libraries into the container *by the
@@ -168,23 +172,62 @@ up inside `ros2-jazzy shell` via `ros2 topic list`, and vice-versa.
 > same host. Isaac runs natively as **your user (UID 1000)** while the container
 > runs as **root** — they can't share each other's `/dev/shm` segments, so every
 > data sample is silently dropped. The fix is to force Fast DDS to carry data over
-> **UDP** instead of SHM:
+> **UDP** instead of SHM. On a Jazzy (Fast DDS ≥ 2.10) box that's a one-liner —
+> `export FASTDDS_BUILTIN_TRANSPORTS=UDPv4` — **but that env var doesn't exist in
+> Humble's Fast DDS 2.6** (it was added in 2.10/Iron). On Humble you do the same
+> thing with an XML *transport profile* that drops the builtin transports and keeps
+> only UDPv4:
+> ```xml title="~/.config/ros2/fastdds-udp-only.xml"
+> <dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+>   <profiles>
+>     <transport_descriptors>
+>       <transport_descriptor>
+>         <transport_id>udp_only</transport_id>
+>         <type>UDPv4</type>
+>       </transport_descriptor>
+>     </transport_descriptors>
+>     <participant profile_name="udp_only_participant" is_default_profile="true">
+>       <rtps>
+>         <userTransports><transport_id>udp_only</transport_id></userTransports>
+>         <useBuiltinTransports>false</useBuiltinTransports>
+>       </rtps>
+>     </participant>
+>   </profiles>
+> </dds>
+> ```
 > ```bash
-> export FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+> export FASTRTPS_DEFAULT_PROFILES_FILE=~/.config/ros2/fastdds-udp-only.xml
 > ros2 topic hz /isaac_joint_states   # now prints ~60 Hz
 > ```
 > Only the **container (subscriber) side** needs it — Isaac already advertises UDP
 > locators, so a UDP-only subscriber negotiates UDP automatically. The
-> `ros2-jazzy` launcher now sets `FASTDDS_BUILTIN_TRANSPORTS=UDPv4` by default
-> (override with the same-named env var), so this just works out of the box. UDP
-> loopback is plenty fast for control-rate messages like joint states; if you ever
-> stream large images/point clouds and want SHM back, you'd need to run the
-> container as your UID *and* unset this var.
+> `ros2-humble` launcher **writes that profile and sets the env var by default**, so
+> this just works out of the box. UDP loopback is plenty fast for control-rate
+> messages like joint states; if you ever stream large images/point clouds and want
+> SHM back, you'd need to run the container as your UID *and* drop the profile.
+
+> **Gotcha 4 — a Jazzy container *crashes Isaac Sim* on discovery.** With the sim
+> playing, the very first `ros2 topic list` from the container can make **Isaac Sim
+> itself abort** (an Omniverse/breakpad crash dump, not a container error). The
+> backtrace ends in `cdr_deserialize(... ParticipantEntitiesInfo ...)` →
+> `vector<NodeEntitiesInfo>::resize(<huge>)` → `operator new` → `abort`, inside
+> `libfastrtps.so.**2.6**`. That version number is the clue: Isaac's *bundled* ROS 2
+> bridge is **Humble** (Fast DDS 2.6), but the container was **Jazzy** (Fast DDS
+> 2.14). The two distros encode the ROS *graph* topic `ros_discovery_info`
+> (`rmw_dds_common/ParticipantEntitiesInfo`) with different CDR layouts (XCDR v2 vs
+> v1), so the Humble side reads a garbage length for the node-entities vector, tries
+> to allocate gigabytes, and dies. Note this is **only** the discovery message —
+> ordinary data like `sensor_msgs/JointState` deserializes fine, which is why topic
+> *data* flowed at 60 Hz right up until the graph message arrived. **Fix: match the
+> distro** — run the **Humble** container (`ros2-humble`), the one Isaac's bridge was
+> built for. General lesson: when two ROS 2 distros must share a DDS graph, mismatched
+> `rmw_dds_common` wire formats can crash the *older* peer; align the distro rather
+> than chase the crash.
 
 ```bash
-ros2-jazzy pull            # fetch the image once (~6 GB → /home/docker-data)
-ros2-jazzy shell           # drop into a Jazzy environment; ~/robotics/ws is /root/ws
-ros2-jazzy run "ros2 topic list"   # one-off command
+ros2-humble pull           # fetch the image once (~4 GB → /home/docker-data)
+ros2-humble shell          # drop into a Humble environment; ~/robotics/ws is /root/ws
+ros2-humble run "ros2 topic list"   # one-off command
 ```
 
 Everything large lives on **/home** (the container image store is

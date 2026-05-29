@@ -49,7 +49,7 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
 - `install.sh` — components: `build`, `cuda`, `python`, `anaconda`, `node`,
   `editors`, `embedded`, `audio` (incl. the DualSense PipeWire 1.6.5 pin +
   touchpad udev rule), `gpu`, `docker` (Docker + NVIDIA Container Toolkit;
-  data-root on /home/docker-data + containerd-snapshotter=false; for ROS 2 Jazzy /
+  data-root on /home/docker-data + containerd-snapshotter=false; for ROS 2 Humble /
   GPU containers), `media`, `terminal`, `kde`, `display`, `storage` (NTFS/exFAT
   userspace drivers + gnome-disk-utility so Windows-formatted SSDs mount in
   nautilus — Arch omits these by default, unlike Ubuntu), `remote` (enable `sshd`
@@ -97,7 +97,8 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
 | User Hyprland overrides | `~/.config/caelestia/hypr-user.conf`, `hypr-vars.conf` |
 | Caelestia shell settings | `~/.config/caelestia/shell.json` (bar/dashboard/weather; written by the `caelestia` component) |
 | Per-host monitors + active symlink | `~/.config/caelestia/hypr-monitors-{desktop,laptop}.conf`, `hypr-monitors.conf` |
-| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy, vnc-server, remote}` |
+| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, vnc-server, remote}` |
+| ROS 2 Fast DDS profile | `~/.config/ros2/fastdds-udp-only.xml` (UDP-only transport; written by the `ros2-humble` launcher) |
 | Fish additions | `~/.config/fish/conf.d/dev-env.fish` |
 | WirePlumber DualSense | `~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf` |
 | DualSense touchpad ignore | `/etc/udev/rules.d/71-dualsense-touchpad-ignore.rules` |
@@ -319,3 +320,25 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   (disable+stop the daemon → `-Rns input-remapper` → delete the `~/.config/input-remapper-2`
   presets). Lesson: peripherals with onboard memory remap at the firmware layer,
   independent of the OS — fix the profile on the device, not in the compositor.
+- **2026-05-29 — ROS 2 container switched Jazzy → Humble (Isaac was crashing).**
+  With the sim playing, `ros2 topic list` from the Jazzy container **crashed Isaac
+  Sim** (Omniverse breakpad abort). Backtrace: `cdr_deserialize(... ParticipantEntitiesInfo
+  ...)` → a `vector<NodeEntitiesInfo>::resize(huge)` → `operator new` → abort, inside
+  `libfastrtps.so.2.6`. Root cause: a **cross-distro DDS mismatch.** Isaac's *bundled*
+  ROS 2 bridge is **Humble** (Fast DDS 2.6), but the container was **Jazzy** (Fast DDS
+  2.14); the two encode the `ros_discovery_info` graph message (`rmw_dds_common`)
+  differently (XCDR v2 vs v1), so Isaac's discovery listener mis-read a length field
+  and aborted. (Data topics like `sensor_msgs/JointState` flowed fine at 60 Hz — only
+  the *discovery* message differs — which is why it looked like it worked before.)
+  Fix: **match the distro** — the launcher is now `ros2-humble` on
+  `osrf/ros:humble-desktop-full`. Carried over every prior fix (`--gpus all`,
+  `--network host`, `--ipc host`, shared `ROS_DOMAIN_ID`/`rmw_fastrtps_cpp`, X11/Wayland
+  forwarding, `~/robotics/ws` mount). One fix had to change form: Humble's Fast DDS 2.6
+  has **no `FASTDDS_BUILTIN_TRANSPORTS` env var** (added in 2.10/Iron), so the UDP-only
+  transport (needed because native Isaac UID 1000 and the root container can't share
+  `/dev/shm` SHM segments) is now a **Fast DDS XML profile** (`~/.config/ros2/fastdds-udp-only.xml`,
+  `useBuiltinTransports=false` + a single UDPv4 transport) mounted in and selected via
+  `FASTRTPS_DEFAULT_PROFILES_FILE`. The 4.58 GB Jazzy image + old `ros2-jazzy` launcher
+  were removed (`docker rmi`); `uninstall.sh ros2` now targets Humble and also sweeps a
+  leftover Jazzy image. Images still land on `/home/docker-data` (data-root), so the
+  ~4 GB Humble pull uses the 800 GB `/home`, not the small root.
