@@ -55,15 +55,15 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   nautilus — Arch omits these by default, unlike Ubuntu), `remote` (enable `sshd`
   + freerdp/remmina for RDP/VNC *out* + `wayvnc` as a VNC server *into* this
   Hyprland box — RDP-into-Wayland is unsupported, VNC is the working path),
-  `inputremap` (input-remapper from the AUR — remaps mouse/keyboard buttons at the
-  evdev layer, works on Wayland; for the Razer Basilisk side keys), `theme`
+  `theme`
   (candy-icons + sweet-folders from the AUR — the rainbow GTK icon set),
   `aurapps`, `groups`, `shell`. CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
   counterpart to `install.sh`): components `docker`, `isaac`, `ros2`, `anaconda`,
   `cuda`, `icons` (switch the GTK icon theme back to the caelestia default
   Papirus-Dark; keeps the Sweet/candy packages so `setup-home.sh nautilus`
-  re-applies instantly). Each removes its packages + data + configs + launchers and reports
+  re-applies instantly), `inputremap` (remove input-remapper + its daemon + presets —
+  no longer needed since the Razer mouse remaps via onboard memory). Each removes its packages + data + configs + launchers and reports
   reclaimed space. Note: it measures root-owned paths with `sudo du` so the
   reclaim total is accurate (a non-root `du` can't read e.g. Docker's 0711
   data-root and would under-count). The driver-level NVIDIA purge is deliberately
@@ -255,8 +255,7 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   `ros2-jazzy shell` starts and `ros2 topic list` works; Isaac's
   `isaacsim.ros2.bridge` was enabled by default, so topics crossed immediately.
   The full robotics stack (Isaac Sim + Lab native on 580.119 + ROS 2 Jazzy
-  container) is functional on Arch. Next: remap the Razer Basilisk V3 side keys
-  via `input-remapper` (the `inputremap` install component).
+  container) is functional on Arch.
 - **2026-05-29 — ROS 2 topic data wasn't flowing (discovery-only).** `ros2 topic
   list` showed `/isaac_joint_states` and `topic info --verbose` reported
   `Publisher count: 1`, but `ros2 topic echo`/`hz` were silent. Cause: Fast DDS
@@ -311,3 +310,12 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   `scripts`): `on` starts sshd, `off` stops sshd + kills any wayvnc, `status` shows
   active state + LAN IP + listening :22/:5900. Always-on is still one command:
   `sudo systemctl enable --now sshd`.
+- **2026-05-29 — Razer side keys work out of the box; input-remapper removed.** The
+  side-key remaps were never a Linux problem: the Razer Basilisk V3 stores profiles
+  in **onboard memory**, and the wrong profile had been flashed. Re-flashing the
+  correct profile via **Razer Synapse on Windows 11** made every button work the
+  moment Linux sees the device — no evdev remapper required. So `input-remapper` was
+  dropped from `install.sh`, and `uninstall.sh inputremap` now removes it cleanly
+  (disable+stop the daemon → `-Rns input-remapper` → delete the `~/.config/input-remapper-2`
+  presets). Lesson: peripherals with onboard memory remap at the firmware layer,
+  independent of the OS — fix the profile on the device, not in the compositor.

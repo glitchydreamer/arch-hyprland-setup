@@ -193,7 +193,6 @@ COMPONENTS=(
     "display|Display inspection tools (drm-info, wdisplays, wlr-randr, brightnessctl)"
     "storage|Mount Windows/other drives + Disks app (ntfs-3g, exfatprogs, gnome-disk-utility)"
     "remote|SSH + remote desktop: freerdp/remmina (out) + wayvnc (VNC in); sshd left OFF, toggle with the 'remote' helper"
-    "inputremap|input-remapper (AUR) — remap mouse/keyboard buttons (Razer side keys; Wayland-safe)"
     "theme|Candy rainbow icons (AUR: candy-icons + sweet-folders) — GTK icon theme for nautilus etc."
     "aurapps|AUR apps (sweet-cursors, brave, edge, claude-desktop)"
     "groups|Add your user to the serial + wireshark groups (uucp, lock, wireshark)"
@@ -297,19 +296,6 @@ do_media()   { pac media haruna obs-studio gimp inkscape okular gwenview swayimg
 do_terminal() { pac terminal fzf ripgrep fd bat zoxide lazygit github-cli tmux tree yq rsync; }
 do_kde()     { pac kde dolphin systemsettings discover kinfocenter; }
 do_display() { pac display drm-info wdisplays wlr-randr brightnessctl nm-connection-editor; }
-
-# input-remapper: remap input-device buttons (e.g. Razer Basilisk side keys ->
-# Ctrl+C/Ctrl+V, Ctrl+Home/Ctrl+End). It works at the evdev/uinput layer, BELOW
-# the compositor, so it works on Wayland/Hyprland where X11 remappers (xbindkeys/
-# imwheel) don't. The root daemon applies autoloaded presets at login.
-do_inputremap() {
-    say "\n>>> input-remapper (AUR via ${HELPER:-none})"
-    aur input-remapper || { FAILED+=("input-remapper"); return; }
-    if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] systemctl enable --now input-remapper.service"; return; fi
-    sudo systemctl enable --now input-remapper.service || FAILED+=("input-remapper-service")
-    say "    · configure: run  input-remapper-gtk  → pick the Razer Basilisk V3 →"
-    say "      map each button → key combo → Save → toggle Autoload → Apply."
-}
 
 do_storage() {
     # nautilus/udisks can't mount NTFS or exFAT without the userspace drivers

@@ -44,6 +44,7 @@ COMPONENTS=(
     "anaconda|Anaconda (AUR) + the conda fish init; leaves your project envs' data under ~/anaconda3 if external"
     "cuda|CUDA toolkit + cuDNN + the /etc/profile.d/cuda.sh PATH (leaves the NVIDIA driver alone)"
     "icons|Switch the GTK icon theme back to the caelestia default (Papirus-Dark); keeps the Sweet/candy packages so you can re-apply"
+    "inputremap|input-remapper (AUR) + its daemon/service + ~/.config presets — no longer needed (the Razer mouse remaps via onboard memory)"
 )
 
 # ---- helpers ----------------------------------------------------------------
@@ -202,6 +203,20 @@ do_icons() {
     say "    · icon theme restored to $default (Sweet/candy packages kept)."
     say "    · re-apply the Sweet icons:        bash setup-home.sh nautilus"
     say "    · to also remove the packages:     paru -Rns candy-icons-git sweet-folders-icons-git"
+}
+
+do_inputremap() {
+    say ">>> input-remapper (the root daemon + the AUR package + presets)"
+    # The root daemon autoloads presets at login; stop & disable it before pulling
+    # the package so nothing keeps a uinput device open.
+    run inputremap-svc sudo systemctl disable --now input-remapper.service
+    remove_pkgs inputremap-pkg input-remapper
+    # Presets/config live under ~/.config; v2 uses input-remapper-2 (older builds
+    # used plain input-remapper). Both are user-owned, so no sudo needed.
+    reclaim inputremap-cfg2 "$HOME/.config/input-remapper-2"
+    reclaim inputremap-cfg  "$HOME/.config/input-remapper"
+    say "    · removed. The Razer side keys now come from the mouse's onboard memory"
+    say "      (set via Razer Synapse on Windows), so no remapper is needed on Linux."
 }
 
 # ---- arg parsing ------------------------------------------------------------
