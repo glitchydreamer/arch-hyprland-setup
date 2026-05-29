@@ -20,7 +20,7 @@ remove the system, and they are the *source of truth* — not the live files.
 
 | Script | Job | Sudo? |
 |---|---|---|
-| `setup-home.sh` | Writes the home-directory half: Hyprland overrides, `~/.local/bin` helper scripts, fish config, Dolphin settings, the DualSense WirePlumber rule, git defaults | No |
+| `setup-home.sh` | Writes the home-directory half: Hyprland overrides, `~/.local/bin` helper scripts, fish config, the Sweet GTK icon theme (nautilus), the DualSense WirePlumber rule, git defaults | No |
 | `install.sh` | The system half: packages (repo + AUR), driver-matched CUDA, the DualSense audio pin + udev rule, groups, the fish login shell | Yes (calls `sudo` itself) |
 | `uninstall.sh` | The clean counterpart: remove a component's packages **and** its data, configs, and launchers, and report the space reclaimed | Yes |
 

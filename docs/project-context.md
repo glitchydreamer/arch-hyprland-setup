@@ -44,7 +44,7 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   shell/dashboard tweaks — e.g. weather in °C via `services.useFahrenheit=false`),
   `nautilus` (sets a Sweet icon theme — synthwave **Sweet-Purple** folders +
   candy app icons — as the GTK icon theme; `ICON_THEME=<variant>` to pick another),
-  `scripts`, `fish`, `dolphin`, `wireplumber`, `git`. The **source of truth** for
+  `scripts`, `fish`, `wireplumber`, `git`. The **source of truth** for
   those files; edit & re-run.
 - `install.sh` — components: `build`, `cuda`, `python`, `anaconda`, `node`,
   `editors`, `embedded`, `audio` (incl. the DualSense PipeWire 1.6.5 pin +
@@ -63,7 +63,9 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   `cuda`, `icons` (switch the GTK icon theme back to the caelestia default
   Papirus-Dark; keeps the Sweet/candy packages so `setup-home.sh nautilus`
   re-applies instantly), `inputremap` (remove input-remapper + its daemon + presets —
-  no longer needed since the Razer mouse remaps via onboard memory). Each removes its packages + data + configs + launchers and reports
+  no longer needed since the Razer mouse remaps via onboard memory), `extras`
+  (remove unused apps + their home data: Zed, Dolphin, Inkscape, Kate, HyprKCS).
+  Each removes its packages + data + configs + launchers and reports
   reclaimed space. Note: it measures root-owned paths with `sudo du` so the
   reclaim total is accurate (a non-root `du` can't read e.g. Docker's 0711
   data-root and would under-count). The driver-level NVIDIA purge is deliberately
@@ -342,3 +344,16 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   were removed (`docker rmi`); `uninstall.sh ros2` now targets Humble and also sweeps a
   leftover Jazzy image. Images still land on `/home/docker-data` (data-root), so the
   ~4 GB Humble pull uses the 800 GB `/home`, not the small root.
+- **2026-05-29 — decluttered unused apps (Zed, Dolphin, Inkscape, Kate, HyprKCS).**
+  All were explicitly installed with nothing depending on them (`Required By: None`),
+  so removal is safe. New `uninstall.sh extras` component removes the packages **and**
+  their home `~/.config`/`.cache`/`.state` (Zed, Dolphin, Inkscape, Kate, HyprKCS — the
+  hyprkcs `-debug` split goes too). Also stopped *installing* them so a rebuild won't
+  bring them back: `editors` dropped `zed` (Neovim only), `media` dropped `inkscape`,
+  `kde` dropped `dolphin`. **Dolphin's removal cascaded into doc/config fixes** — the
+  daily file manager has been **nautilus** for a while (live `$fileExplorer = nautilus`,
+  `Super+E`), but the generator and several docs still said Dolphin: fixed
+  `setup-home.sh` (`$fileExplorer` → nautilus, deleted the dead `dolphin` component +
+  the `zed`→`zeditor` fish abbr) and updated coming-from-ubuntu / keybinds / reference /
+  Learn pages to say Nautilus. Kate + HyprKCS were never in `install.sh` (came with the
+  KDE/Hyprland deps / a manual AUR install).

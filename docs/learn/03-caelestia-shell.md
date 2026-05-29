@@ -139,7 +139,7 @@ very differently:
   (`gsettings set org.gnome.desktop.interface icon-theme <name>`, mirrored into
   `~/.config/gtk-{3,4}.0/settings.ini`). Install an icon set (e.g. the rainbow
   **candy-icons** from the AUR) and point that setting at it — nautilus and every
-  other **GTK** app pick it up. KDE/Qt apps (Dolphin, System Settings) have their
+  other **GTK** app pick it up. KDE/Qt apps (System Settings, Okular) have their
   *own* icon setting, and caelestia's bar is QML, so neither is affected. On this
   machine that's the `theme` component of `install.sh` (installs the icons) plus
   the `nautilus` component of `setup-home.sh` (sets them).

@@ -52,9 +52,9 @@ COMPONENTS=(
     "hyprland|Hyprland overrides (hypr-vars, hypr-user) + per-host monitor configs & active symlink"
     "caelestia|Caelestia shell.json tweaks (weather/dashboard temperature in °C, not °F)"
     "nautilus|Sweet icons: synthwave Sweet-Purple folders + candy app icons as the GTK icon theme (ICON_THEME=<variant> to pick another)"
+    # (the daily file manager is nautilus; the old 'dolphin' tweak component was removed)
     "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, vnc-server, remote"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
-    "dolphin|Dolphin: show hidden files by default"
     "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
     "git|Global git defaults (branch, autoSetupRemote, rerere, editor, ...)"
 )
@@ -83,7 +83,7 @@ do_hyprland() {
 # Most-used apps on single Super (Super+W / C / E / T)
 $browser      = firefox
 $editor       = code
-$fileExplorer = dolphin
+$fileExplorer = nautilus
 
 # Cursor — sweet-cursors installed via AUR (see install.sh).
 $cursorTheme = sweet-cursors
@@ -464,9 +464,6 @@ if test -d /opt/cuda/bin
     set -gx CUDA_HOME /opt/cuda
 end
 
-# Editors
-abbr -ag zed zeditor   # Zed's binary is `zeditor` on Arch
-
 # Tooling shortcuts
 abbr -ag lg lazygit
 
@@ -474,27 +471,6 @@ abbr -ag lg lazygit
 if type -q zoxide
     zoxide init fish | source
 end
-EOF
-}
-
-do_dolphin() {
-    dry "~/.config/dolphinrc + ~/.local/share/dolphin/.../global/.directory" && return
-    mkdir -p "$HOME/.local/share/dolphin/view_properties/global"
-    cat > "$HOME/.config/dolphinrc" <<'EOF'
-[General]
-GlobalViewProps=true
-
-[KFileDialog Settings]
-Places Icons Auto-resize=false
-Places Icons Static Size=22
-EOF
-    cat > "$HOME/.local/share/dolphin/view_properties/global/.directory" <<'EOF'
-[Dolphin]
-HiddenFilesShown=true
-Version=4
-
-[Settings]
-HiddenFilesShown=true
 EOF
 }
 

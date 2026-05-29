@@ -182,14 +182,14 @@ COMPONENTS=(
     "python|Python scientific stack (numpy/scipy/pandas/sklearn/jupyter/ruff/...)"
     "anaconda|Anaconda (AUR) wired into fish; base not auto-activated"
     "node|Node toolchain (node, pnpm, yarn)"
-    "editors|Neovim + Zed"
+    "editors|Neovim"
     "embedded|Embedded/serial (picocom, minicom, arduino-cli, stlink, openocd, wireshark)"
     "audio|PipeWire audio apps + the DualSense fix (1.6.5 pin + touchpad udev rule)"
     "gpu|GPU/gaming (lib32 nvidia, gamemode, mangohud, nvidia-settings)"
     "docker|Docker + NVIDIA Container Toolkit (data-root on /home; for ROS 2 Humble / GPU containers)"
-    "media|Multimedia apps (haruna, obs, gimp, inkscape, okular, gwenview, swayimg)"
+    "media|Multimedia apps (haruna, obs, gimp, okular, gwenview, swayimg)"
     "terminal|Terminal productivity (fzf, ripgrep, fd, bat, zoxide, lazygit, tmux, ...)"
-    "kde|KDE settings apps + Dolphin (systemsettings, discover, kinfocenter)"
+    "kde|KDE settings apps (systemsettings, discover, kinfocenter)"
     "display|Display inspection tools (drm-info, wdisplays, wlr-randr, brightnessctl)"
     "storage|Mount Windows/other drives + Disks app (ntfs-3g, exfatprogs, gnome-disk-utility)"
     "remote|SSH + remote desktop: freerdp/remmina (out) + wayvnc (VNC in); sshd left OFF, toggle with the 'remote' helper"
@@ -224,7 +224,7 @@ do_python() {
 
 do_anaconda() { install_anaconda; }
 do_node()     { pac node pnpm yarn; }
-do_editors()  { pac editors neovim zed; }
+do_editors()  { pac editors neovim; }
 do_embedded() { pac embedded picocom minicom arduino-cli stlink openocd wireshark-qt; }
 
 do_audio() {
@@ -293,9 +293,9 @@ PY
     say "    · added $USER_NAME to the docker group — log out/in to activate, then:"
     say "      ros2-humble pull  # fetch the ROS 2 Humble image (~4 GB)"
 }
-do_media()   { pac media haruna obs-studio gimp inkscape okular gwenview swayimg; }
+do_media()   { pac media haruna obs-studio gimp okular gwenview swayimg; }
 do_terminal() { pac terminal fzf ripgrep fd bat zoxide lazygit github-cli tmux tree yq rsync; }
-do_kde()     { pac kde dolphin systemsettings discover kinfocenter; }
+do_kde()     { pac kde systemsettings discover kinfocenter; }
 do_display() { pac display drm-info wdisplays wlr-randr brightnessctl nm-connection-editor; }
 
 do_storage() {

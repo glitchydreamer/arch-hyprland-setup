@@ -34,30 +34,27 @@ terminal or bind a key in `hypr-user.conf`:
 bind = Super+Shift, S, exec, systemsettings
 ```
 
-## The "Files" app (Nautilus → Dolphin)
+## The "Files" app (Nautilus — same as Ubuntu)
 
-Ubuntu uses **Nautilus** (GNOME Files); this setup uses **Dolphin** (KDE Files).
-Different ecosystem, different shortcuts, but mostly the same feature set.
+Good news: this setup uses the **same file manager as Ubuntu — Nautilus** (GNOME
+Files). The shortcuts you already know carry over.
 
-| Action | Nautilus (Ubuntu) | Dolphin (here) |
-|---|---|---|
-| Toggle hidden files | `Ctrl+H` | `Ctrl+H` (already toggled on by default — see below) |
-| Show menu bar | `F10` (auto-hides) | menu bar is *disabled* by default in `dolphinrc`; press `Ctrl+M` to bring it back, or use the hamburger icon top-right |
-| Split view | not built-in | `F3` |
-| Show terminal panel | extension | `F4` |
-| Show preview panel | sidebar toggle | `F11` (preview), `F9` (places sidebar) |
-| Tabs | `Ctrl+T` | `Ctrl+T` |
-| Address bar (type a path) | `Ctrl+L` | `Ctrl+L` |
-| Properties | `Ctrl+I` | `Alt+Enter` |
+| Action | Nautilus |
+|---|---|
+| Toggle hidden files | `Ctrl+H` |
+| New tab | `Ctrl+T` |
+| Address bar (type a path) | `Ctrl+L` |
+| Open a terminal here | right-click → *Open Terminal* (if the extension is installed) |
+| Properties | `Ctrl+I` |
 
-**Hidden files defaults**: this repo's setup writes
-`~/.config/dolphinrc` with `GlobalViewProps=true` and
-`~/.local/share/dolphin/view_properties/global/.directory` with
-`HiddenFilesShown=true`. The "global" view-property file is required because
-Dolphin stores view state per-folder unless told to share globally.
+Nautilus is launched by **`Super+E`** (the `$fileExplorer` variable in
+`hypr-vars.conf` is set to `nautilus`). The folder/app icons are themed by the
+`nautilus` component of `setup-home.sh` — see
+[Full Reference → icons](reference.md) and the
+[caelestia Learning Path page](learn/03-caelestia-shell.md#theming-gtk-apps-and-the-libadwaita-catch).
 
-If you genuinely prefer Nautilus, `sudo pacman -S nautilus` and set it default:
-`xdg-mime default org.gnome.Nautilus.desktop inode/directory`.
+> KDE's Dolphin is **not** installed here (it was removed in favour of Nautilus).
+> If you'd rather use it, `sudo pacman -S dolphin`.
 
 ## "Pin apps to taskbar + open with keyboard shortcut"
 
@@ -71,7 +68,7 @@ Most-used apps live on **single `Super+<letter>`** by retargeting caelestia's
 
 ```
 Super+T  →  foot         Super+G  →  Google Chrome
-Super+W  →  Firefox       Super+E  →  Dolphin
+Super+W  →  Firefox       Super+E  →  Nautilus
 Super+C  →  VS Code
 ```
 
@@ -86,7 +83,7 @@ bind = Super+Shift, I, exec, app2unit -- systemsettings
 See [Keybinds](keybinds.md) for the full table and how to add more.
 
 The `app2unit --` wrapper (caelestia ships it) launches the app under a
-systemd user unit so it gets clean process accounting; plain `exec, dolphin`
+systemd user unit so it gets clean process accounting; plain `exec, nautilus`
 works too.
 
 ### Use the launcher for everything else
@@ -133,7 +130,7 @@ Three layers to this in Ubuntu — and three different equivalents here:
 | Right-click pinned app in dock → "New Window", "Quit", "Pin/Unpin" | Bind a key per action: `Super, W` opens browser; `Super+Shift+Q` (or `closewindow`) closes |
 | Right-click on desktop → background, display, terminal here | No "desktop" in tiling WMs; reach for the keybind cheat-sheet (`Super, ?`) |
 | Right-click in launcher → app context (open with, properties, app info) | Caelestia's launcher doesn't expose this; rofi/walker do |
-| Right-click in file manager → file actions | Dolphin behaves exactly like Nautilus — works as expected |
+| Right-click in file manager → file actions | Nautilus (same as Ubuntu) — works as expected |
 
 ## Other Ubuntu-isms and where they live
 

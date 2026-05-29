@@ -66,7 +66,7 @@ approaches, and this machine uses a mix deliberately:
 
 A glance at the [installed software](../reference.md#6-installed-software)
 shows the categories: build tools (clang, cmake, ninja, gdb), the Python stack,
-Node, editors (Neovim, Zed, VS Code), embedded/serial tools (picocom,
+Node, editors (Neovim, VS Code), embedded/serial tools (picocom,
 arduino-cli, openocd), GPU/gaming (gamemode, mangohud), KDE settings apps,
 display inspection tools, and a few AUR apps (browsers, claude-desktop, the
 cursor theme).
@@ -87,8 +87,8 @@ Two principles guide what's installed:
 ## Editors and the binary-name gotcha
 
 A small but recurring Linux annoyance: a package's name and its **command** name
-can differ. Zed installs as `zeditor` (not `zed`); Mission Center as
-`missioncenter` (no hyphen). When something "isn't found," check the actual
+can differ. Mission Center installs as `missioncenter` (no hyphen); `plasma-discover`
+is the binary for the package some menus label "Discover." When something "isn't found," check the actual
 binary with `which <name>`. The [keybinds
 reference](../keybinds.md#package-name-vs-binary-name-gotcha) keeps a list of the
 confirmed mismatches on this system.

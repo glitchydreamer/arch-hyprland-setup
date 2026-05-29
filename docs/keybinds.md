@@ -25,7 +25,7 @@ defaults point at apps that aren't installed on this system
 ```ini
 $browser      = firefox
 $editor       = code
-$fileExplorer = dolphin
+$fileExplorer = nautilus
 ```
 
 `hypr-vars.conf` is sourced **after** caelestia's `variables.conf` but
@@ -46,7 +46,7 @@ Result:
 Super+T  →  Terminal (foot)
 Super+W  →  Firefox
 Super+C  →  VS Code
-Super+E  →  Dolphin
+Super+E  →  Nautilus
 Super+G  →  Google Chrome
 ```
 
@@ -156,7 +156,7 @@ hyprctl binds -j | jq -r '.[] | select(.dispatcher=="exec") |
   "\(.modmask) \(.key)  →  \(.arg)"' | sort
 
 # Does the target executable exist?
-for cmd in firefox code dolphin foot google-chrome-stable brave \
+for cmd in firefox code nautilus foot google-chrome-stable brave \
            microsoft-edge-stable antigravity claude-desktop kwrite \
            systemsettings nvidia-settings missioncenter plasma-discover; do
     which "$cmd" >/dev/null 2>&1 && echo "OK   $cmd" || echo "MISS $cmd"
@@ -167,7 +167,7 @@ done
 
 Caelestia also ships `bind = Super+Alt, E, exec, app2unit -- nemo`. Nemo
 isn't installed and there's no reason to install a second file manager —
-`Super+E` (Dolphin) is what you'll actually use. The bind sits idle.
+`Super+E` (Nautilus) is what you'll actually use. The bind sits idle.
 If it ever annoys you, drop `unbind = Super+Alt, E` into `hypr-user.conf`.
 
 ## Package-name vs. binary-name gotcha

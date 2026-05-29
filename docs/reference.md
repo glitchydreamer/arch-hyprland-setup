@@ -78,7 +78,7 @@ Configuration is owned by different layers depending on what you're changing. Us
 | **Packages** | `sudo pacman -S pkg` / `paru -S pkg` (AUR) | no GUI store by default |
 | **NVIDIA GPU** | `nvidia-settings` (GUI) | overclock, fan curves, monitor info |
 | **Catch-all GUI ("Ubuntu Settings"-equivalent)** | `systemsettings` (KDE), `kinfocenter` (hardware/about) | most panels work without full KDE; some assume Plasma and no-op on Hyprland |
-| **File manager — hidden files, view settings** | Dolphin: `Ctrl+H` toggles hidden; defaults in `~/.config/dolphinrc` (`GlobalViewProps=true`) + `~/.local/share/dolphin/view_properties/global/.directory` | Nautilus also installable if you prefer the Ubuntu Files UX |
+| **File manager — hidden files, view settings** | Nautilus (GNOME Files): `Ctrl+H` toggles hidden; launched by `Super+E`. Folder/app icons themed by `setup-home.sh nautilus` | Dolphin was removed in favour of Nautilus; `sudo pacman -S dolphin` to bring it back |
 
 ### 2.1 Mental model
 
@@ -430,7 +430,6 @@ npm 11, pnpm 10, yarn classic.
 
 - **VS Code** (MS official build) — binary `code`. Extensions: Python, Pylance, C++, CMake Tools, YAML, Ruff, Jupyter.
 - **Neovim 0.12** with LazyVim starter at `~/.config/nvim`.
-- **Zed** — binary is `zeditor` on Arch (`zed` is taken by something else). Fish abbr `zed` aliases to `zeditor`.
 
 > **Robotics status (working, 2026-05-28).** Isaac Sim **and** Isaac Lab run
 > **natively** on this box after the NVIDIA stack was switched to driver
@@ -474,7 +473,7 @@ npm 11, pnpm 10, yarn classic.
 
 ### 6.7 Multimedia
 
-- mpv (video), haruna (Qt video frontend), easyeffects (PipeWire EQ/effects), pavucontrol (audio mixer), obs-studio (recording/streaming), gimp/inkscape (if installed), okular (PDF), gwenview/swayimg (image).
+- mpv (video), haruna (Qt video frontend), easyeffects (PipeWire EQ/effects), pavucontrol (audio mixer), obs-studio (recording/streaming), gimp (raster editor), okular (PDF), gwenview/swayimg (image).
 
 ### 6.8 Embedded / robotics CLI
 

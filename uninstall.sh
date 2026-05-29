@@ -45,6 +45,7 @@ COMPONENTS=(
     "cuda|CUDA toolkit + cuDNN + the /etc/profile.d/cuda.sh PATH (leaves the NVIDIA driver alone)"
     "icons|Switch the GTK icon theme back to the caelestia default (Papirus-Dark); keeps the Sweet/candy packages so you can re-apply"
     "inputremap|input-remapper (AUR) + its daemon/service + ~/.config presets — no longer needed (the Razer mouse remaps via onboard memory)"
+    "extras|Remove unused apps + their ~/.config/.cache/.state: Zed, Dolphin (using nautilus), Inkscape, Kate, HyprKCS"
 )
 
 # ---- helpers ----------------------------------------------------------------
@@ -226,6 +227,32 @@ do_inputremap() {
     reclaim inputremap-cfg  "$HOME/.config/input-remapper"
     say "    · removed. The Razer side keys now come from the mouse's onboard memory"
     say "      (set via Razer Synapse on Windows), so no remapper is needed on Linux."
+}
+
+do_extras() {
+    say ">>> Unused apps (Zed, Dolphin, Inkscape, Kate, HyprKCS) + their home data"
+    # All were explicitly installed with nothing depending on them (Required By:
+    # None), so -Rns is safe; it also sweeps now-orphaned deps (e.g. the hyprkcs
+    # debug split). Dolphin goes because the daily file manager here is nautilus.
+    remove_pkgs extras-pkgs zed dolphin inkscape kate hyprkcs-git hyprkcs-git-debug
+    # The home-side config/cache/state pacman never tracks (see the package-management
+    # Learn page) — clear it so the removal is truly clean.
+    reclaim zed-config   "$HOME/.config/zed"
+    reclaim zed-cache    "$HOME/.cache/zed"
+    reclaim zed-share    "$HOME/.local/share/zed"
+    reclaim dolphin-rc   "$HOME/.config/dolphinrc"
+    reclaim dolphin-share "$HOME/.local/share/dolphin"
+    reclaim dolphin-state "$HOME/.local/state/dolphinstaterc"
+    reclaim dolphin-fb   "$HOME/.local/state/UserFeedback.org.kde.dolphin"
+    reclaim inkscape-cfg "$HOME/.config/inkscape"
+    reclaim kate-config  "$HOME/.config/kate"
+    reclaim kate-rc      "$HOME/.config/katerc"
+    reclaim kate-virc    "$HOME/.config/katevirc"
+    reclaim kate-tools   "$HOME/.config/kate-externaltoolspluginrc"
+    reclaim kate-share   "$HOME/.local/share/kate"
+    reclaim kate-state   "$HOME/.local/state/katestaterc"
+    reclaim kate-fb      "$HOME/.local/state/UserFeedback.org.kde.kate"
+    reclaim hyprkcs-cfg  "$HOME/.config/hyprkcs"
 }
 
 # ---- arg parsing ------------------------------------------------------------
