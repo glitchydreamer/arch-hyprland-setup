@@ -245,3 +245,12 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   The full robotics stack (Isaac Sim + Lab native on 580.119 + ROS 2 Jazzy
   container) is functional on Arch. Next: remap the Razer Basilisk V3 side keys
   via `input-remapper` (the `inputremap` install component).
+- **2026-05-29 — ROS 2 topic data wasn't flowing (discovery-only).** `ros2 topic
+  list` showed `/isaac_joint_states` and `topic info --verbose` reported
+  `Publisher count: 1`, but `ros2 topic echo`/`hz` were silent. Cause: Fast DDS
+  discovery rides UDP (works over `--network host`), but the default *data*
+  transport is shared memory — and native Isaac (UID 1000) and the container
+  (root) can't share `/dev/shm`, so every sample was dropped. Fix: force UDP with
+  `FASTDDS_BUILTIN_TRANSPORTS=UDPv4` on the container/subscriber side (Isaac
+  already advertises UDP locators). Confirmed ~60 Hz. Baked into the `ros2-jazzy`
+  launcher as a default env var; documented in Learn → dev-environment (Gotcha 3).

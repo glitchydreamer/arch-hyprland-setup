@@ -121,8 +121,8 @@ things must line up — and the `ros2-jazzy` launcher sets all three:
 | Requirement | Why | How the launcher does it |
 |---|---|---|
 | Same network namespace | DDS discovery uses UDP on localhost | `--network host` |
-| Shared memory | Fast DDS moves big messages (images, point clouds) via `/dev/shm` | `--ipc host` |
 | Same domain + RMW | nodes only see peers with the same `ROS_DOMAIN_ID` and DDS vendor | `-e ROS_DOMAIN_ID` + `-e RMW_IMPLEMENTATION=rmw_fastrtps_cpp` |
+| UDP data transport | the default shared-memory transport can't cross the host↔container UID boundary (see Gotcha 3) | `-e FASTDDS_BUILTIN_TRANSPORTS=UDPv4` |
 
 Then, on the Isaac side, you enable its **ROS 2 Bridge** extension
 (`isaacsim.ros2.bridge`). With matching domain/RMW, topics Isaac publishes show
@@ -157,6 +157,29 @@ up inside `ros2-jazzy shell` via `ros2 topic list`, and vice-versa.
 > keep it from ever going stale, the **`docker` install component generates it**,
 > and **`nvidia-switch.sh` regenerates it on every driver swap** (`downgrade` /
 > `latest`). So in normal use you never touch it by hand.
+
+> **Gotcha 3 — a topic with a publisher but *no data* (`echo`/`hz` is silent).**
+> You run `ros2 topic list` and the Isaac topic is there; `ros2 topic info
+> /isaac_joint_states --verbose` even shows **`Publisher count: 1`** — yet
+> `ros2 topic echo` or `ros2 topic hz` prints **nothing**. This is the tell-tale
+> sign that **discovery works but data doesn't flow**. Discovery rides small UDP
+> packets (so `--network host` is enough to *see* the publisher), but Fast DDS
+> moves the actual *message data* over **shared memory** when both ends are on the
+> same host. Isaac runs natively as **your user (UID 1000)** while the container
+> runs as **root** — they can't share each other's `/dev/shm` segments, so every
+> data sample is silently dropped. The fix is to force Fast DDS to carry data over
+> **UDP** instead of SHM:
+> ```bash
+> export FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+> ros2 topic hz /isaac_joint_states   # now prints ~60 Hz
+> ```
+> Only the **container (subscriber) side** needs it — Isaac already advertises UDP
+> locators, so a UDP-only subscriber negotiates UDP automatically. The
+> `ros2-jazzy` launcher now sets `FASTDDS_BUILTIN_TRANSPORTS=UDPv4` by default
+> (override with the same-named env var), so this just works out of the box. UDP
+> loopback is plenty fast for control-rate messages like joint states; if you ever
+> stream large images/point clouds and want SHM back, you'd need to run the
+> container as your UID *and* unset this var.
 
 ```bash
 ros2-jazzy pull            # fetch the image once (~6 GB → /home/docker-data)

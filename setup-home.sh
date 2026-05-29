@@ -240,9 +240,12 @@ EOF
 #!/usr/bin/env bash
 # Thin wrapper around the osrf/ros:jazzy-desktop-full Docker image.
 # Host ~/robotics/ws is mounted at /root/ws. GPU + X11/Wayland sockets forwarded.
-# --network host + --ipc host + matching ROS_DOMAIN_ID/RMW let native Isaac Sim's
-# ROS 2 bridge and this container share a Fast DDS domain (UDP discovery + shared
-# memory transport need both host network AND host IPC/​/dev/shm).
+# --network host + matching ROS_DOMAIN_ID/RMW let native Isaac Sim's ROS 2 bridge
+# and this container share a Fast DDS domain. FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+# forces data over UDP instead of shared memory: discovery (UDP) works across the
+# host↔container boundary, but the default SHM data transport silently drops every
+# message because the host (UID 1000) and container (root) can't share /dev/shm
+# segments — so `ros2 topic echo`/`hz` saw a publisher but zero data. UDP fixes it.
 set -euo pipefail
 
 IMAGE="osrf/ros:jazzy-desktop-full"
@@ -258,6 +261,7 @@ run_args=(
   -e QT_X11_NO_MITSHM=1
   -e ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
   -e RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
+  -e FASTDDS_BUILTIN_TRANSPORTS="${FASTDDS_BUILTIN_TRANSPORTS:-UDPv4}"
   -v /tmp/.X11-unix:/tmp/.X11-unix
   -v "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY:-wayland-1}":"/tmp/${WAYLAND_DISPLAY:-wayland-1}"
   -v "$WS":/root/ws
