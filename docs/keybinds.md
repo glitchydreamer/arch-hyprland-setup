@@ -66,6 +66,8 @@ Super+Shift+I  →  KDE System Settings   (I = settIngs / Info)
 Super+Shift+N  →  NVIDIA X Server Settings
 Super+Shift+P  →  Mission Center        (P = Performance)
 Super+Shift+U  →  Discover               (U = Updates)
+Super+Shift+Z  →  Zen Browser
+Super+Shift+V  →  Obsidian               (V = Vault)
 ```
 
 Firefox and Chrome are intentionally **not** duplicated here — they already
@@ -158,7 +160,8 @@ hyprctl binds -j | jq -r '.[] | select(.dispatcher=="exec") |
 # Does the target executable exist?
 for cmd in firefox code nautilus foot google-chrome-stable brave \
            microsoft-edge-stable antigravity claude-desktop kwrite \
-           systemsettings nvidia-settings missioncenter plasma-discover; do
+           systemsettings nvidia-settings missioncenter plasma-discover \
+           zen-browser obsidian; do
     which "$cmd" >/dev/null 2>&1 && echo "OK   $cmd" || echo "MISS $cmd"
 done
 ```

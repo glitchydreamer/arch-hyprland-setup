@@ -138,6 +138,8 @@ bind = Super+Shift, I, exec, app2unit -- systemsettings
 bind = Super+Shift, N, exec, app2unit -- nvidia-settings
 bind = Super+Shift, P, exec, app2unit -- missioncenter
 bind = Super+Shift, U, exec, app2unit -- plasma-discover
+bind = Super+Shift, Z, exec, app2unit -- zen-browser
+bind = Super+Shift, V, exec, app2unit -- obsidian
 
 # --- Caelestia panel toggles -------------------------------------------------
 bind = Super+Shift, Y, exec, qs -c caelestia ipc call drawers toggle bar

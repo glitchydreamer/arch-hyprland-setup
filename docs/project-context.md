@@ -360,3 +360,9 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   the `zed`→`zeditor` fish abbr) and updated coming-from-ubuntu / keybinds / reference /
   Learn pages to say Nautilus. Kate + HyprKCS were never in `install.sh` (came with the
   KDE/Hyprland deps / a manual AUR install).
+- **2026-05-29 — keybinds for Zen browser + Obsidian.** Added `Super+Shift+Z` →
+  `zen-browser` and `Super+Shift+V` → `obsidian` (V = Vault; Obsidian's natural `O`
+  was already the dashboard toggle). Added to both the live `hypr-user.conf` and the
+  `setup-home.sh` generator (source of truth), `hyprctl reload`-verified, and listed
+  in `docs/keybinds.md`. Zen kept as a dedicated key — google-chrome-stable stays the
+  `$browser` on `Super+W`.
