@@ -770,6 +770,29 @@ bash install.sh storage      # ntfs-3g + exfatprogs + gnome-disk-utility
 After that, internal Windows drives mount on click (udisks2 handles it). A LUKS-
 encrypted partition will prompt for its passphrase instead.
 
+!!! warning "\"wrong fs type, bad superblock\" on a Windows drive = the dirty flag"
+    If a drive *still* won't mount with an error like *"wrong fs type, bad option,
+    bad superblock … missing codepage or helper program"*, the NTFS volume is
+    **dirty** — Windows left it "in use" (almost always **Fast Startup** /
+    hibernation). udisks now uses the **kernel `ntfs3`** driver, which *refuses* to
+    mount a dirty volume RW; the kernel log shows `ntfs3(...): volume is dirty and
+    "force" flag is not set!`. (Ubuntu "just worked" because it used the lenient
+    **ntfs-3g** userspace driver instead.) Two fixes:
+
+    - **Immediate** — clear the flag (Windows must be **fully powered off**, since
+      it discards any unsaved cached writes), then click the drive again:
+      ```bash
+      sudo ntfsfix /dev/nvme0n1p4      # one device per call
+      ```
+    - **Permanent (recommended)** — in Windows disable **Fast Startup** (Power
+      Options → *Choose what the power buttons do* → uncheck *Turn on fast
+      startup*) and always do a full shutdown. The volume then stays clean and
+      mounts on click every time.
+
+    Alternative (never touch Windows): add an `/etc/fstab` entry for the drive's
+    UUID with type `ntfs-3g` + `nofail,noauto,x-gvfs-show` so nautilus always uses
+    the lenient driver — survives the dirty flag, like Ubuntu did.
+
 ### 9.3 Disk free space / partitions (Ubuntu "Disks" equivalent)
 - GUI: **`gnome-disks`** (gnome-disk-utility) — partitions, free space, SMART.
 - GUI usage map: **`filelight`** (already installed).
