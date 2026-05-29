@@ -42,6 +42,7 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
 
 - `setup-home.sh` — components: `hyprland`, `caelestia` (merges `shell.json`
   shell/dashboard tweaks — e.g. weather in °C via `services.useFahrenheit=false`),
+  `nautilus` (sets candy rainbow icons as the GTK icon theme — see History),
   `scripts`, `fish`, `dolphin`, `wireplumber`, `git`. The **source of truth** for
   those files; edit & re-run.
 - `install.sh` — components: `build`, `cuda`, `python`, `anaconda`, `node`,
@@ -50,7 +51,8 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   data-root on /home/docker-data + containerd-snapshotter=false; for ROS 2 Jazzy /
   GPU containers), `media`, `terminal`, `kde`, `display`, `inputremap`
   (input-remapper from the AUR — remaps mouse/keyboard buttons at the evdev layer,
-  works on Wayland; for the Razer Basilisk side keys), `aurapps`, `groups`,
+  works on Wayland; for the Razer Basilisk side keys), `theme` (candy-icons +
+  sweet-folders from the AUR — the rainbow GTK icon set), `aurapps`, `groups`,
   `shell`. CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
   counterpart to `install.sh`): components `docker`, `isaac`, `ros2`, `anaconda`,
@@ -263,3 +265,15 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   `caelestia-config.qmltypes`). Set to `false`. Added a new `caelestia` component
   to `setup-home.sh` that deep-merges the key into `shell.json` (preserving other
   keys); documented in Learn → caelestia-shell (new `shell.json` section).
+- **2026-05-29 — rainbow icons for nautilus (Sweet-Mars *theme* not feasible).**
+  Request was Sweet-Mars GTK theme + rainbow icons on nautilus. Reality check:
+  nautilus is **GTK4/libadwaita (1.9)**, and libadwaita takes window colours ONLY
+  from the global `~/.config/gtk-4.0/gtk.css` `@define-color` palette — which
+  **caelestia owns and regenerates** from its colour scheme. libadwaita ignores
+  both `gtk-theme` and the `GTK_THEME` env var, so a *per-app* Sweet-Mars window
+  theme isn't achievable without fighting caelestia (user chose not to recolour
+  all libadwaita apps). What works and shows in nautilus is the **icon theme**:
+  installed `candy-icons` + `sweet-folders` (AUR, new `theme` component in
+  `install.sh`) and set them as the GTK icon theme via the new `nautilus`
+  component in `setup-home.sh` (gsettings + gtk-3.0/gtk-4.0 `settings.ini`). Icon
+  themes are system-wide for GTK apps; KDE/Qt and the QML bar are unaffected.

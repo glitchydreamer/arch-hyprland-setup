@@ -33,12 +33,25 @@ hr()  { echo "------------------------------------------------------------"; }
 # In dry-run, announce a component's outputs and bail out of the body.
 dry() { [ "$DRY_RUN" -eq 1 ] && { say "    [dry-run] would write: $*"; return 0; }; return 1; }
 
+# Set key=value under [Settings] in a GTK settings.ini (create/append as needed).
+set_ini_key() {
+    local f="$1" k="$2" v="$3"
+    mkdir -p "$(dirname "$f")"
+    grep -q '^\[Settings\]' "$f" 2>/dev/null || printf '[Settings]\n' >> "$f"
+    if grep -qE "^$k=" "$f" 2>/dev/null; then
+        sed -i -E "s|^$k=.*|$k=$v|" "$f"
+    else
+        sed -i "/^\[Settings\]/a $k=$v" "$f"
+    fi
+}
+
 # ============================================================================
 # Components — a row here + a matching do_<name>() teaches setup-home a new one.
 # ============================================================================
 COMPONENTS=(
     "hyprland|Hyprland overrides (hypr-vars, hypr-user) + per-host monitor configs & active symlink"
     "caelestia|Caelestia shell.json tweaks (weather/dashboard temperature in °C, not °F)"
+    "nautilus|Candy rainbow icons as the GTK icon theme (rainbow icons in nautilus & other GTK apps)"
     "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "dolphin|Dolphin: show hidden files by default"
@@ -188,6 +201,29 @@ with open(f, "w") as fh:
 PY
     say ">>> shell.json: weather set to Celsius (services.useFahrenheit=false)."
     # Caelestia watches shell.json and hot-reloads it — no restart needed.
+}
+
+do_nautilus() {
+    # The "Sweet-Mars on nautilus" request reduces to ICONS. nautilus is a
+    # GTK4/libadwaita app, and libadwaita takes its window colours ONLY from the
+    # global ~/.config/gtk-4.0/gtk.css @define-color palette — which caelestia owns
+    # and rewrites from its colour scheme. libadwaita ignores both the system
+    # gtk-theme and the GTK_THEME env var, so a per-app Sweet-Mars window theme
+    # isn't achievable without fighting caelestia. What DOES work (and shows in
+    # nautilus) is the icon theme: set the candy rainbow icons. Icon themes are
+    # system-wide for GTK apps; KDE/Qt apps keep their own, and caelestia's QML bar
+    # is unaffected. Window colours are intentionally left to caelestia.
+    dry "icon-theme=candy-icons (gsettings + gtk-3.0/gtk-4.0 settings.ini)" && return
+    if [ ! -d /usr/share/icons/candy-icons ] && [ ! -d "$HOME/.local/share/icons/candy-icons" ]; then
+        say "!!! candy-icons not installed — run 'bash install.sh theme' first, then re-run this."
+        return
+    fi
+    command -v gsettings >/dev/null && \
+        gsettings set org.gnome.desktop.interface icon-theme "candy-icons" 2>/dev/null || true
+    set_ini_key "$HOME/.config/gtk-3.0/settings.ini" gtk-icon-theme-name candy-icons
+    set_ini_key "$HOME/.config/gtk-4.0/settings.ini" gtk-icon-theme-name candy-icons
+    say ">>> GTK icon theme set to candy-icons (rainbow icons in nautilus & other GTK apps)."
+    say "    · relaunch to see them:  nautilus -q   then reopen nautilus."
 }
 
 do_scripts() {

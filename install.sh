@@ -192,6 +192,7 @@ COMPONENTS=(
     "kde|KDE settings apps + Dolphin (systemsettings, discover, kinfocenter)"
     "display|Display inspection tools (drm-info, wdisplays, wlr-randr, brightnessctl)"
     "inputremap|input-remapper (AUR) — remap mouse/keyboard buttons (Razer side keys; Wayland-safe)"
+    "theme|Candy rainbow icons (AUR: candy-icons + sweet-folders) — GTK icon theme for nautilus etc."
     "aurapps|AUR apps (sweet-cursors, brave, edge, claude-desktop)"
     "groups|Add your user to the serial + wireshark groups (uucp, lock, wireshark)"
     "shell|Switch your login shell to fish"
@@ -306,6 +307,14 @@ do_inputremap() {
     sudo systemctl enable --now input-remapper.service || FAILED+=("input-remapper-service")
     say "    · configure: run  input-remapper-gtk  → pick the Razer Basilisk V3 →"
     say "      map each button → key combo → Save → toggle Autoload → Apply."
+}
+
+do_theme() {
+    say "\n>>> Candy rainbow icons (AUR via ${HELPER:-none})"
+    # candy-icons = the rainbow/gradient icon set; sweet-folders supplies the matching
+    # folder icons it inherits. Both go to /usr/share/icons (pacman-tracked).
+    aur candy-icons-git sweet-folders-icons-git || FAILED+=("aur:theme")
+    say "    · apply with:  bash setup-home.sh nautilus   (sets candy-icons as the GTK icon theme)"
 }
 
 do_aurapps() {
