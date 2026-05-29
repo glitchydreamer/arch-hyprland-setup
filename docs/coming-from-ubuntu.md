@@ -91,9 +91,11 @@ works too.
 
 ### Use the launcher for everything else
 
-`Super+Space` opens caelestia's launcher with fuzzy search across all installed
-`.desktop` apps. Type a few letters, Enter. For most apps this is *faster* than
-clicking a pinned icon — there's no aiming, no scanning.
+**Tapping `Super`** (press and release the Super/Windows key by itself) opens
+caelestia's launcher with fuzzy search across all installed `.desktop` apps — this
+is your **Spotlight**. Type a few letters, Enter. For most apps this is *faster*
+than clicking a pinned icon — there's no aiming, no scanning. (The bind is
+`bindi = Super, Super_L` in caelestia's `keybinds.conf`.)
 
 The launcher is fuzzy-search-only — no right-click action menu. If you want a
 launcher with right-click actions, app history, ssh/window/clipboard modes,
@@ -138,14 +140,16 @@ Three layers to this in Ubuntu — and three different equivalents here:
 | Ubuntu / GNOME thing | Where here |
 |---|---|
 | GNOME Tweaks | `gnome-tweaks` (works, doesn't change WM behavior) or `systemsettings` |
-| Activities overview (`Super`) | `Super+Space` (launcher) for apps; workspaces switch with `Super+1..5` |
+| Activities overview / Spotlight (`Super`) | **tap `Super`** opens the launcher for apps; workspaces switch with `Super+1..5` |
 | Notifications shade (top of screen) | Caelestia's notifications popout (top-right by default) |
 | Quick settings (top-right toggle bar) | Caelestia's control center panel |
 | Snap store | None here — use `pacman` / `paru` (AUR) |
 | Software Updater notification | `paru -Syu` (manual); auto-update isn't enabled by design |
 | Startup applications GUI | `exec-once = ...` lines in `~/.config/hypr/hyprland/execs.conf` |
 | Default applications | `xdg-mime default <app>.desktop <mime/type>` |
-| Disks utility | `gnome-disk-utility` (`sudo pacman -S gnome-disk-utility`) — works fine |
+| Disks utility | `gnome-disk-utility` (`sudo pacman -S gnome-disk-utility`) — works fine; `df -h` for a quick CLI check |
+| Clicking an NTFS/Windows drive auto-mounts it | Needs the userspace driver Arch omits: `bash install.sh storage` (ntfs-3g + exfatprogs). Then it mounts on click, like Ubuntu |
+| Remote login / "Sharing → Remote Desktop" | `bash install.sh remote` — enables `sshd` (SSH in) + `freerdp`/`remmina` (RDP/VNC out) + `wayvnc` (VNC into this Wayland desktop). See [reference §9](../reference.md) |
 | System Monitor (Ctrl+Esc) | `btop` (TUI), `gnome-system-monitor` if you want a GUI |
 
 ## When this paradigm helps you

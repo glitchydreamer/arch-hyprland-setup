@@ -52,7 +52,7 @@ COMPONENTS=(
     "hyprland|Hyprland overrides (hypr-vars, hypr-user) + per-host monitor configs & active symlink"
     "caelestia|Caelestia shell.json tweaks (weather/dashboard temperature in °C, not °F)"
     "nautilus|Sweet icons: synthwave Sweet-Purple folders + candy app icons as the GTK icon theme (ICON_THEME=<variant> to pick another)"
-    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy"
+    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy, vnc-server"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "dolphin|Dolphin: show hidden files by default"
     "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
@@ -352,7 +352,28 @@ case "$cmd" in
 esac
 EOF
 
-    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-jazzy"
+    # vnc-server: share THIS Hyprland session over VNC via wayvnc (install.sh 'remote').
+    cat > "$BIN/vnc-server" <<'EOF'
+#!/usr/bin/env bash
+# Share this Hyprland desktop over VNC (wayvnc). Other PCs connect with any VNC
+# viewer (Windows: TigerVNC/RealVNC; Linux: remmina/vinagre).
+#
+#   vnc-server                # bind localhost only (SECURE — reach via SSH tunnel)
+#   vnc-server --lan          # expose on the LAN (0.0.0.0) — only on trusted networks
+#   vnc-server [--lan] DP-1   # share a specific monitor (default: wayvnc's first)
+#
+# Secure pattern (default localhost), from the client machine:
+#   ssh -L 5900:localhost:5900 <user>@<this-ip>     # then point the viewer at localhost:5900
+set -euo pipefail
+addr=127.0.0.1
+[ "${1:-}" = "--lan" ] && { addr=0.0.0.0; shift; }
+out="${1:-}"
+command -v wayvnc >/dev/null || { echo "wayvnc not installed — run: bash install.sh remote" >&2; exit 1; }
+if [ -n "$out" ]; then exec wayvnc -o "$out" "$addr" 5900; fi
+exec wayvnc "$addr" 5900
+EOF
+
+    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-jazzy" "$BIN/vnc-server"
 }
 
 do_fish() {

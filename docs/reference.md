@@ -752,7 +752,57 @@ login-screen cursor is unrelated.
 
 ---
 
-## 9. Useful URLs
+## 9. Remote access, drives & disk tools
+
+Set up by the `storage` + `remote` components of `install.sh` (plus the
+`vnc-server` helper from `setup-home.sh`'s `scripts`).
+
+### 9.1 Spotlight-style launcher
+caelestia already ships one: **tap `Super`** (press & release the Super key alone)
+to open the launcher/search. No extra app needed.
+
+### 9.2 Mounting Windows / external drives in nautilus
+Arch (unlike Ubuntu) doesn't ship the NTFS/exFAT userspace drivers, so clicking an
+NTFS SSD in nautilus silently fails. Fix:
+```bash
+bash install.sh storage      # ntfs-3g + exfatprogs + gnome-disk-utility
+```
+After that, internal Windows drives mount on click (udisks2 handles it). A LUKS-
+encrypted partition will prompt for its passphrase instead.
+
+### 9.3 Disk free space / partitions (Ubuntu "Disks" equivalent)
+- GUI: **`gnome-disks`** (gnome-disk-utility) — partitions, free space, SMART.
+- GUI usage map: **`filelight`** (already installed).
+- CLI: `df -h` (free space per mount), `lsblk -f` (devices + filesystems).
+
+### 9.4 SSH (both directions)
+`openssh` is installed; `bash install.sh remote` enables the **server** so other
+PCs can SSH *in*:
+```bash
+ip -4 a                       # find this box's LAN IP
+ssh <user>@<this-ip>          # from another PC, into Arch
+ssh <user>@<other-host>       # from Arch, out to another box (works already)
+```
+
+### 9.5 Remote desktop
+- **Out of Arch → Windows/others (RDP/VNC):** `remmina` (GUI) or
+  `xfreerdp /v:<host> /u:<user>`.
+- **Into Arch (VNC):** RDP into a live Hyprland/Wayland session isn't supported, so
+  use **VNC via `wayvnc`**, started with the helper:
+  ```bash
+  vnc-server                  # localhost only (secure) — reach via SSH tunnel
+  vnc-server --lan            # expose on the LAN (trusted networks only)
+  vnc-server DP-1             # share a specific monitor
+  ```
+  Secure pattern (default localhost), from the client:
+  ```bash
+  ssh -L 5900:localhost:5900 <user>@<this-ip>   # then point a VNC viewer at localhost:5900
+  ```
+  Windows viewers: TigerVNC / RealVNC. Linux: remmina / vinagre.
+
+---
+
+## 10. Useful URLs
 
 - Hyprland wiki: <https://wiki.hyprland.org/>
 - Hyprland dispatchers: <https://wiki.hyprland.org/Configuring/Dispatchers/>
@@ -763,7 +813,7 @@ login-screen cursor is unrelated.
 
 ---
 
-## 10. Where things came from
+## 11. Where things came from
 
 Original setup performed by Claude on 2026-05-17. **Rebuilt 2026-05-27** on a
 fresh minimal Arch install (clean `archinstall`, NVIDIA drivers, GDM instead of

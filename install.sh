@@ -191,6 +191,8 @@ COMPONENTS=(
     "terminal|Terminal productivity (fzf, ripgrep, fd, bat, zoxide, lazygit, tmux, ...)"
     "kde|KDE settings apps + Dolphin (systemsettings, discover, kinfocenter)"
     "display|Display inspection tools (drm-info, wdisplays, wlr-randr, brightnessctl)"
+    "storage|Mount Windows/other drives + Disks app (ntfs-3g, exfatprogs, gnome-disk-utility)"
+    "remote|SSH (enable sshd) + remote desktop: freerdp/remmina (out) + wayvnc (VNC into this box)"
     "inputremap|input-remapper (AUR) — remap mouse/keyboard buttons (Razer side keys; Wayland-safe)"
     "theme|Candy rainbow icons (AUR: candy-icons + sweet-folders) — GTK icon theme for nautilus etc."
     "aurapps|AUR apps (sweet-cursors, brave, edge, claude-desktop)"
@@ -307,6 +309,31 @@ do_inputremap() {
     sudo systemctl enable --now input-remapper.service || FAILED+=("input-remapper-service")
     say "    · configure: run  input-remapper-gtk  → pick the Razer Basilisk V3 →"
     say "      map each button → key combo → Save → toggle Autoload → Apply."
+}
+
+do_storage() {
+    # nautilus/udisks can't mount NTFS or exFAT without the userspace drivers
+    # (Arch, unlike Ubuntu, doesn't ship them). With these installed, clicking an
+    # internal Windows SSD in nautilus mounts it. gnome-disk-utility = the "Disks"
+    # app from Ubuntu (partitions, free space, SMART). udisks2 is already a dep.
+    pac storage ntfs-3g exfatprogs gnome-disk-utility
+    say "    · after this, internal NTFS drives mount on click in nautilus."
+    say "    · free space / partitions:  gnome-disks   (GUI)   ·   df -h   (CLI)"
+}
+
+do_remote() {
+    # SSH both ways + remote desktop. openssh is usually already present; enabling
+    # sshd lets other PCs SSH IN. freerdp+remmina = RDP/VNC CLIENT (Arch -> Windows).
+    # wayvnc = a VNC SERVER that works on Hyprland/wlroots, so other PCs can view
+    # this desktop (true RDP into a live Wayland session isn't well supported).
+    pac remote openssh freerdp remmina wayvnc
+    if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] systemctl enable --now sshd"; return; fi
+    sudo systemctl enable --now sshd || FAILED+=("sshd enable")
+    say "    · SSH into this box:   ssh $USER_NAME@<this-ip>      (find ip:  ip -4 a)"
+    say "    · RDP/VNC OUT:         remmina      (or  xfreerdp /v:<host> /u:<user>)"
+    say "    · VNC INTO this box:   run  vnc-server  (from setup-home 'scripts')."
+    say "      Secure pattern — keep VNC on localhost and tunnel over SSH:"
+    say "        client:  ssh -L 5900:localhost:5900 $USER_NAME@<this-ip>   then VNC to localhost:5900"
 }
 
 do_theme() {

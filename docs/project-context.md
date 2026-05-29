@@ -50,11 +50,15 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   `editors`, `embedded`, `audio` (incl. the DualSense PipeWire 1.6.5 pin +
   touchpad udev rule), `gpu`, `docker` (Docker + NVIDIA Container Toolkit;
   data-root on /home/docker-data + containerd-snapshotter=false; for ROS 2 Jazzy /
-  GPU containers), `media`, `terminal`, `kde`, `display`, `inputremap`
-  (input-remapper from the AUR — remaps mouse/keyboard buttons at the evdev layer,
-  works on Wayland; for the Razer Basilisk side keys), `theme` (candy-icons +
-  sweet-folders from the AUR — the rainbow GTK icon set), `aurapps`, `groups`,
-  `shell`. CUDA is driver-matched.
+  GPU containers), `media`, `terminal`, `kde`, `display`, `storage` (NTFS/exFAT
+  userspace drivers + gnome-disk-utility so Windows-formatted SSDs mount in
+  nautilus — Arch omits these by default, unlike Ubuntu), `remote` (enable `sshd`
+  + freerdp/remmina for RDP/VNC *out* + `wayvnc` as a VNC server *into* this
+  Hyprland box — RDP-into-Wayland is unsupported, VNC is the working path),
+  `inputremap` (input-remapper from the AUR — remaps mouse/keyboard buttons at the
+  evdev layer, works on Wayland; for the Razer Basilisk side keys), `theme`
+  (candy-icons + sweet-folders from the AUR — the rainbow GTK icon set),
+  `aurapps`, `groups`, `shell`. CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
   counterpart to `install.sh`): components `docker`, `isaac`, `ros2`, `anaconda`,
   `cuda`, `icons` (switch the GTK icon theme back to the caelestia default
@@ -93,7 +97,7 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
 | User Hyprland overrides | `~/.config/caelestia/hypr-user.conf`, `hypr-vars.conf` |
 | Caelestia shell settings | `~/.config/caelestia/shell.json` (bar/dashboard/weather; written by the `caelestia` component) |
 | Per-host monitors + active symlink | `~/.config/caelestia/hypr-monitors-{desktop,laptop}.conf`, `hypr-monitors.conf` |
-| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy}` |
+| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy, vnc-server}` |
 | Fish additions | `~/.config/fish/conf.d/dev-env.fish` |
 | WirePlumber DualSense | `~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf` |
 | DualSense touchpad ignore | `/etc/udev/rules.d/71-dualsense-touchpad-ignore.rules` |
@@ -289,3 +293,14 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   (override `ICON_THEME=<variant>`). Added a `uninstall.sh icons` component to
   switch back to the caelestia default (Papirus-Dark) + strip the gtk ini
   overrides, keeping the packages so re-applying is instant.
+- **2026-05-29 — remote access + drive mounting + Disks app.** Four asks: (1)
+  *spotlight* — already exists: **tap `Super`** opens caelestia's launcher. (2)
+  *nautilus can't open the other SSDs* — they're **NTFS** (`nvme0n1` p3/p4/p5) and
+  Arch lacked `ntfs-3g`; new `storage` install component adds `ntfs-3g` +
+  `exfatprogs` + `gnome-disk-utility`, after which they mount on click (udisks2 was
+  already running). (3) *SSH/RDP both ways* — new `remote` component enables `sshd`
+  and installs `freerdp`+`remmina` (out) + `wayvnc` (VNC server in); RDP into a live
+  Hyprland/Wayland session isn't supported, so **VNC via wayvnc** is the chosen
+  into-box path, with a `vnc-server` helper (localhost by default → SSH-tunnel).
+  (4) *Ubuntu "Disks" equivalent* — `gnome-disk-utility` (`gnome-disks`); `df -h`
+  for CLI; `filelight` already present.
