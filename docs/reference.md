@@ -775,14 +775,22 @@ encrypted partition will prompt for its passphrase instead.
 - GUI usage map: **`filelight`** (already installed).
 - CLI: `df -h` (free space per mount), `lsblk -f` (devices + filesystems).
 
-### 9.4 SSH (both directions)
-`openssh` is installed; `bash install.sh remote` enables the **server** so other
-PCs can SSH *in*:
+### 9.4 SSH (both directions) — on demand
+`openssh` is installed by `bash install.sh remote`, but **`sshd` is left OFF by
+default**: an idle sshd costs almost nothing, but keeping it off shrinks the attack
+surface. Flip it per session with the **`remote`** helper:
 ```bash
-ip -4 a                       # find this box's LAN IP
-ssh <user>@<this-ip>          # from another PC, into Arch
-ssh <user>@<other-host>       # from Arch, out to another box (works already)
+remote on        # start sshd (accept logins) + print this box's IP
+remote off       # stop sshd + stop any running wayvnc
+remote status    # what's active + LAN IP + listening :22/:5900
 ```
+Then connect:
+```bash
+ssh <user>@<this-ip>          # from another PC, into Arch
+ssh <user>@<other-host>       # from Arch, out to another box (always works)
+```
+Want it reachable at every boot instead of toggling? `sudo systemctl enable --now
+sshd`.
 
 ### 9.5 Remote desktop
 - **Out of Arch → Windows/others (RDP/VNC):** `remmina` (GUI) or
@@ -799,6 +807,9 @@ ssh <user>@<other-host>       # from Arch, out to another box (works already)
   ssh -L 5900:localhost:5900 <user>@<this-ip>   # then point a VNC viewer at localhost:5900
   ```
   Windows viewers: TigerVNC / RealVNC. Linux: remmina / vinagre.
+
+  `wayvnc` only runs while `vnc-server` is open (no idle cost); close that terminal
+  or run `remote off` to stop it.
 
 ---
 

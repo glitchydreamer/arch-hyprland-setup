@@ -149,7 +149,7 @@ Three layers to this in Ubuntu — and three different equivalents here:
 | Default applications | `xdg-mime default <app>.desktop <mime/type>` |
 | Disks utility | `gnome-disk-utility` (`sudo pacman -S gnome-disk-utility`) — works fine; `df -h` for a quick CLI check |
 | Clicking an NTFS/Windows drive auto-mounts it | Needs the userspace driver Arch omits: `bash install.sh storage` (ntfs-3g + exfatprogs). Then it mounts on click, like Ubuntu |
-| Remote login / "Sharing → Remote Desktop" | `bash install.sh remote` — enables `sshd` (SSH in) + `freerdp`/`remmina` (RDP/VNC out) + `wayvnc` (VNC into this Wayland desktop). See [reference §9](../reference.md) |
+| Remote login / "Sharing → Remote Desktop" | `bash install.sh remote` installs SSH + `freerdp`/`remmina` (out) + `wayvnc` (VNC in). `sshd` is left **off**; toggle per session with `remote on` / `remote off` / `remote status`. See [reference §9](../reference.md) |
 | System Monitor (Ctrl+Esc) | `btop` (TUI), `gnome-system-monitor` if you want a GUI |
 
 ## When this paradigm helps you

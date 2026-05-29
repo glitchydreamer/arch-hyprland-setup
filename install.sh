@@ -192,7 +192,7 @@ COMPONENTS=(
     "kde|KDE settings apps + Dolphin (systemsettings, discover, kinfocenter)"
     "display|Display inspection tools (drm-info, wdisplays, wlr-randr, brightnessctl)"
     "storage|Mount Windows/other drives + Disks app (ntfs-3g, exfatprogs, gnome-disk-utility)"
-    "remote|SSH (enable sshd) + remote desktop: freerdp/remmina (out) + wayvnc (VNC into this box)"
+    "remote|SSH + remote desktop: freerdp/remmina (out) + wayvnc (VNC in); sshd left OFF, toggle with the 'remote' helper"
     "inputremap|input-remapper (AUR) — remap mouse/keyboard buttons (Razer side keys; Wayland-safe)"
     "theme|Candy rainbow icons (AUR: candy-icons + sweet-folders) — GTK icon theme for nautilus etc."
     "aurapps|AUR apps (sweet-cursors, brave, edge, claude-desktop)"
@@ -322,18 +322,18 @@ do_storage() {
 }
 
 do_remote() {
-    # SSH both ways + remote desktop. openssh is usually already present; enabling
-    # sshd lets other PCs SSH IN. freerdp+remmina = RDP/VNC CLIENT (Arch -> Windows).
-    # wayvnc = a VNC SERVER that works on Hyprland/wlroots, so other PCs can view
-    # this desktop (true RDP into a live Wayland session isn't well supported).
+    # SSH both ways + remote desktop. freerdp+remmina = RDP/VNC CLIENT (Arch ->
+    # Windows). wayvnc = a VNC SERVER that works on Hyprland/wlroots, so other PCs
+    # can view this desktop (true RDP into a live Wayland session isn't supported).
+    # sshd is intentionally LEFT OFF (an idle sshd costs ~nothing, but off = smaller
+    # attack surface); flip it per session with the 'remote' helper rather than
+    # running it at every boot.
     pac remote openssh freerdp remmina wayvnc
-    if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] systemctl enable --now sshd"; return; fi
-    sudo systemctl enable --now sshd || FAILED+=("sshd enable")
-    say "    · SSH into this box:   ssh $USER_NAME@<this-ip>      (find ip:  ip -4 a)"
-    say "    · RDP/VNC OUT:         remmina      (or  xfreerdp /v:<host> /u:<user>)"
-    say "    · VNC INTO this box:   run  vnc-server  (from setup-home 'scripts')."
-    say "      Secure pattern — keep VNC on localhost and tunnel over SSH:"
-    say "        client:  ssh -L 5900:localhost:5900 $USER_NAME@<this-ip>   then VNC to localhost:5900"
+    say "    · sshd is left OFF. Turn remote access on/off as needed (setup-home 'scripts'):"
+    say "        remote on   ·   remote off   ·   remote status"
+    say "      (always-on at boot instead:  sudo systemctl enable --now sshd)"
+    say "    · RDP/VNC OUT to Windows:  remmina   (or  xfreerdp /v:<host> /u:<user>)"
+    say "    · VNC INTO this box:       vnc-server   (localhost; tunnel: ssh -L 5900:localhost:5900 $USER_NAME@<ip>)"
 }
 
 do_theme() {

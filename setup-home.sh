@@ -52,7 +52,7 @@ COMPONENTS=(
     "hyprland|Hyprland overrides (hypr-vars, hypr-user) + per-host monitor configs & active symlink"
     "caelestia|Caelestia shell.json tweaks (weather/dashboard temperature in °C, not °F)"
     "nautilus|Sweet icons: synthwave Sweet-Purple folders + candy app icons as the GTK icon theme (ICON_THEME=<variant> to pick another)"
-    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy, vnc-server"
+    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy, vnc-server, remote"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "dolphin|Dolphin: show hidden files by default"
     "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
@@ -373,7 +373,40 @@ if [ -n "$out" ]; then exec wayvnc -o "$out" "$addr" 5900; fi
 exec wayvnc "$addr" 5900
 EOF
 
-    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-jazzy" "$BIN/vnc-server"
+    # remote: flip SSH (and stop VNC) on/off per session. sshd is left OFF by
+    # default — idle cost is tiny, but off = smaller attack surface.
+    cat > "$BIN/remote" <<'EOF'
+#!/usr/bin/env bash
+# Turn remote access ON only while you need it, OFF when done.
+#   remote on       start sshd (accept SSH logins) + show how to reach this box
+#   remote off      stop sshd, and stop any running wayvnc (VNC server)
+#   remote status   what's listening right now + this box's LAN IP
+# sshd is NOT enabled at boot by design. To make it always-on instead:
+#   sudo systemctl enable --now sshd
+set -euo pipefail
+myip() { command ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1; }
+case "${1:-status}" in
+  on)
+    sudo systemctl start sshd
+    echo "sshd  : ON    →  ssh $USER@$(myip)"
+    echo "VNC   : run 'vnc-server' when you want screen sharing (on-demand, localhost)"
+    ;;
+  off)
+    sudo systemctl stop sshd
+    pkill -x wayvnc 2>/dev/null && echo "wayvnc: stopped" || true
+    echo "sshd  : OFF"
+    ;;
+  status)
+    echo "sshd  : $(systemctl is-active sshd 2>/dev/null)"
+    if pgrep -x wayvnc >/dev/null 2>&1; then echo "wayvnc: running"; else echo "wayvnc: not running"; fi
+    echo "IP    : $(myip)"
+    ss -tlnH 2>/dev/null | awk '$4 ~ /:(22|5900)$/ {print "  listening "$4}'
+    ;;
+  *) echo "usage: remote [on|off|status]" >&2; exit 1 ;;
+esac
+EOF
+
+    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-jazzy" "$BIN/vnc-server" "$BIN/remote"
 }
 
 do_fish() {
