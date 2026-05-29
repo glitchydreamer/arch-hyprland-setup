@@ -155,7 +155,10 @@ caveat above).
 
 ---
 
-**Where to go next:** the [Full Reference → Common commands](../reference.md#7-common-commands-cheat-sheet)
+**Where to go next:** [System maintenance & upgrades](11-system-maintenance.md) turns
+these commands into a *routine* — how to upgrade a rolling-release safely and why this
+machine's pinned packages survive every `-Syu`. The
+[Full Reference → Common commands](../reference.md#7-common-commands-cheat-sheet)
 has more day-to-day one-liners, and the [project scripts](../project-context.md)
 show how `install.sh` / `uninstall.sh` wrap these commands into clean, repeatable
 components. Unsure of a term? The [Glossary](glossary.md) has you covered.

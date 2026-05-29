@@ -366,3 +366,14 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   `setup-home.sh` generator (source of truth), `hyprctl reload`-verified, and listed
   in `docs/keybinds.md`. Zen kept as a dedicated key — google-chrome-stable stays the
   `$browser` on `Super+W`.
+- **2026-05-29 — new Learn page: System maintenance & upgrades.** Documentation-only.
+  User (ex-Ubuntu) asked how rolling-release upgrades interact with the system's pins
+  (NVIDIA 580, PipeWire 1.6.5) and whether routine `-Syu` would break Isaac/the
+  controller. Wrote `docs/learn/11-system-maintenance.md` explaining: frequent full
+  upgrades are the *safe* path (not the risk); the partial-upgrade cardinal sin
+  (`-Sy` without `-u`); how `IgnorePkg` makes the pins persist automatically and how
+  pacman refuses to build a broken dep graph; the real long-term pin risk (580 is DKMS,
+  so a future kernel series could fail its module build — boot linux-lts to delay this,
+  loud failure not silent); recovery nets (two kernels via Limine, pacman cache +
+  `downgrade`, keyring refresh); and the weekly update ritual. Added to `mkdocs.yml`
+  nav as item 11 and linked from page 10's footer. No script/config changes.
