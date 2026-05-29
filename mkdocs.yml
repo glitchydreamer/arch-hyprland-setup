@@ -18,6 +18,7 @@ nav:
       - 7. The developer environment: learn/07-dev-environment.md
       - 8. Reproducibility & the scripts: learn/08-reproducibility.md
       - 9. The troubleshooting mindset: learn/09-troubleshooting-mindset.md
+      - 10. Package management cheat-sheet: learn/10-package-management.md
       - Glossary: learn/glossary.md
   - Full Reference: reference.md
   - Guides:

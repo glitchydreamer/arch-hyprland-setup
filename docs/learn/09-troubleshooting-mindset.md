@@ -121,6 +121,8 @@ The exhaustive, copy-pasteable fixes for this specific machine live in the
 
 ---
 
-That's the Learning Path. From here, the [Full Reference](../reference.md) is
-your manual, and the [project scripts](../project-context.md) are how you rebuild
+That's the conceptual Learning Path. One practical appendix follows — the
+[**package-management cheat-sheet →**](10-package-management.md) (the everyday
+pacman / yay / Flatpak commands). After that, the [Full Reference](../reference.md)
+is your manual, and the [project scripts](../project-context.md) are how you rebuild
 it all. Unsure of a term? The [Glossary](glossary.md) has you covered.
