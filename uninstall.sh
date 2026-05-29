@@ -117,6 +117,22 @@ remove_pkgs() {
         say "    · packages already absent: $*"
         return
     fi
+    # Tally the package space too, not just deleted home data. Simulate the removal
+    # to learn the FULL set -Rns will take (the named packages + every dependency it
+    # cascades) and sum their installed sizes. `-Rs --print` expands the identical
+    # set as `-Rns` (the -n/--nosave flag only governs .pacsave files, not which
+    # packages go — and it can't be combined with --print). Needs no root.
+    local rmset kb=0
+    rmset=$(pacman -Rs --print --print-format '%n' "${present[@]}" 2>/dev/null)
+    if [ -n "$rmset" ]; then
+        kb=$(pacman -Qi $rmset 2>/dev/null | awk '/^Installed Size/ {
+                v=$(NF-1); u=$NF;
+                if(u=="B") v/=1024; else if(u=="MiB") v*=1024; else if(u=="GiB") v*=1048576;
+                s+=v } END { printf "%d", s }')
+        kb=${kb:-0}
+        RECLAIMED_KB=$((RECLAIMED_KB + kb))
+        say "    · packages + cascaded deps  ($(human_kb "$kb"))"
+    fi
     say "    · removing packages: ${present[*]}"
     run "$tag" sudo pacman -Rns --noconfirm "${present[@]}"
 }

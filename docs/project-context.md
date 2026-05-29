@@ -66,9 +66,12 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   no longer needed since the Razer mouse remaps via onboard memory), `extras`
   (remove unused apps + their home data: Zed, Dolphin, Inkscape, Kate, HyprKCS).
   Each removes its packages + data + configs + launchers and reports
-  reclaimed space. Note: it measures root-owned paths with `sudo du` so the
-  reclaim total is accurate (a non-root `du` can't read e.g. Docker's 0711
-  data-root and would under-count). The driver-level NVIDIA purge is deliberately
+  reclaimed space. Note: the reclaim total counts **both** the deleted home/data
+  paths **and** the removed packages — `remove_pkgs` simulates the removal
+  (`pacman -Rs --print`) to learn the full cascade (named pkgs + the deps `-Rns`
+  pulls) and sums their installed sizes; and it measures root-owned paths with
+  `sudo du` (a non-root `du` can't read e.g. Docker's 0711 data-root and would
+  under-count). The driver-level NVIDIA purge is deliberately
   **not** a sweepable component here (so `all` can't nuke the display driver) — it
   lives in `nvidia-switch.sh purge` behind a hard confirmation.
 - `nvidia-switch.sh` — dedicated, **stateful** switcher for the WHOLE NVIDIA
