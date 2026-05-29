@@ -63,8 +63,13 @@ Your overrides live in a user-owned directory that caelestia never overwrites:
 ~/.config/caelestia/
 ├── hypr-vars.conf      # variable overrides (e.g. $browser = firefox)
 ├── hypr-user.conf      # everything else — sourced LAST, so it always wins
-└── hypr-monitors*.conf # per-machine monitor config (see Displays page)
+├── hypr-monitors*.conf # per-machine monitor config (see Displays page)
+└── shell.json          # the SHELL's settings (bar, dashboard, weather, ...)
 ```
+
+The `*.conf` files all configure **Hyprland** (the window manager). The shell
+itself — the bar, the dashboard, the weather panel — is a separate program
+(Quickshell) that reads its own settings from **`shell.json`**, covered next.
 
 The load order is what makes it work:
 
@@ -89,6 +94,40 @@ Two override techniques you'll see:
 
 This is why the [keybinds reference](../keybinds.md) keeps stressing *which file*
 a bind lives in — it determines whether you override a variable or rebind a key.
+
+## The shell's own settings: `shell.json`
+
+The `hypr-*.conf` files tune the *window manager*. The **shell** (the bar,
+dashboard, notifications, and the **weather panel**) is a Quickshell program with
+a completely separate config: **`~/.config/caelestia/shell.json`**, plain JSON.
+You set a key and the shell hot-reloads — no logout, no `hyprctl reload`.
+
+The settings are grouped (`appearance`, `bar`, `background`, `services`, …). One
+worth knowing: the dashboard's weather panel **defaults to Fahrenheit**. To show
+**Celsius**, set `services.useFahrenheit` to `false`:
+
+```json
+{
+    "services": {
+        "useFahrenheit": false
+    }
+}
+```
+
+You don't normally edit this by hand — the **`caelestia` component** of
+`setup-home.sh` merges the setting in for you (it deep-merges, so your other
+`shell.json` keys are preserved):
+
+```bash
+bash setup-home.sh caelestia
+```
+
+!!! tip "Discovering shell.json keys"
+    The full list of settings (and their JSON paths) lives in caelestia's type
+    definitions at `/usr/lib/qt6/qml/Caelestia/Config/caelestia-config.qmltypes`.
+    Each config group (`ServiceConfig`, `BarConfig`, …) maps to a top-level key in
+    `shell.json`. That's how `useFahrenheit` — a property of `ServiceConfig` — is
+    reached as `services.useFahrenheit`.
 
 ## Who writes these override files?
 

@@ -40,8 +40,10 @@ refresh, git/base-devel/gh/ssh, an AUR helper) before the chosen components.
 Both setup scripts are **idempotent**. After them: set `git config --global
 user.name`, then log out/in (fish shell + group changes need a fresh session).
 
-- `setup-home.sh` — components: `hyprland`, `scripts`, `fish`, `dolphin`,
-  `wireplumber`, `git`. The **source of truth** for those files; edit & re-run.
+- `setup-home.sh` — components: `hyprland`, `caelestia` (merges `shell.json`
+  shell/dashboard tweaks — e.g. weather in °C via `services.useFahrenheit=false`),
+  `scripts`, `fish`, `dolphin`, `wireplumber`, `git`. The **source of truth** for
+  those files; edit & re-run.
 - `install.sh` — components: `build`, `cuda`, `python`, `anaconda`, `node`,
   `editors`, `embedded`, `audio` (incl. the DualSense PipeWire 1.6.5 pin +
   touchpad udev rule), `gpu`, `docker` (Docker + NVIDIA Container Toolkit;
@@ -84,6 +86,7 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
 |---|---|
 | caelestia upstream (never edit) | `~/.local/share/caelestia/` (and `~/.config/hypr` → symlink into it) |
 | User Hyprland overrides | `~/.config/caelestia/hypr-user.conf`, `hypr-vars.conf` |
+| Caelestia shell settings | `~/.config/caelestia/shell.json` (bar/dashboard/weather; written by the `caelestia` component) |
 | Per-host monitors + active symlink | `~/.config/caelestia/hypr-monitors-{desktop,laptop}.conf`, `hypr-monitors.conf` |
 | Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy}` |
 | Fish additions | `~/.config/fish/conf.d/dev-env.fish` |
@@ -254,3 +257,9 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   `FASTDDS_BUILTIN_TRANSPORTS=UDPv4` on the container/subscriber side (Isaac
   already advertises UDP locators). Confirmed ~60 Hz. Baked into the `ros2-jazzy`
   launcher as a default env var; documented in Learn → dev-environment (Gotcha 3).
+- **2026-05-29 — caelestia weather panel switched to Celsius.** The dashboard
+  weather defaulted to Fahrenheit; the unit lives in `shell.json` at
+  `services.useFahrenheit` (a `ServiceConfig` property, per the
+  `caelestia-config.qmltypes`). Set to `false`. Added a new `caelestia` component
+  to `setup-home.sh` that deep-merges the key into `shell.json` (preserving other
+  keys); documented in Learn → caelestia-shell (new `shell.json` section).

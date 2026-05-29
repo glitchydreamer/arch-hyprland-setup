@@ -38,6 +38,7 @@ dry() { [ "$DRY_RUN" -eq 1 ] && { say "    [dry-run] would write: $*"; return 0;
 # ============================================================================
 COMPONENTS=(
     "hyprland|Hyprland overrides (hypr-vars, hypr-user) + per-host monitor configs & active symlink"
+    "caelestia|Caelestia shell.json tweaks (weather/dashboard temperature in °C, not °F)"
     "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-jazzy"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "dolphin|Dolphin: show hidden files by default"
@@ -163,6 +164,30 @@ EOF
     else
         ln -sfn hypr-monitors-desktop.conf "$CAE/hypr-monitors.conf"
     fi
+}
+
+do_caelestia() {
+    # Caelestia reads ~/.config/caelestia/shell.json. The weather/dashboard panel
+    # defaults to Fahrenheit (services.useFahrenheit = true); flip it to Celsius.
+    # Merge into the existing JSON so other keys (bar, appearance, ...) are kept.
+    local f="$CAE/shell.json"
+    dry "$f: merge services.useFahrenheit=false (weather in °C)" && return
+    mkdir -p "$CAE"
+    python3 - "$f" <<'PY'
+import json, sys
+f = sys.argv[1]
+try:
+    with open(f) as fh:
+        cfg = json.load(fh)
+except (FileNotFoundError, json.JSONDecodeError):
+    cfg = {}
+cfg.setdefault("services", {})["useFahrenheit"] = False
+with open(f, "w") as fh:
+    json.dump(cfg, fh, indent=4)
+    fh.write("\n")
+PY
+    say ">>> shell.json: weather set to Celsius (services.useFahrenheit=false)."
+    # Caelestia watches shell.json and hot-reloads it — no restart needed.
 }
 
 do_scripts() {
