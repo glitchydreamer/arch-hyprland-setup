@@ -53,7 +53,7 @@ COMPONENTS=(
     "caelestia|Caelestia shell.json tweaks (weather/dashboard temperature in °C, not °F)"
     "nautilus|Sweet icons: synthwave Sweet-Purple folders + candy app icons as the GTK icon theme (ICON_THEME=<variant> to pick another)"
     # (the daily file manager is nautilus; the old 'dolphin' tweak component was removed)
-    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, vnc-server, remote"
+    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, vnc-server, remote, lerobot-verify"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
     "git|Global git defaults (branch, autoSetupRemote, rerere, editor, ...)"
@@ -463,7 +463,116 @@ case "${1:-status}" in
 esac
 EOF
 
-    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-humble" "$BIN/vnc-server" "$BIN/remote"
+    cat > "$BIN/lerobot-verify" <<'EOF'
+#!/usr/bin/env bash
+# No-hardware sanity check for the LeRobot conda env. Re-runnable any time;
+# also called automatically at the end of `setup-home.sh lerobot`. The env
+# name and clone dir can be overridden (matches the install component).
+set -u
+ENV_NAME="${LEROBOT_ENV:-lerobot}"
+CONDA_BASE="$(command -v conda >/dev/null && conda info --base 2>/dev/null)"
+if [ -z "$CONDA_BASE" ]; then
+    echo "conda not found — install Anaconda first." >&2; exit 1
+fi
+# shellcheck disable=SC1091
+. "$CONDA_BASE/etc/profile.d/conda.sh"
+if ! conda env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
+    echo "conda env '$ENV_NAME' not present — run setup-home.sh lerobot first." >&2; exit 1
+fi
+conda activate "$ENV_NAME"
+exec python - "$ENV_NAME" <<'PY'
+import importlib, sys, pathlib, shutil, os
+env = sys.argv[1] if len(sys.argv) > 1 else "?"
+fails = 0
+def ok(s):  print(f"  ✓  {s}")
+def bad(s): global fails; fails += 1; print(f"  ✗  {s}")
+def hdr(s): print(); print("="*60); print(f" {s}"); print("="*60)
+
+hdr(f"1. ENV ({env})")
+ok(f"python {sys.version.split()[0]}  ({sys.executable})")
+
+hdr("2. CMAKE-POLICY HOOK (Arch cmake-4 workaround)")
+hook = pathlib.Path(os.environ["CONDA_PREFIX"]) / "etc/conda/activate.d/cmake_policy.sh"
+(ok if hook.exists() else bad)(f"hook file: {hook}")
+v = os.environ.get("CMAKE_POLICY_VERSION_MINIMUM", "")
+(ok if v else bad)(f"CMAKE_POLICY_VERSION_MINIMUM={v or '(unset!)'}")
+
+hdr("3. LEROBOT (editable from clone?)")
+try:
+    import lerobot
+    p = pathlib.Path(lerobot.__file__).resolve()
+    ok(f"lerobot {lerobot.__version__}")
+    ok(f"loaded from {p}")
+    (ok if "lerobot/src/lerobot" in str(p) else bad)(
+        "editable install" if "lerobot/src/lerobot" in str(p) else "site-packages (PyPI install — clone not in use)")
+except Exception as e:
+    bad(f"lerobot import: {e}")
+
+hdr("4. PYTORCH + CUDA")
+try:
+    import torch, torchvision
+    ok(f"torch {torch.__version__}  (cuda build {torch.version.cuda})")
+    (ok if torch.cuda.is_available() else bad)(f"cuda.is_available()={torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        ok(f"device: {torch.cuda.get_device_name(0)}  sm_{''.join(map(str, torch.cuda.get_device_capability(0)))}")
+    ok(f"torchvision {torchvision.__version__}")
+except Exception as e:
+    bad(f"torch stack: {e}")
+
+hdr("5. FEETECH SDK (SO-arm 101 motor bus)")
+try:
+    import scservo_sdk
+    from scservo_sdk import PortHandler, PacketHandler, GroupSyncRead, GroupSyncWrite, COMM_SUCCESS
+    ok(f"scservo_sdk loaded from {pathlib.Path(scservo_sdk.__file__).parent}")
+    ok(f"PortHandler / PacketHandler / GroupSyncRead/Write all importable (COMM_SUCCESS={COMM_SUCCESS})")
+except Exception as e:
+    bad(f"scservo_sdk: {e}")
+
+hdr("6. LEROBOT SO-arm 100/101 MODULES (no hardware needed)")
+# SO-100 and SO-101 share `so_follower` / `so_leader` — they use identical
+# Feetech STS3215 servos and mechanics, so one wrapper covers both.
+for m in [
+    "lerobot.motors.feetech",
+    "lerobot.robots.so_follower",
+    "lerobot.robots.bi_so_follower",
+    "lerobot.teleoperators.so_leader",
+    "lerobot.cameras.opencv",
+    "lerobot.datasets.lerobot_dataset",
+    "lerobot.policies.factory",
+]:
+    try: importlib.import_module(m); ok(m)
+    except Exception as e: bad(f"{m}  ← {type(e).__name__}: {str(e)[:80]}")
+
+hdr("7. DATASET STACK (HF datasets + video)")
+for m in ["datasets", "pandas", "pyarrow", "av"]:
+    try:
+        mod = importlib.import_module(m); ok(f"{m} {getattr(mod, '__version__', '?')}")
+    except Exception as e:
+        bad(f"{m}  ← {e}  (try: pip install -e \"~/lerobot[dataset]\")")
+
+hdr("8. CAMERAS (OpenCV)")
+try:
+    import cv2
+    ok(f"opencv {cv2.__version__}  headless")
+except Exception as e: bad(f"cv2: {e}")
+
+hdr("9. CLI ENTRY POINTS")
+for cmd in ["lerobot-record", "lerobot-replay", "lerobot-teleoperate",
+            "lerobot-train", "lerobot-eval", "lerobot-calibrate", "lerobot-find-port"]:
+    path = shutil.which(cmd)
+    (ok if path else bad)(f"{cmd}{' → '+path if path else ''}")
+
+print()
+print("="*60)
+if fails:
+    print(f" FAIL — {fails} check(s) did not pass. See markers above.")
+    sys.exit(1)
+else:
+    print(" PASS — env is ready for SO-arm 101 work (plug in & follow LeRobot docs).")
+PY
+EOF
+
+    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-humble" "$BIN/vnc-server" "$BIN/remote" "$BIN/lerobot-verify"
 }
 
 do_fish() {
@@ -535,11 +644,14 @@ do_lerobot() {
         return
     fi
     local env_name="${LEROBOT_ENV:-lerobot}"
-    # Default extras: 'feetech' covers SO-arm 100/101 servo I/O. Add 'smolvla' for
-    # HF's small VLA policy (good fit for SO-100 family), 'pyav' for video encoding
-    # when recording datasets, etc. Deliberately NOT [all] — that drags in hf-libero
-    # → robomimic → egl-probe (the cmake-4 hot zone) plus simulators you don't need.
-    local extras="${LEROBOT_EXTRAS:-feetech}"
+    # Default extras: 'feetech' covers SO-arm 100/101 servo I/O; 'dataset' brings
+    # HF datasets + pandas + pyarrow (also pulls torchcodec + av, so dataset video
+    # recording works out of the box) — required for recording teleop demos which
+    # is the core SO-arm 101 imitation-learning workflow. Add 'smolvla' for HF's
+    # small VLA policy (good fit for SO-100 family). Deliberately NOT [all] — that
+    # drags in hf-libero → robomimic → egl-probe (the cmake-4 hot zone) plus
+    # simulators you don't need.
+    local extras="${LEROBOT_EXTRAS:-feetech,dataset}"
     # LeRobot upstream now requires Python >= 3.12 (per its pyproject.toml).
     # Override with LEROBOT_PY if you need to pin to an older lerobot release.
     local py="${LEROBOT_PY:-3.12}"
@@ -675,13 +787,28 @@ HOOK
     fi
     say "      3. Quick sanity-check inside the env:"
     say "           conda activate $env_name && python -c 'import lerobot; print(lerobot.__version__)'"
-    say "      4. To add more extras later (e.g. smolvla policy + video):"
+    say "         …or a thorough no-hardware verification of every component:"
+    say "           lerobot-verify"
+    say "      4. To add more extras later (e.g. smolvla policy):"
     if [ -f "$clone/pyproject.toml" ]; then
-        say "           conda activate $env_name && pip install -e \"$clone[feetech,smolvla,pyav]\""
+        say "           conda activate $env_name && pip install -e \"$clone[feetech,dataset,smolvla]\""
     else
-        say "           conda activate $env_name && pip install 'lerobot[feetech,smolvla,pyav]'"
+        say "           conda activate $env_name && pip install 'lerobot[feetech,dataset,smolvla]'"
     fi
     say "         (the cmake-4 env var is already active via the activate hook)."
+
+    # Run the no-hardware verification automatically so a fresh install ends
+    # with a clear PASS/FAIL banner. Only runs if the helper exists — i.e. user
+    # has run `setup-home.sh scripts` (or all) at least once.
+    if [ -x "$HOME/.local/bin/lerobot-verify" ]; then
+        say
+        say "    Running no-hardware verification (lerobot-verify) …"
+        LEROBOT_ENV="$env_name" "$HOME/.local/bin/lerobot-verify" || \
+            say "    (verification reported failures — see markers above)"
+    else
+        say
+        say "    (Tip: run \`./setup-home.sh scripts\` to install the lerobot-verify helper.)"
+    fi
 }
 
 # ============================================================================

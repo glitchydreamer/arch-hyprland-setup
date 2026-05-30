@@ -298,10 +298,14 @@ The cmake-policy activate hook is the same either way.
 ### The recipe baked into `setup-home.sh`
 
 The `lerobot` component creates a conda env tuned for SO-arm 101 (Python 3.12,
-`lerobot[feetech]`, the cmake-policy activate hook) and — by default —
-**clones HF's LeRobot repo to `~/lerobot` and installs it editable**. Override
-defaults via env vars (note: LeRobot upstream now requires Python ≥ 3.12, so
-pin lower only if you've also pinned an older `lerobot` release).
+`lerobot[feetech,dataset]`, the cmake-policy activate hook) and — by default —
+**clones HF's LeRobot repo to `~/lerobot` and installs it editable**. The
+`dataset` extra is in the default because recording teleop demos = creating
+LeRobot datasets, which is the entire imitation-learning workflow on SO-arm 101;
+it also transitively pulls **`torchcodec` + `av`** so dataset video encoding
+works without a separate `pyav` extra. Override defaults via env vars (note:
+LeRobot upstream now requires Python ≥ 3.12, so pin lower only if you've also
+pinned an older `lerobot` release).
 
 ```bash
 # Default install — clones HF/lerobot → ~/lerobot, editable install:
@@ -334,11 +338,50 @@ After it finishes:
 | Confirm group took effect (log out + back in first) | `id -nG \| tr ' ' '\n' \| grep uucp` |
 | Find your servo controller | `ls /dev/ttyACM* /dev/ttyUSB*` |
 | Track upstream LeRobot (editable install only) | `cd ~/lerobot && git pull`  (no reinstall) |
-| Add more extras later (cmake hook already active) | `pip install -e "~/lerobot[feetech,smolvla,pyav]"` |
+| Add more extras later (cmake hook already active) | `pip install -e "~/lerobot[feetech,dataset,smolvla]"` |
 
 The component's printed post-install summary now **detects** whether you're
 already in `uucp` and only prompts you if you're not — so a re-run on a
 properly-configured machine just confirms with a check mark.
+
+### Verifying the install without the robot
+
+The `scripts` component installs a `~/.local/bin/lerobot-verify` helper that
+runs a no-hardware sanity check across nine areas — re-runnable any time:
+
+```bash
+lerobot-verify
+```
+
+It activates the env and validates:
+
+1. **Env / Python** — correct interpreter, version ≥ 3.12.
+2. **cmake-policy hook** — `etc/conda/activate.d/cmake_policy.sh` exists and the
+   `CMAKE_POLICY_VERSION_MINIMUM` env var is set.
+3. **LeRobot install mode** — confirms it's editable from `~/lerobot/src/lerobot`
+   (or flags PyPI / failed import).
+4. **PyTorch + CUDA** — `torch.cuda.is_available()`, device name, compute
+   capability, `torchvision` version.
+5. **Feetech SDK** — `scservo_sdk` loads; `PortHandler`, `PacketHandler`,
+   `GroupSyncRead/Write`, and the `COMM_SUCCESS` constant are importable
+   (the classes you actually use to talk to the SO-arm's servos).
+6. **LeRobot SO-arm 100/101 modules** — `lerobot.motors.feetech`,
+   `lerobot.robots.so_follower`, `lerobot.robots.bi_so_follower`,
+   `lerobot.teleoperators.so_leader`, `lerobot.cameras.opencv`,
+   `lerobot.datasets.lerobot_dataset`, `lerobot.policies.factory` all import.
+   (SO-100 and SO-101 share `so_follower` / `so_leader` because they use
+   identical Feetech STS3215 servos and mechanics — one wrapper, both arms.)
+7. **Dataset stack** — `datasets`, `pandas`, `pyarrow`, `av` versions.
+8. **Cameras** — OpenCV version, headless build.
+9. **CLI entry points** — `lerobot-record`, `lerobot-replay`,
+   `lerobot-teleoperate`, `lerobot-train`, `lerobot-eval`,
+   `lerobot-calibrate`, `lerobot-find-port` all on PATH.
+
+It ends with a clear **`PASS`** / **`FAIL`** banner and exits non-zero on any
+miss, so it's CI-friendly. The `lerobot` install component **runs it
+automatically at the end** of a successful install — a fresh setup leaves you
+with a green report. Override the env name (matches install): `LEROBOT_ENV=…
+lerobot-verify`.
 
 ### Cleanup
 

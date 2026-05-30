@@ -516,3 +516,38 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   `sudo usermod -aG uucp "$USER"` one-liner. Docs updated to point at
   `install.sh groups` as the canonical path. No live changes (user already
   configured); installation declared complete — just plug in the SO-arm.
+- **2026-05-30 — `lerobot-verify` helper + `dataset` extra in defaults.** User
+  asked how to verify the install without the robot plugged in. Confirmed
+  install is correct, but found two issues:
+  - **`lerobot[feetech]` alone misses `datasets` package** — `lerobot.datasets`
+    submodules fail to import; the upstream pyproject splits it into the
+    `[dataset]` extra (`datasets>=4.7,<5`, pandas, pyarrow). For real-hardware
+    SO-arm 101 work this is *required* (record demos = create LeRobot datasets).
+    Default extras bumped from `feetech` → `feetech,dataset`. As a free bonus,
+    `[dataset]` transitively pulls **`torchcodec` + `av` (PyAV)**, so dataset
+    video encoding works without a separate `pyav` extra. Installed live
+    (`pip install -e "~/lerobot[dataset]"` — datasets 4.8.5, pandas 2.3.3,
+    pyarrow 24.0.0, av 15.1.0, plus torchcodec).
+  - **Module-name mismatches in my first verification attempt.** `scservo_sdk`,
+    not `feetech_servo_sdk` (legacy import name kept after the package rename).
+    `lerobot.robots.so_follower` / `lerobot.teleoperators.so_leader`, not
+    `so100_follower` / `so101_follower` — SO-100 and SO-101 use identical
+    Feetech STS3215 servos and mechanics, so they share one wrapper (confirmed
+    by `so100.md` and `so101.md` both living inside `so_follower/`).
+  - **`~/.local/bin/lerobot-verify`** — new helper added to `setup-home.sh`
+    `do_scripts` (so `./setup-home.sh scripts` installs it). 9-section check
+    (env / cmake hook / lerobot editable mode / torch+CUDA / scservo_sdk /
+    SO-100/101 wrappers / HF dataset stack / OpenCV / CLI entry points), clear
+    PASS/FAIL banner, exits non-zero on any miss (CI-friendly). Honors
+    `LEROBOT_ENV` (matches install component). The `lerobot` install component
+    **calls it automatically** at the end of a successful install — fresh
+    installs end with a green report.
+  - **Live verification:** all 9 sections PASS (python 3.12.13, hook +
+    CMAKE_POLICY_VERSION_MINIMUM=3.5, lerobot 0.5.2 editable, torch 2.11.0+cu130
+    + RTX 3060 sm_86, scservo_sdk + 4 classes, all SO-arm 100/101 modules,
+    datasets 4.8.5 + pandas + pyarrow + av, opencv 4.13.0 headless, 7 CLI
+    entry points). Install is END-TO-END READY for SO-arm 101 work.
+  - Docs `learn/07-dev-environment.md`: new "Verifying the install without the
+    robot" subsection enumerates the 9 checks; intro paragraph updated to
+    `[feetech,dataset]` defaults with the torchcodec/av bonus noted; "add more
+    extras later" example updated to `[feetech,dataset,smolvla]`.
