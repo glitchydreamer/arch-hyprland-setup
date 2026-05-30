@@ -42,6 +42,8 @@ COMPONENTS=(
     "isaac|Isaac Sim container caches, the IsaacLab clone, the isaac-sim launcher, xorg-xauth"
     "ros2|The ros2-humble launcher + its Docker image + the Fast DDS UDP profile (also clears a leftover Jazzy image/launcher; image only if Docker is still present)"
     "anaconda|Anaconda (AUR) + the conda fish init; leaves your project envs' data under ~/anaconda3 if external"
+    "lerobot|Conda env 'lerobot' (LeRobot for SO-arm 101); override env name with LEROBOT_ENV — leaves Anaconda itself"
+    "uv|uv venv (~/.venv), build cache (~/.cache/uv) and uv-managed Pythons; keeps the pacman uv binary"
     "cuda|CUDA toolkit + cuDNN + the /etc/profile.d/cuda.sh PATH (leaves the NVIDIA driver alone)"
     "icons|Switch the GTK icon theme back to the caelestia default (Papirus-Dark); keeps the Sweet/candy packages so you can re-apply"
     "inputremap|input-remapper (AUR) + its daemon/service + ~/.config presets — no longer needed (the Razer mouse remaps via onboard memory)"
@@ -213,6 +215,62 @@ do_cuda() {
     say ">>> CUDA toolkit + cuDNN (driver is left installed)"
     remove_pkgs cuda-pkgs cuda cudnn
     reclaim cuda-profile /etc/profile.d/cuda.sh sudo
+}
+
+do_lerobot() {
+    say ">>> LeRobot conda env (override env name via LEROBOT_ENV=…)"
+    if ! command -v conda >/dev/null 2>&1; then
+        say "    · conda not found — nothing to remove."
+        return
+    fi
+    local env_name="${LEROBOT_ENV:-lerobot}"
+    local conda_base; conda_base="$(conda info --base 2>/dev/null)"
+    if conda env list 2>/dev/null | awk '{print $1}' | grep -qx "$env_name"; then
+        # Tally the env size before removal (envs/<name> is a regular directory).
+        local envpath="$conda_base/envs/$env_name"
+        if [ -d "$envpath" ]; then
+            local kb; kb=$(du -sk "$envpath" 2>/dev/null | awk '{print $1}'); kb=${kb:-0}
+            RECLAIMED_KB=$((RECLAIMED_KB + kb))
+            say "    · $envpath  ($(human_kb "$kb"))"
+        fi
+        run lerobot-env conda env remove -y -n "$env_name"
+    else
+        say "    · conda env '$env_name' not present — skip"
+    fi
+    say "    · Anaconda itself is untouched (run 'anaconda' component to remove it)."
+}
+
+do_uv() {
+    say ">>> uv environment artifacts (venv + build cache + uv-managed Pythons)"
+    # uv (the binary at /usr/bin/uv) is a pacman package — keeping it costs no disk.
+    # This component clears the things that grow large: the user's primary venv, uv's
+    # build cache (gigabytes after compiling native wheels), and any uv-managed Python
+    # interpreters. The pacman package is left alone — sudo pacman -Rns uv if wanted.
+    reclaim uv-venv "$HOME/.venv"
+    # Build cache: prefer 'uv cache clean' (uv-aware) and measure before pruning.
+    if command -v uv >/dev/null 2>&1 && [ -d "$HOME/.cache/uv" ]; then
+        local kb; kb=$(du -sk "$HOME/.cache/uv" 2>/dev/null | awk '{print $1}'); kb=${kb:-0}
+        RECLAIMED_KB=$((RECLAIMED_KB + kb))
+        say "    · $HOME/.cache/uv  ($(human_kb "$kb"))"
+        run uv-cache uv cache clean
+    else
+        reclaim uv-cache "$HOME/.cache/uv"
+    fi
+    # Uv-managed Python interpreters live under ~/.local/share/uv/python.
+    if command -v uv >/dev/null 2>&1 && [ -d "$HOME/.local/share/uv/python" ]; then
+        local kb; kb=$(du -sk "$HOME/.local/share/uv" 2>/dev/null | awk '{print $1}'); kb=${kb:-0}
+        RECLAIMED_KB=$((RECLAIMED_KB + kb))
+        say "    · $HOME/.local/share/uv  ($(human_kb "$kb"))"
+        run uv-python uv python uninstall --all
+        reclaim uv-share-leftover "$HOME/.local/share/uv"
+    else
+        reclaim uv-share "$HOME/.local/share/uv"
+    fi
+    # The shim symlink uv creates for managed Pythons (e.g. ~/.local/bin/python3.12 ->
+    # uv's managed interpreter). Harmless if absent.
+    reclaim uv-py-shim "$HOME/.local/bin/python3.12"
+    say "    · uv binary itself is left in place (pacman package — no disk cost)."
+    say "      to drop uv entirely too:  sudo pacman -Rns uv"
 }
 
 do_icons() {

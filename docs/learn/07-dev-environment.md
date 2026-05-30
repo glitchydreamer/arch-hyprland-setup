@@ -234,6 +234,75 @@ Everything large lives on **/home** (the container image store is
 `/home/docker-data`, the workspace is `~/robotics/ws`) because the root partition
 is small — see [Reproducibility](08-reproducibility.md).
 
+## LeRobot for the SO-arm 101 (real hardware)
+
+LeRobot is Hugging Face's Python framework for training and running robot
+policies. This machine has a real **SO-arm 101** (Feetech STS3215 servos, USB
+serial controller), so the install here is **hardware-focused**, not a
+sim-bench bundle. The official install instructions trip on two Arch-specific
+issues that are worth knowing before you start.
+
+> **Gotcha 5 — Arch cmake 4 breaks legacy native wheels (`egl-probe`).** Following
+> the official LeRobot install with `pip install 'lerobot[all]'` aborts during
+> the build of `egl-probe==1.0.2` with:
+>
+> ```
+> CMake Error at CMakeLists.txt:1 (cmake_minimum_required):
+>   Compatibility with CMake < 3.5 has been removed from CMake.
+>   …  Or, add -DCMAKE_POLICY_VERSION_MINIMUM=3.5 to try configuring anyway.
+> ```
+>
+> Arch ships **cmake 4.x** (released 2025), which dropped policy compatibility
+> with `cmake_minimum_required(VERSION <3.5)`. Any pip wheel whose `CMakeLists.txt`
+> declares an ancient minimum — `egl-probe` here, pulled in by `hf-libero` →
+> `robomimic` — fails to configure. This has nothing to do with the package
+> manager: **conda and uv hit the identical error** because both shell out to the
+> system `cmake`. **Fix:** export `CMAKE_POLICY_VERSION_MINIMUM=3.5` *before*
+> `pip install`, which tells nested CMake invocations to behave as if they were
+> targeting cmake 3.5 policies. The `setup-home.sh lerobot` component writes this
+> into the env's `etc/conda/activate.d/cmake_policy.sh`, so every future
+> `pip install` inside `conda activate lerobot` inherits it automatically.
+
+> **Gotcha 6 — `[all]` is overkill for real-hardware work.** The `lerobot[all]`
+> extra pulls **LIBERO** (a sim benchmark) → `robomimic` → `egl-probe`, which is
+> the package above. If your workflow is *real* SO-arm 101 — teleop, recording
+> datasets, training/running policies on the actual robot — you don't need any of
+> that. Install with **`lerobot[feetech]`** (servo SDK) and add only the policy /
+> video extras you'll use, e.g. `lerobot[feetech,smolvla,pyav]`. The install
+> becomes minutes instead of an hour, and you sidestep the cmake hot zone
+> entirely (Gotcha 5 still applies if you later add an extra that hits it).
+
+### The recipe baked into `setup-home.sh`
+
+The `lerobot` component creates a conda env tuned for SO-arm 101 (Python 3.10,
+`lerobot[feetech]`, the cmake-policy activate hook). Override the defaults via
+env vars:
+
+```bash
+# Default install — SO-arm 101 hardware only:
+./setup-home.sh lerobot
+
+# Add HF's small VLA policy + video encoding extras:
+LEROBOT_EXTRAS="feetech,smolvla,pyav" ./setup-home.sh lerobot
+
+# Different env name / Python version:
+LEROBOT_ENV=lerobot-dev LEROBOT_PY=3.11 ./setup-home.sh lerobot
+```
+
+After it finishes:
+
+| Step | Command |
+|---|---|
+| Activate the env | `conda activate lerobot` |
+| Allow serial port access (one-time, then re-login) | `sudo usermod -aG uucp "$USER"` |
+| Find your servo controller | `ls /dev/ttyACM* /dev/ttyUSB*` |
+| Add more extras later (cmake hook already active) | `pip install 'lerobot[feetech,smolvla,pyav]'` |
+
+To tear everything down: `uninstall.sh lerobot` removes the conda env (Anaconda
+itself stays). The companion `uninstall.sh uv` component clears uv venvs / build
+caches / managed Pythons (the pacman `uv` binary itself is left in place — it's
+free disk-wise).
+
 ---
 
 **Next:** [Reproducibility & the scripts →](08-reproducibility.md) — how this

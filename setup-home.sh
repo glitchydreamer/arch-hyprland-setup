@@ -57,6 +57,7 @@ COMPONENTS=(
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
     "git|Global git defaults (branch, autoSetupRemote, rerere, editor, ...)"
+    "lerobot|Conda env 'lerobot' with LeRobot for SO-arm 101 real hardware (feetech extras + Arch cmake-4 workaround baked into an activate hook). Overrides: LEROBOT_ENV / LEROBOT_EXTRAS / LEROBOT_PY"
 )
 
 do_hyprland() {
@@ -519,6 +520,82 @@ do_git() {
     git config --global fetch.prune true
     git config --global rerere.enabled true
     git config --global core.editor nvim
+}
+
+do_lerobot() {
+    # LeRobot conda env, focused on real SO-arm 101 hardware (Feetech STS3215 servos).
+    # The cmake fix below is the Arch-specific catch: Arch ships cmake 4.x which
+    # removed compatibility with cmake_minimum_required < 3.5. Without the env var,
+    # nested CMake builds inside pip wheels (egl-probe via robomimic, and a few
+    # others) abort at "Compatibility with CMake < 3.5 has been removed". The fix is
+    # written as a conda activate.d hook so EVERY subsequent 'pip install' in this
+    # env inherits it — not just the first one.
+    if ! command -v conda >/dev/null 2>&1; then
+        say "    · conda not found. Install Anaconda first (install.sh anaconda) and re-run."
+        return
+    fi
+    local env_name="${LEROBOT_ENV:-lerobot}"
+    # Default extras: 'feetech' covers SO-arm 100/101 servo I/O. Add 'smolvla' for
+    # HF's small VLA policy (good fit for SO-100 family), 'pyav' for video encoding
+    # when recording datasets, etc. Deliberately NOT [all] — that drags in hf-libero
+    # → robomimic → egl-probe (the cmake-4 hot zone) plus simulators you don't need.
+    local extras="${LEROBOT_EXTRAS:-feetech}"
+    local py="${LEROBOT_PY:-3.10}"
+
+    say "    · target: env=$env_name, python=$py, pip extras=lerobot[$extras]"
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        say "    [dry-run] conda create -n $env_name python=$py"
+        say "    [dry-run] write activate.d/cmake_policy.sh (CMAKE_POLICY_VERSION_MINIMUM=3.5)"
+        say "    [dry-run] pip install -U pip setuptools wheel"
+        say "    [dry-run] pip install 'lerobot[$extras]'"
+        return
+    fi
+
+    # Source conda so 'conda activate' works inside this non-login bash.
+    local conda_base; conda_base="$(conda info --base)"
+    # shellcheck disable=SC1091
+    . "$conda_base/etc/profile.d/conda.sh"
+
+    if conda env list | awk '{print $1}' | grep -qx "$env_name"; then
+        say "    · env '$env_name' already exists — reusing it"
+    else
+        say "    · creating env '$env_name' with Python $py …"
+        conda create -y -n "$env_name" "python=$py"
+    fi
+
+    # Persist the cmake-policy fix as an activate hook (the Arch cmake-4 gotcha).
+    local hookdir="$conda_base/envs/$env_name/etc/conda/activate.d"
+    mkdir -p "$hookdir"
+    cat > "$hookdir/cmake_policy.sh" <<'HOOK'
+# Arch ships cmake 4.x which removed support for cmake_minimum_required < 3.5.
+# This env var tells nested CMake invocations (from pip/setup.py builds) to
+# accept the old minimum. Needed for egl-probe and similar legacy C++ wheels.
+export CMAKE_POLICY_VERSION_MINIMUM=3.5
+HOOK
+
+    conda activate "$env_name"
+
+    say "    · upgrading pip/setuptools/wheel inside '$env_name' …"
+    python -m pip install --upgrade pip setuptools wheel
+
+    say "    · installing lerobot[$extras] (heavy: PyTorch + native builds; minutes)…"
+    pip install "lerobot[$extras]"
+
+    conda deactivate
+
+    say "    · done. Activate any time with:  conda activate $env_name"
+    say
+    say "    SO-arm 101 next steps (real hardware):"
+    say "      1. Plug the Feetech controller (USB). Find its serial port:"
+    say "           ls /dev/ttyACM* /dev/ttyUSB*"
+    say "      2. Give yourself permission on the serial device (one-time, then re-login):"
+    say "           sudo usermod -aG uucp \"\$USER\""
+    say "      3. Quick sanity-check inside the env:"
+    say "           conda activate $env_name && python -c 'import lerobot; print(lerobot.__version__)'"
+    say "      4. To add more extras later (e.g. smolvla policy + video):"
+    say "           conda activate $env_name && pip install 'lerobot[feetech,smolvla,pyav]'"
+    say "         (the cmake-4 env var is already active via the activate hook)."
 }
 
 # ============================================================================

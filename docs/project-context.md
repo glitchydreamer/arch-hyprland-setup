@@ -394,3 +394,37 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   gained an "optional desktop" row and the desktop-config block explains all
   five caveats (placement, rotation, 8-bit panel, connector, inert-when-absent).
   `hyprctl reload` clean; ultrawide unaffected.
+- **2026-05-30 — LeRobot install for real SO-arm 101, plus uv-env cleanup
+  automation.** User tried the official HF LeRobot install with `uv pip install
+  'lerobot[all]'` (and earlier with conda). Both failed identically while
+  building **`egl-probe==1.0.2`**: `CMake Error … Compatibility with CMake < 3.5
+  has been removed`. Root cause is **Arch shipping cmake 4.3.3**, which dropped
+  policy compat for `cmake_minimum_required < 3.5`. Same crash in any package
+  manager — the bug is the system cmake meeting a pre-2025 `CMakeLists.txt`.
+  Fix is `CMAKE_POLICY_VERSION_MINIMUM=3.5`. Also: the `[all]` extra drags in
+  `hf-libero` → `robomimic` → `egl-probe` (LIBERO sim benchmark — irrelevant for
+  real hardware), so the recommended install for SO-arm 101 work is
+  `lerobot[feetech]` (Feetech STS3215 servo SDK), optionally adding
+  `smolvla`/`pyav` extras.
+  - **`setup-home.sh lerobot`** new component: creates conda env (defaults:
+    `lerobot`, Python 3.10, `lerobot[feetech]`), writes
+    `etc/conda/activate.d/cmake_policy.sh` to export the cmake env var so
+    *every* future `pip install` in the env inherits the fix, then runs the
+    install. Overrides: `LEROBOT_ENV` / `LEROBOT_EXTRAS` / `LEROBOT_PY`. Prints
+    SO-arm 101 next-steps (uucp group for `/dev/ttyACM*` access, port check,
+    sanity-import).
+  - **`uninstall.sh uv`** new component: clears the user's primary venv
+    (`~/.venv`), uv build cache (`~/.cache/uv` via `uv cache clean` for proper
+    reclaim), and uv-managed Pythons (`uv python uninstall --all` + leftover
+    `~/.local/share/uv`, plus the `~/.local/bin/python3.12` shim). Leaves the
+    pacman `uv` binary alone (free disk-wise; user removes via `pacman -Rns uv`).
+  - **`uninstall.sh lerobot`** new component: `conda env remove -y -n
+    "$LEROBOT_ENV"` (default `lerobot`), tally-counted. Anaconda itself stays.
+  - **Live cleanup executed:** reclaimed **14.8 GB** from the failed-uv attempt
+    (6.9 G venv + 7.6 GiB cache + 106 MB uv-managed CPython 3.12).
+  - Docs: `learn/07-dev-environment.md` gained Gotcha 5 (Arch cmake-4 vs old
+    `CMakeLists.txt` — affects ANY legacy wheel, not just LeRobot), Gotcha 6
+    (skip `[all]` for real-hardware work), and a "LeRobot for the SO-arm 101"
+    section with the script invocations + uucp/serial-port next-steps table.
+    The LeRobot install was **not auto-run** during this change — user invokes
+    `./setup-home.sh lerobot` when ready (heavy PyTorch download).
