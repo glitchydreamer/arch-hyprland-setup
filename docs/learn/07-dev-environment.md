@@ -298,14 +298,20 @@ The cmake-policy activate hook is the same either way.
 ### The recipe baked into `setup-home.sh`
 
 The `lerobot` component creates a conda env tuned for SO-arm 101 (Python 3.12,
-`lerobot[feetech,dataset]`, the cmake-policy activate hook) and — by default —
-**clones HF's LeRobot repo to `~/lerobot` and installs it editable**. The
-`dataset` extra is in the default because recording teleop demos = creating
-LeRobot datasets, which is the entire imitation-learning workflow on SO-arm 101;
-it also transitively pulls **`torchcodec` + `av`** so dataset video encoding
-works without a separate `pyav` extra. Override defaults via env vars (note:
-LeRobot upstream now requires Python ≥ 3.12, so pin lower only if you've also
-pinned an older `lerobot` release).
+`lerobot[feetech,core_scripts]`, the cmake-policy activate hook) and — by
+default — **clones HF's LeRobot repo to `~/lerobot` and installs it editable**.
+Why `core_scripts`? Upstream's `pyproject.toml` defines it as the *composite
+umbrella for the user-facing CLI tools* (`lerobot-record`, `lerobot-replay`,
+`lerobot-calibrate`, `lerobot-teleoperate`); it expands to:
+
+| Sub-extra | What it adds | Why you'll need it |
+|---|---|---|
+| `dataset` | `datasets`, `pandas`, `pyarrow` (+ transitively `torchcodec`, `av`) | Recording teleop demos = creating LeRobot datasets — the imitation-learning workflow |
+| `hardware` | `pynput`, plus pyserial/deepdiff dupes | Keyboard control, generic serial, diff utilities for the hardware drivers |
+| `viz` | `rerun-sdk` | Live visualization of teleop / dataset playback (lerobot's standard viewer) |
+
+Override defaults via env vars (note: LeRobot upstream now requires Python ≥ 3.12,
+so pin lower only if you've also pinned an older `lerobot` release).
 
 ```bash
 # Default install — clones HF/lerobot → ~/lerobot, editable install:
@@ -338,7 +344,7 @@ After it finishes:
 | Confirm group took effect (log out + back in first) | `id -nG \| tr ' ' '\n' \| grep uucp` |
 | Find your servo controller | `ls /dev/ttyACM* /dev/ttyUSB*` |
 | Track upstream LeRobot (editable install only) | `cd ~/lerobot && git pull`  (no reinstall) |
-| Add more extras later (cmake hook already active) | `pip install -e "~/lerobot[feetech,dataset,smolvla]"` |
+| Add more extras later (cmake hook already active) | `pip install -e "~/lerobot[feetech,core_scripts,smolvla]"` |
 
 The component's printed post-install summary now **detects** whether you're
 already in `uucp` and only prompts you if you're not — so a re-run on a
@@ -372,6 +378,8 @@ It activates the env and validates:
    (SO-100 and SO-101 share `so_follower` / `so_leader` because they use
    identical Feetech STS3215 servos and mechanics — one wrapper, both arms.)
 7. **Dataset stack** — `datasets`, `pandas`, `pyarrow`, `av` versions.
+7b. **CLI-script extras** — `rerun-sdk` (live visualization) and `pynput`
+    (keyboard teleop), the pieces `core_scripts` adds on top of `dataset`.
 8. **Cameras** — OpenCV version, headless build.
 9. **CLI entry points** — `lerobot-record`, `lerobot-replay`,
    `lerobot-teleoperate`, `lerobot-train`, `lerobot-eval`,

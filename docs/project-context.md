@@ -551,3 +551,26 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     robot" subsection enumerates the 9 checks; intro paragraph updated to
     `[feetech,dataset]` defaults with the torchcodec/av bonus noted; "add more
     extras later" example updated to `[feetech,dataset,smolvla]`.
+- **2026-05-30 — default extras bumped feetech,dataset → feetech,core_scripts
+  (adds rerun + pynput).** User asked whether `rerun` was in the install.
+  Found that `rerun-sdk` is in upstream's `viz` extra, NOT in `dataset` —
+  but upstream defines a composite `core_scripts = [dataset, hardware, viz]`
+  whose pyproject.toml docstring explicitly says it "maps to the CLI scripts"
+  (`lerobot-record`, `lerobot-replay`, `lerobot-calibrate`,
+  `lerobot-teleoperate`). That's the right umbrella for hands-on SO-arm 101
+  work, so the default `LEROBOT_EXTRAS` is now **`feetech,core_scripts`**.
+  This pulls (on top of dataset's HF datasets/pandas/pyarrow/torchcodec/av):
+  `pynput` (keyboard teleop), `pyserial`+`deepdiff` (already there via
+  feetech), and **`rerun-sdk`** (LeRobot's standard live-visualization viewer).
+  - Installed live: `pip install -e "~/lerobot[core_scripts]"` →
+    rerun-sdk 0.26.2, pynput 1.8.2, evdev 1.9.3, python-xlib 0.33.
+  - `lerobot-verify` helper gained Section 7b (CLI-script extras): checks
+    `rerun` and `pynput`. The verifier's version-reading helper switched to
+    `importlib.metadata.version(...)` because `pynput` doesn't expose
+    `__version__` on its top-level module — a future-proof fix for any pkg
+    that follows the same pattern.
+  - Live re-verify: full PASS, including the new 7b section.
+  - Docs `learn/07-dev-environment.md`: intro paragraph rewritten with a
+    sub-extras breakdown table (dataset/hardware/viz with what each adds and
+    why); "add more extras later" example bumped to
+    `[feetech,core_scripts,smolvla]`; the verify list gains row 7b.

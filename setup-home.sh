@@ -543,12 +543,31 @@ for m in [
     try: importlib.import_module(m); ok(m)
     except Exception as e: bad(f"{m}  ← {type(e).__name__}: {str(e)[:80]}")
 
+def ver(modname):
+    # Some packages (pynput) don't expose __version__ on the top-level module;
+    # importlib.metadata is the canonical way to get a version regardless.
+    try:
+        import importlib.metadata as md
+        return md.version(modname.replace("_", "-"))
+    except Exception:
+        return getattr(importlib.import_module(modname), "__version__", "?")
+
 hdr("7. DATASET STACK (HF datasets + video)")
 for m in ["datasets", "pandas", "pyarrow", "av"]:
     try:
-        mod = importlib.import_module(m); ok(f"{m} {getattr(mod, '__version__', '?')}")
+        importlib.import_module(m); ok(f"{m} {ver(m)}")
     except Exception as e:
         bad(f"{m}  ← {e}  (try: pip install -e \"~/lerobot[dataset]\")")
+
+hdr("7b. CLI-SCRIPT EXTRAS (hardware + viz from core_scripts)")
+for m, hint in [
+    ("rerun",  "pip install -e \"~/lerobot[viz]\"      # live visualization"),
+    ("pynput", "pip install -e \"~/lerobot[hardware]\" # keyboard teleop"),
+]:
+    try:
+        importlib.import_module(m); ok(f"{m} {ver(m)}")
+    except Exception as e:
+        bad(f"{m}  ← {e}  ({hint})")
 
 hdr("8. CAMERAS (OpenCV)")
 try:
@@ -644,14 +663,17 @@ do_lerobot() {
         return
     fi
     local env_name="${LEROBOT_ENV:-lerobot}"
-    # Default extras: 'feetech' covers SO-arm 100/101 servo I/O; 'dataset' brings
-    # HF datasets + pandas + pyarrow (also pulls torchcodec + av, so dataset video
-    # recording works out of the box) — required for recording teleop demos which
-    # is the core SO-arm 101 imitation-learning workflow. Add 'smolvla' for HF's
-    # small VLA policy (good fit for SO-100 family). Deliberately NOT [all] — that
-    # drags in hf-libero → robomimic → egl-probe (the cmake-4 hot zone) plus
+    # Default extras: 'feetech' covers SO-arm 100/101 servo I/O. 'core_scripts'
+    # is upstream's composite umbrella for the user-facing CLI tools
+    # (lerobot-record, lerobot-replay, lerobot-calibrate, lerobot-teleoperate);
+    # it expands to [dataset, hardware, viz], which together bring HF datasets +
+    # pandas + pyarrow (via dataset; also pulls torchcodec + av so dataset video
+    # recording works), pynput + pyserial + deepdiff for keyboard/serial control
+    # (via hardware), and rerun-sdk for live visualization (via viz). Add
+    # 'smolvla' for HF's small VLA policy. Deliberately NOT [all] — that drags
+    # in hf-libero → robomimic → egl-probe (the cmake-4 hot zone) plus
     # simulators you don't need.
-    local extras="${LEROBOT_EXTRAS:-feetech,dataset}"
+    local extras="${LEROBOT_EXTRAS:-feetech,core_scripts}"
     # LeRobot upstream now requires Python >= 3.12 (per its pyproject.toml).
     # Override with LEROBOT_PY if you need to pin to an older lerobot release.
     local py="${LEROBOT_PY:-3.12}"
