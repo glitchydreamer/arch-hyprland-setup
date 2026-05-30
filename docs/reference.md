@@ -487,6 +487,37 @@ npm 11, pnpm 10, yarn classic.
 
 fish (shell, with caelestia config), starship (prompt), fzf, ripgrep (`rg`), fd, bat, eza, zoxide (`cd` replacement), lazygit (`lg`), gh (GitHub CLI), tmux, tree, jq, yq.
 
+### 6.10 System monitoring (HWiNFO-equivalent stack)
+
+Installed via `install.sh monitor`. All packages are in the official `extra`
+repo — no AUR needed.
+
+| Tool | Role | Launch |
+|---|---|---|
+| **psensor** | live sensor graphs over time (temps, fans, voltages) — the closest match to HWiNFO's sensor-history window | `psensor` |
+| **hardinfo2** | comprehensive hardware inventory + benchmarks + a Sensors tab fed by lm_sensors — the single best HWiNFO analogue | `hardinfo2` |
+| **mission-center** | Task-Manager-style GUI: live CPU / GPU / RAM / disk / network utilization + per-process | `Super+Shift+P`, or `missioncenter` |
+| **nvtop** | live GPU TUI (NVIDIA / AMD / Intel) — per-process VRAM, utilization, power; the bits `nvidia-smi` can't show | `nvtop` |
+| **btop** | modern CLI process / system viewer (replaces htop) — live CPU/RAM/disk/net with mouse support | `btop` |
+| **lm_sensors** | kernel sensor framework everything above surfaces (CPU temps, motherboard voltages, chassis fans) | `sensors` |
+| **nvidia-settings** | NVIDIA's own GPU control panel (clocks, fans, displays) — installed by the `gpu` component, not `monitor` | `Super+Shift+N`, or `nvidia-settings` |
+
+**One-time `lm_sensors` setup** (only needed if `sensors` shows no chips —
+on this box the NCT6798 motherboard chip is already auto-loaded by the
+kernel, so no action required):
+
+```bash
+sudo sensors-detect --auto    # probes and writes /etc/modules-load.d entries
+sudo systemctl restart systemd-modules-load
+sensors                       # should now print temps, fans, voltages
+```
+
+Notes: **mission-center** in the repo is the stable build (1.1.x); the AUR
+package `mission-center-git` provides the same binary, so on a system that
+already has the git variant pacman will skip the repo one (and that's fine —
+either covers Super+Shift+P). **nvidia-settings** lives in the `gpu` component
+because it ships with the NVIDIA stack and needs to track the driver.
+
 ---
 
 ## 7. Common commands cheat-sheet

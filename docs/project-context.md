@@ -50,14 +50,15 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   `editors`, `embedded`, `audio` (incl. the DualSense PipeWire 1.6.5 pin +
   touchpad udev rule), `gpu`, `docker` (Docker + NVIDIA Container Toolkit;
   data-root on /home/docker-data + containerd-snapshotter=false; for ROS 2 Humble /
-  GPU containers), `media`, `terminal`, `kde`, `display`, `storage` (NTFS/exFAT
-  userspace drivers + gnome-disk-utility so Windows-formatted SSDs mount in
-  nautilus — Arch omits these by default, unlike Ubuntu), `remote` (enable `sshd`
-  + freerdp/remmina for RDP/VNC *out* + `wayvnc` as a VNC server *into* this
-  Hyprland box — RDP-into-Wayland is unsupported, VNC is the working path),
-  `theme`
-  (candy-icons + sweet-folders from the AUR — the rainbow GTK icon set),
-  `aurapps`, `groups`, `shell`. CUDA is driver-matched.
+  GPU containers), `media`, `terminal`, `kde`, `display`, `monitor` (HWiNFO
+  equivalent — psensor + hardinfo2 GUIs, mission-center, nvtop, btop, lm_sensors),
+  `storage` (NTFS/exFAT userspace drivers + gnome-disk-utility so
+  Windows-formatted SSDs mount in nautilus — Arch omits these by default,
+  unlike Ubuntu), `remote` (enable `sshd` + freerdp/remmina for RDP/VNC *out* +
+  `wayvnc` as a VNC server *into* this Hyprland box — RDP-into-Wayland is
+  unsupported, VNC is the working path), `theme` (candy-icons + sweet-folders
+  from the AUR — the rainbow GTK icon set), `aurapps`, `groups`, `shell`.
+  CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
   counterpart to `install.sh`): components `docker`, `isaac`, `ros2`, `anaconda`,
   `cuda`, `icons` (switch the GTK icon theme back to the caelestia default
@@ -574,3 +575,27 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     sub-extras breakdown table (dataset/hardware/viz with what each adds and
     why); "add more extras later" example bumped to
     `[feetech,core_scripts,smolvla]`; the verify list gains row 7b.
+- **2026-05-30 — `install.sh monitor` component: HWiNFO-equivalent stack.**
+  User asked for an HWiNFO GUI on Arch. Audited what's already present:
+  mission-center-git, nvtop, btop, lm_sensors (+ lib32), nvidia-settings —
+  all installed ad-hoc, none scripted. Found psensor and hardinfo2 BOTH in
+  official `extra` (no AUR needed), confirmed sensors already returns data
+  from the NCT6798 motherboard chip (auto-loaded by the kernel).
+  - **New `install.sh monitor` component** consolidates all six: psensor
+    (live sensor history graphs — user's stated preference; the closest match
+    to HWiNFO's sensor-history window), hardinfo2 (single best HWiNFO analogue —
+    hardware inventory + Sensors tab + benchmarks), mission-center (Task-Mgr
+    GUI; already bound to Super+Shift+P), nvtop (live GPU TUI — what
+    nvidia-smi can't show per-process), btop (modern CLI viewer), lm_sensors
+    + lib32-lm_sensors (kernel sensor framework). `nvidia-settings` stays
+    in the `gpu` component because it tracks the NVIDIA driver. mission-center
+    in `extra` (stable 1.1.x) provides the same binary as the AUR
+    `mission-center-git`, so on systems with the git build pacman --needed
+    silently skips the repo one — both serve Super+Shift+P.
+  - Docs `reference.md`: new §6.10 "System monitoring (HWiNFO-equivalent
+    stack)" with a launch table + the one-time `sensors-detect` recipe (only
+    needed if `sensors` shows no chips; on this box NCT6798 is auto-loaded).
+  - Project-context component list updated to include `monitor`.
+  - **Live install:** user runs `./install.sh monitor` (I can't sudo per the
+    standing rule). On this machine only psensor + hardinfo2 are missing —
+    the other five are already in place. `pac --needed` skips them.

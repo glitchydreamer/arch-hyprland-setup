@@ -191,6 +191,7 @@ COMPONENTS=(
     "terminal|Terminal productivity (fzf, ripgrep, fd, bat, zoxide, lazygit, tmux, ...)"
     "kde|KDE settings apps (systemsettings, discover, kinfocenter)"
     "display|Display inspection tools (drm-info, wdisplays, wlr-randr, brightnessctl)"
+    "monitor|System monitoring — HWiNFO-style: psensor + hardinfo2 (GUIs), mission-center (Task Mgr equiv), nvtop, btop, lm_sensors"
     "storage|Mount Windows/other drives + Disks app (ntfs-3g, exfatprogs, gnome-disk-utility)"
     "remote|SSH + remote desktop: freerdp/remmina (out) + wayvnc (VNC in); sshd left OFF, toggle with the 'remote' helper"
     "theme|Candy rainbow icons (AUR: candy-icons + sweet-folders) — GTK icon theme for nautilus etc."
@@ -295,6 +296,36 @@ PY
 }
 do_media()   { pac media haruna obs-studio gimp okular gwenview swayimg; }
 do_terminal() { pac terminal fzf ripgrep fd bat zoxide lazygit github-cli tmux tree yq rsync; }
+
+do_monitor() {
+    # HWiNFO-equivalent stack for Arch. All in the official 'extra' repo — no AUR
+    # build, no driver coupling (nvidia-settings stays in the 'gpu' component
+    # because it ships with the NVIDIA stack and lives or dies with it).
+    #
+    #   psensor              — live sensor graphs over time (temps/fans/voltages).
+    #                          The single most HWiNFO-like piece for sensor history.
+    #   hardinfo2            — comprehensive hardware-inventory + benchmark suite;
+    #                          the closest single HWiNFO analogue. Lists CPU/RAM
+    #                          modules, every PCI/USB device, audio codecs, SMART,
+    #                          and surfaces lm_sensors in a Sensors tab.
+    #   mission-center       — Task-Manager-style GUI: live CPU/GPU/RAM/disk/net
+    #                          utilization + per-process. (Already bound to
+    #                          Super+Shift+P in hypr-user.conf.) Note: 'mission-center'
+    #                          is the stable repo build; the AUR 'mission-center-git'
+    #                          provides the same binary, so pacman will skip this
+    #                          on a system that already has the git build.
+    #   nvtop                — live GPU TUI (NVIDIA / AMD / Intel). Per-process VRAM
+    #                          + utilization + power; what nvidia-smi can't show.
+    #   btop                 — modern CLI process/system viewer (replaces htop).
+    #   lm_sensors           — the kernel sensor framework everything else surfaces
+    #                          (CPU temps, motherboard voltages, chassis fans).
+    #                          After install, run `sudo sensors-detect --auto` once
+    #                          to add any extra chip modules to /etc/modules-load.d
+    #                          (most boards work out of the box — e.g. NCT6798 here
+    #                          is auto-loaded by the kernel — but sensors-detect is
+    #                          the catch-all for the rest).
+    pac monitor psensor hardinfo2 mission-center nvtop btop lm_sensors lib32-lm_sensors
+}
 do_kde()     { pac kde systemsettings discover kinfocenter; }
 do_display() { pac display drm-info wdisplays wlr-randr brightnessctl nm-connection-editor; }
 
