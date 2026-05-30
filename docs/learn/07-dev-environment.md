@@ -276,47 +276,51 @@ issues that are worth knowing before you start.
 
 ### Editable clone vs PyPI
 
-LeRobot's official docs offer two install paths; the component is **clone-aware**
-and prefers the first:
+LeRobot's official docs offer two install paths; the component picks
+**editable from a clone by default** and falls back to PyPI when there's no
+clone to install from:
 
 | Path | What it does | Use when |
 |---|---|---|
 | **Editable from a local clone** — `pip install -e "~/lerobot[feetech]"` | conda env's `site-packages` *links* back to the clone; `import lerobot` reads the working tree | Real-hardware work (this machine) — you'll use `examples/`, `scripts/`, `src/lerobot/scripts/` (calibration / teleop / dataset-record entry points) that only exist *in the clone*; `git pull` keeps you current without reinstalling |
 | **PyPI wheel** — `pip install 'lerobot[feetech]'` | conda env's `site-packages` holds the published wheel; no clone | "Try it out" installs; you don't need the example scripts; you'd rather not manage a clone directory |
 
-The component picks the path automatically: if `$LEROBOT_DIR` (or `~/lerobot` by
-default) contains a `pyproject.toml`, it does the **editable install** from
-there; otherwise it falls back to PyPI. The cmake-policy activate hook is the
-same either way.
+The component resolves the source mode in this order — the first matching rule
+wins:
+
+1. `$LEROBOT_DIR` (default `~/lerobot`) contains a `pyproject.toml` → **editable** from that existing clone.
+2. `$LEROBOT_DIR` exists but isn't a LeRobot tree → **PyPI** (refuses to overwrite — move the dir aside or pick a different `LEROBOT_DIR`).
+3. `LEROBOT_NO_CLONE=1` set → **PyPI** (explicit opt-out).
+4. Otherwise → **`git clone https://github.com/huggingface/lerobot.git $LEROBOT_DIR`** then **editable** from the fresh clone. If the clone itself fails (no network, etc.), falls back to PyPI silently.
+
+The cmake-policy activate hook is the same either way.
 
 ### The recipe baked into `setup-home.sh`
 
 The `lerobot` component creates a conda env tuned for SO-arm 101 (Python 3.10,
-`lerobot[feetech]`, the cmake-policy activate hook). Override defaults via env
-vars:
+`lerobot[feetech]`, the cmake-policy activate hook) and — by default —
+**clones HF's LeRobot repo to `~/lerobot` and installs it editable**. Override
+defaults via env vars:
 
 ```bash
-# Default install — uses ~/lerobot if cloned, else PyPI:
+# Default install — clones HF/lerobot → ~/lerobot, editable install:
 ./setup-home.sh lerobot
 
 # Add HF's small VLA policy + video encoding extras:
 LEROBOT_EXTRAS="feetech,smolvla,pyav" ./setup-home.sh lerobot
 
-# Clone in a non-default location:
+# Clone into a non-default location:
 LEROBOT_DIR=~/robotics/lerobot ./setup-home.sh lerobot
 
 # Different env name / Python version:
 LEROBOT_ENV=lerobot-dev LEROBOT_PY=3.11 ./setup-home.sh lerobot
 
-# Force PyPI (e.g. you don't want a clone at all):
-LEROBOT_DIR=/nonexistent ./setup-home.sh lerobot
-```
+# Skip the clone — install the published PyPI wheel instead (great for
+# A/B testing the wheel vs the editable clone):
+LEROBOT_NO_CLONE=1 ./setup-home.sh lerobot
 
-If you don't have a clone yet and want the editable path:
-
-```bash
-git clone https://github.com/huggingface/lerobot.git ~/lerobot
-./setup-home.sh lerobot
+# Use a fork or pinned mirror instead of HF upstream:
+LEROBOT_REPO=https://github.com/you/lerobot.git ./setup-home.sh lerobot
 ```
 
 After it finishes:
@@ -329,12 +333,33 @@ After it finishes:
 | Track upstream LeRobot (editable install only) | `cd ~/lerobot && git pull`  (no reinstall) |
 | Add more extras later (cmake hook already active) | `pip install -e "~/lerobot[feetech,smolvla,pyav]"` |
 
-To tear everything down: `uninstall.sh lerobot` removes the conda env (Anaconda
-itself stays). **The `~/lerobot` clone is your work — the uninstaller deliberately
-does not delete it**; remove it manually if you really want to (`rm -rf ~/lerobot`).
-The companion `uninstall.sh uv` component clears uv venvs / build caches /
-managed Pythons (the pacman `uv` binary itself is left in place — it's free
-disk-wise).
+### Cleanup
+
+`uninstall.sh lerobot` removes the conda env **and the clone the install
+created** (symmetric with install). Two safeties:
+
+- **Dirty-tree abort.** If `~/lerobot` has any uncommitted or untracked files
+  (`git status --porcelain` is non-empty), the component refuses to delete the
+  clone and prints the file count so nothing you forgot to commit disappears
+  silently. Commit / stash / discard, or set `LEROBOT_KEEP_CLONE=1` to keep
+  it on this uninstall run.
+- **Explicit opt-out.** `LEROBOT_KEEP_CLONE=1 ./uninstall.sh lerobot` keeps
+  the clone even when clean (e.g. you only want to rebuild the env).
+
+```bash
+# Standard symmetric clean (clean tree only):
+./uninstall.sh lerobot
+
+# Keep the clone (e.g. you'll re-run setup-home.sh lerobot against it):
+LEROBOT_KEEP_CLONE=1 ./uninstall.sh lerobot
+
+# Non-default clone location: pass the same LEROBOT_DIR you used at install
+LEROBOT_DIR=~/robotics/lerobot ./uninstall.sh lerobot
+```
+
+Anaconda itself stays (`uninstall.sh anaconda` for that). The companion
+`uninstall.sh uv` component clears uv venvs / build caches / managed Pythons
+(the pacman `uv` binary itself is left in place — it's free disk-wise).
 
 ---
 

@@ -451,3 +451,31 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     update path. Gotcha 6 footer points readers at the editable section.
   - Memory `project-lerobot-soarm-101-install` updated to reflect editable as
     the default and `LEROBOT_DIR` as the override.
+- **2026-05-30 — symmetric LeRobot clone lifecycle: install clones, uninstall
+  removes.** User asked for the `git clone` to be part of the install (so they
+  can A/B-test editable vs PyPI on a fresh setup), planning to delete the
+  current `~/lerobot` manually before re-running. Asked uninstall to also
+  remove the clone — install/uninstall symmetry.
+  - `setup-home.sh do_lerobot()` source-mode resolution now: (1) clone present
+    with `pyproject.toml` → editable from it; (2) clone path exists but isn't
+    LeRobot → PyPI (refuse to overwrite); (3) `LEROBOT_NO_CLONE=1` → PyPI
+    (explicit opt-out, e.g. for A/B testing the wheel); (4) otherwise →
+    `git clone $LEROBOT_REPO $LEROBOT_DIR` then editable. New env var
+    `LEROBOT_REPO` (default `https://github.com/huggingface/lerobot.git`)
+    lets users point at a fork/mirror. A partial-clone failure cleans up the
+    half-cloned dir before PyPI fallback, so re-runs are safe.
+  - `uninstall.sh do_lerobot()` now removes the clone too (via `reclaim` so it
+    counts toward the tally), with two safeties: (a) **dirty-tree abort** —
+    if `git status --porcelain` in the clone is non-empty, the clone removal
+    is SKIPPED and the dirty-file count is printed (env env still removed);
+    (b) **`LEROBOT_KEEP_CLONE=1`** explicit opt-out skips clone removal even
+    when the tree is clean. The component row in COMPONENTS updated to mention
+    both clone deletion and the keep-clone override.
+  - Docs `learn/07-dev-environment.md`: "Editable clone vs PyPI" section
+    rewritten with the four-rule source-mode order + `LEROBOT_NO_CLONE` and
+    `LEROBOT_REPO` examples; new "Cleanup" subsection explains the dirty-tree
+    abort + `LEROBOT_KEEP_CLONE` opt-out + the `LEROBOT_DIR` symmetry between
+    install and uninstall.
+  - Dry-run verified: clone-fresh path prints `[dry-run] git clone …`; the
+    `LEROBOT_NO_CLONE=1` path skips it; the existing-clone path detects
+    pyproject.toml and uses editable without re-cloning.

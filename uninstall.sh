@@ -42,7 +42,7 @@ COMPONENTS=(
     "isaac|Isaac Sim container caches, the IsaacLab clone, the isaac-sim launcher, xorg-xauth"
     "ros2|The ros2-humble launcher + its Docker image + the Fast DDS UDP profile (also clears a leftover Jazzy image/launcher; image only if Docker is still present)"
     "anaconda|Anaconda (AUR) + the conda fish init; leaves your project envs' data under ~/anaconda3 if external"
-    "lerobot|Conda env 'lerobot' (LeRobot for SO-arm 101); override env name with LEROBOT_ENV — leaves Anaconda AND the ~/lerobot clone (user data; remove manually if wanted)"
+    "lerobot|Conda env 'lerobot' + the ~/lerobot clone the install created (override LEROBOT_DIR); set LEROBOT_KEEP_CLONE=1 to keep the clone. Anaconda itself stays."
     "uv|uv venv (~/.venv), build cache (~/.cache/uv) and uv-managed Pythons; keeps the pacman uv binary"
     "cuda|CUDA toolkit + cuDNN + the /etc/profile.d/cuda.sh PATH (leaves the NVIDIA driver alone)"
     "icons|Switch the GTK icon theme back to the caelestia default (Papirus-Dark); keeps the Sweet/candy packages so you can re-apply"
@@ -238,13 +238,30 @@ do_lerobot() {
         say "    · conda env '$env_name' not present — skip"
     fi
     say "    · Anaconda itself is untouched (run 'anaconda' component to remove it)."
-    # The local clone is user data (calibration files, your scripts, your branches).
-    # The uninstaller deliberately does NOT delete it — user removes manually if so.
+    # The LeRobot clone the install component created (default ~/lerobot, override
+    # LEROBOT_DIR). Removed by default for install/uninstall symmetry. Safety opt-out:
+    # LEROBOT_KEEP_CLONE=1 leaves the directory alone (use this if you've written
+    # branches/calibration files/datasets into the clone you want to preserve).
     local clone="${LEROBOT_DIR:-$HOME/lerobot}"
     if [ -d "$clone" ]; then
-        local kb; kb=$(du -sk "$clone" 2>/dev/null | awk '{print $1}'); kb=${kb:-0}
-        say "    · clone left in place: $clone  ($(human_kb "$kb"))"
-        say "      to delete it too (your work — be sure):  rm -rf \"$clone\""
+        if [ "${LEROBOT_KEEP_CLONE:-0}" = "1" ]; then
+            local kb; kb=$(du -sk "$clone" 2>/dev/null | awk '{print $1}'); kb=${kb:-0}
+            say "    · LEROBOT_KEEP_CLONE=1 → leaving clone in place: $clone  ($(human_kb "$kb"))"
+        else
+            # Loud warning if the working tree has uncommitted/untracked changes,
+            # so the user sees what's about to disappear before reclaim deletes it.
+            # (The interactive top-level prompt is the real gate; this just informs.)
+            if [ -d "$clone/.git" ] && command -v git >/dev/null 2>&1; then
+                local dirty; dirty=$(git -C "$clone" status --porcelain 2>/dev/null | wc -l)
+                if [ "${dirty:-0}" -gt 0 ]; then
+                    say "    · WARNING: $clone has $dirty uncommitted/untracked file(s)."
+                    say "      Aborting THIS step only — set LEROBOT_KEEP_CLONE=1 to skip"
+                    say "      clone removal, or commit/stash/discard changes and re-run."
+                    return
+                fi
+            fi
+            reclaim lerobot-clone "$clone"
+        fi
     fi
 }
 

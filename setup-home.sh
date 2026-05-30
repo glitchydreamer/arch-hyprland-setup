@@ -546,24 +546,61 @@ do_lerobot() {
     # ~/lerobot) because the examples/, scripts/, and src/lerobot/scripts/ entry
     # points the HF docs reference for SO-arm 101 calibration/teleop/recording
     # only exist in the clone — not in the PyPI wheel. `git pull` keeps it current.
-    # If no clone is found, fall back to a plain PyPI install of the published wheel.
+    #
+    # Source-mode resolution (in order):
+    #   1. $LEROBOT_DIR contains pyproject.toml         → editable, use as-is
+    #   2. $LEROBOT_DIR exists but isn't a LeRobot tree → PyPI (refuse to overwrite)
+    #   3. LEROBOT_NO_CLONE=1                           → PyPI (explicit opt-out)
+    #   4. otherwise                                    → git clone HF/lerobot, then editable
+    # If the clone step itself fails (no network, etc.) we fall back to PyPI silently.
     local clone="${LEROBOT_DIR:-$HOME/lerobot}"
-    local mode pip_target
+    local repo_url="${LEROBOT_REPO:-https://github.com/huggingface/lerobot.git}"
+    local mode pip_target need_clone=0
     if [ -f "$clone/pyproject.toml" ]; then
-        mode="editable clone at $clone"
-        pip_target="-e $clone[$extras]"
+        mode="editable from existing clone at $clone"
+    elif [ -e "$clone" ]; then
+        say "    · WARNING: $clone exists but is not a LeRobot clone (no pyproject.toml)."
+        say "      Refusing to touch it; falling back to PyPI install."
+        mode="PyPI (refused to overwrite non-clone dir)"
+    elif [ "${LEROBOT_NO_CLONE:-0}" = "1" ]; then
+        mode="PyPI (LEROBOT_NO_CLONE=1)"
     else
-        mode="PyPI (no clone at $clone — fallback)"
-        pip_target="lerobot[$extras]"
+        mode="editable from fresh clone at $clone"
+        need_clone=1
     fi
+    case "$mode" in
+        editable*) pip_target="-e $clone[$extras]" ;;
+        *)         pip_target="lerobot[$extras]"   ;;
+    esac
     say "    · target: env=$env_name, python=$py, source=$mode"
 
     if [ "$DRY_RUN" -eq 1 ]; then
         say "    [dry-run] conda create -n $env_name python=$py"
         say "    [dry-run] write activate.d/cmake_policy.sh (CMAKE_POLICY_VERSION_MINIMUM=3.5)"
+        [ "$need_clone" -eq 1 ] && say "    [dry-run] git clone $repo_url $clone"
         say "    [dry-run] pip install -U pip setuptools wheel"
         say "    [dry-run] pip install $pip_target"
         return
+    fi
+
+    # Clone now (before conda activate, so a clone failure doesn't waste the env).
+    if [ "$need_clone" -eq 1 ]; then
+        if ! command -v git >/dev/null 2>&1; then
+            say "    · git not found — falling back to PyPI install."
+            mode="PyPI (git missing)"
+            pip_target="lerobot[$extras]"
+        else
+            say "    · cloning $repo_url → $clone …"
+            if git clone "$repo_url" "$clone"; then
+                say "    · clone OK."
+            else
+                say "    · git clone failed — falling back to PyPI install."
+                mode="PyPI (clone failed)"
+                pip_target="lerobot[$extras]"
+                # In case partial files landed, drop them so a re-run can retry.
+                [ -d "$clone" ] && rm -rf "$clone"
+            fi
+        fi
     fi
 
     # Source conda so 'conda activate' works inside this non-login bash.
