@@ -599,3 +599,22 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   - **Live install:** user runs `./install.sh monitor` (I can't sudo per the
     standing rule). On this machine only psensor + hardinfo2 are missing —
     the other five are already in place. `pac --needed` skips them.
+- **2026-05-30 — `monitor` component: handle mission-center hard-conflict with
+  AUR `mission-center-git`.** First live run of `./install.sh monitor` aborted:
+  pacman flagged the repo `mission-center 1.1.0-1` as in-conflict with the
+  installed AUR `mission-center-git 1.1.0.r108`, and under `--needed
+  --noconfirm` it refuses to swap and bails on the *entire* transaction —
+  taking `psensor` and `hardinfo2` down with it (so the user's machine ended
+  up with NEITHER GUI installed). My prior claim that "pacman silently skips
+  the conflicting package" was wrong; under --noconfirm the conflict is fatal.
+  - **Fix:** `do_monitor()` now queries `pacman -Qq mission-center{,_git}` and
+    **omits the repo mission-center from the install set if either variant is
+    already present**, printing "· mission-center already provided (skipping
+    the repo build to avoid the AUR git conflict)". Either variant covers
+    Super+Shift+P, so it's a no-op semantically.
+  - Reference.md note about mission-center rewritten with the real behaviour
+    (hard conflict, deliberate skip, why).
+  - Dry-run verified on this machine: skip line printed; install set becomes
+    `psensor hardinfo2 nvtop btop lm_sensors lib32-lm_sensors`.
+  - **User re-runs `./install.sh monitor`** to actually install psensor +
+    hardinfo2 (the other four are already there and `--needed` skips them).

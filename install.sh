@@ -310,10 +310,8 @@ do_monitor() {
     #                          and surfaces lm_sensors in a Sensors tab.
     #   mission-center       — Task-Manager-style GUI: live CPU/GPU/RAM/disk/net
     #                          utilization + per-process. (Already bound to
-    #                          Super+Shift+P in hypr-user.conf.) Note: 'mission-center'
-    #                          is the stable repo build; the AUR 'mission-center-git'
-    #                          provides the same binary, so pacman will skip this
-    #                          on a system that already has the git build.
+    #                          Super+Shift+P in hypr-user.conf.) See below for the
+    #                          conflict-with-mission-center-git handling.
     #   nvtop                — live GPU TUI (NVIDIA / AMD / Intel). Per-process VRAM
     #                          + utilization + power; what nvidia-smi can't show.
     #   btop                 — modern CLI process/system viewer (replaces htop).
@@ -324,7 +322,19 @@ do_monitor() {
     #                          (most boards work out of the box — e.g. NCT6798 here
     #                          is auto-loaded by the kernel — but sensors-detect is
     #                          the catch-all for the rest).
-    pac monitor psensor hardinfo2 mission-center nvtop btop lm_sensors lib32-lm_sensors
+    local pkgs=(psensor hardinfo2 nvtop btop lm_sensors lib32-lm_sensors)
+    # mission-center vs mission-center-git: the AUR git build hard-conflicts with
+    # the repo stable. Under --needed --noconfirm pacman REFUSES to silently
+    # remove the git variant and aborts the entire transaction (taking psensor +
+    # hardinfo2 down with it). So only add the repo mission-center if neither
+    # variant is currently installed.
+    if pacman -Qq mission-center >/dev/null 2>&1 \
+       || pacman -Qq mission-center-git >/dev/null 2>&1; then
+        say "    · mission-center already provided (skipping the repo build to avoid the AUR git conflict)"
+    else
+        pkgs+=(mission-center)
+    fi
+    pac monitor "${pkgs[@]}"
 }
 do_kde()     { pac kde systemsettings discover kinfocenter; }
 do_display() { pac display drm-info wdisplays wlr-randr brightnessctl nm-connection-editor; }

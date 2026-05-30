@@ -513,10 +513,16 @@ sensors                       # should now print temps, fans, voltages
 ```
 
 Notes: **mission-center** in the repo is the stable build (1.1.x); the AUR
-package `mission-center-git` provides the same binary, so on a system that
-already has the git variant pacman will skip the repo one (and that's fine —
-either covers Super+Shift+P). **nvidia-settings** lives in the `gpu` component
-because it ships with the NVIDIA stack and needs to track the driver.
+`mission-center-git` package **hard-conflicts** with it (they install the same
+files). Under `pacman --needed --noconfirm` the conflict is fatal — pacman
+refuses to swap and aborts the entire transaction (taking psensor + hardinfo2
+down with it). So `do_monitor` queries pacman first and **only adds the repo
+mission-center to the package list if neither variant is currently installed**.
+Either variant covers Super+Shift+P, so this is a no-op semantically. The
+component prints `· mission-center already provided (skipping the repo build
+to avoid the AUR git conflict)` when it skips. **nvidia-settings** lives in
+the `gpu` component because it ships with the NVIDIA stack and needs to track
+the driver.
 
 ---
 
