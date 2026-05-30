@@ -163,6 +163,18 @@ EOF
 # 10-bit SDR (sRGB), VRR off (overrides global misc { vrr = 1 }) → locked refresh.
 # HDR is opt-in per session via Super+Ctrl+Alt+H (hdr-toggle).
 monitor = $DESK_CONN, $DESK_MODE, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0
+
+# Optional second monitor: Acer VG240YS (1080p165), PORTRAIT, to the RIGHT of the
+# ultrawide. A monitor rule is inert until that output is actually plugged in, so
+# this is safe to leave active — the Acer just comes up rotated and placed when
+# attached. transform 3 = 90° counter-clockwise; if it ends up rotated the wrong
+# way, change to "transform, 1" (90° clockwise) and run \`hyprctl reload\`. The panel
+# is natively 8-bit, so bitdepth 10 is dithered (not true 10-bit) — drop it if the
+# monitor ever fails to light at 10-bit. Assumes the Acer lands on DP-2; if it comes
+# up landscape/auto instead, its connector differs — check \`hyprctl monitors\` and
+# update the name here (or switch to a desc: match).
+monitor = DP-2, 1920x1080@165, 3440x0, 1, transform, 3, bitdepth, 10, vrr, 0
+
 monitor = , preferred, auto, 1
 EOF
 

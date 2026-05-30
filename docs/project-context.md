@@ -377,3 +377,20 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   loud failure not silent); recovery nets (two kernels via Limine, pacman cache +
   `downgrade`, keyring refresh); and the weekly update ritual. Added to `mkdocs.yml`
   nav as item 11 and linked from page 10's footer. No script/config changes.
+- **2026-05-30 — second desktop monitor (Acer VG240YS) wired into the desktop
+  profile.** User has an Acer VG240YS (1080p/165, IPS, 8-bit) used occasionally
+  in portrait, to the right of the LG ultrawide, on the second DP port of the
+  RTX 3060. Added one rule to `hypr-monitors-desktop.conf` (live) and the
+  matching block in `setup-home.sh` do_hyprland generator:
+  `monitor = DP-2, 1920x1080@165, 3440x0, 1, transform, 3, bitdepth, 10, vrr, 0`.
+  Kept active full-time — a monitor rule is inert until that output appears, so
+  it costs nothing when the Acer is unplugged and gives true plug-and-play
+  portrait/placement when it is. Rotation defaulted to `transform, 3` (90° CCW)
+  since user didn't know which way the stand pivots; flip to `transform, 1` and
+  `hyprctl reload` if it comes up wrong. `bitdepth, 10` requested but the panel
+  is natively 8-bit (16.7M colours) so the GPU dithers — true 10-bit stays the
+  LG's privilege. Connector assumed DP-2; if it lands elsewhere, swap the name
+  (or `desc:` match). Laptop profile untouched. Docs: `display.md` host table
+  gained an "optional desktop" row and the desktop-config block explains all
+  five caveats (placement, rotation, 8-bit panel, connector, inert-when-absent).
+  `hyprctl reload` clean; ultrawide unaffected.

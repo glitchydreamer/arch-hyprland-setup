@@ -10,6 +10,7 @@ automatically at session start via a small detection script.
 |---|---|---|---|---|---|
 | **Laptop** (Intel + RTX 4070 Mobile) | `eDP-1` — BOE 16" 2560×1600 | `2560x1600@240` | `1.25` | on (global `misc { vrr = 1 }`) | 8-bit (panel maxes out at 8 bpc per EDID) |
 | **Desktop** (RTX 3060) | `DP-1` — LG 34" WQHD ultrawide | `3440x1440@159.96` | `1.0` | **off** (locked 160 Hz) | **10-bit SDR (sRGB)** by default; HDR on demand via toggle |
+| **Desktop, optional** | `DP-2` — Acer VG240YS 24" (portrait) | `1920x1080@165` | `1.0` | off (locked 165 Hz) | 10-bit requested; panel is 8-bit so the GPU dithers — true 10-bit only on the LG |
 
 The laptop panel is hardware-limited to 8 bpc (BOE EDID says so). The desktop
 monitor is 10-bit capable and is configured for 10-bit SDR — smoother
@@ -57,6 +58,7 @@ monitor = , preferred, auto, 1          # catch-all for external monitors
 
 ```ini
 monitor = DP-1, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0
+monitor = DP-2, 1920x1080@165, 3440x0, 1, transform, 3, bitdepth, 10, vrr, 0
 monitor = , preferred, auto, 1
 ```
 
@@ -65,6 +67,23 @@ setup time** (the first connected non-eDP output and its current resolution),
 so on a different machine the `DP-1`/`3440x1440@159.96` above is filled in with
 whatever that box actually uses (`DP-2`, `HDMI-A-1`, …). The 10-bit / sRGB /
 `vrr, 0` tuning is the same regardless.
+
+The second line is for the **optional Acer VG240YS** (1080p/165 Hz, used in
+**portrait** to the right of the ultrawide). A monitor rule for a disconnected
+output is inert — Hyprland only applies it when that output actually appears —
+so it's safe to leave active full-time. When the Acer is plugged in, it comes
+up rotated and placed automatically; when it isn't, this line does nothing.
+
+- **`3440x0`** sits it flush against the ultrawide's right edge.
+- **`transform, 3`** = 90° counter-clockwise. If the image ends up rotated the
+  wrong way, change to **`transform, 1`** (90° clockwise) and `hyprctl reload`.
+- **`bitdepth, 10`** is requested, but the VG240YS panel is natively 8-bit
+  (1080p/165 Hz IPS, 16.7M colours), so the GPU dithers a 10-bit signal down to
+  8 — *not* true 10-bit. Drop the keyword if the panel ever fails to light at
+  10-bit. The 10-bit experience belongs to the LG.
+- The connector name **assumes DP-2**. If `hyprctl monitors` shows it landing on
+  a different port when you plug it in, update the name (or switch to a
+  `desc:Acer Technologies VG240YS …` match for port-swap robustness).
 
 The trailing args:
 
