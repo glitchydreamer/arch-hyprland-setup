@@ -267,26 +267,56 @@ issues that are worth knowing before you start.
 > extra pulls **LIBERO** (a sim benchmark) → `robomimic` → `egl-probe`, which is
 > the package above. If your workflow is *real* SO-arm 101 — teleop, recording
 > datasets, training/running policies on the actual robot — you don't need any of
-> that. Install with **`lerobot[feetech]`** (servo SDK) and add only the policy /
-> video extras you'll use, e.g. `lerobot[feetech,smolvla,pyav]`. The install
-> becomes minutes instead of an hour, and you sidestep the cmake hot zone
-> entirely (Gotcha 5 still applies if you later add an extra that hits it).
+> that. Install with **`[feetech]`** (servo SDK) and add only the policy/video
+> extras you'll use, e.g. `[feetech,smolvla,pyav]`. The install becomes minutes
+> instead of an hour, and you sidestep the cmake hot zone entirely (Gotcha 5 still
+> applies if you later add an extra that hits it). Pair this with the
+> **editable-clone install** below — the example/calibration scripts you'll use
+> for the actual robot live in the repo, not in the published wheel.
+
+### Editable clone vs PyPI
+
+LeRobot's official docs offer two install paths; the component is **clone-aware**
+and prefers the first:
+
+| Path | What it does | Use when |
+|---|---|---|
+| **Editable from a local clone** — `pip install -e "~/lerobot[feetech]"` | conda env's `site-packages` *links* back to the clone; `import lerobot` reads the working tree | Real-hardware work (this machine) — you'll use `examples/`, `scripts/`, `src/lerobot/scripts/` (calibration / teleop / dataset-record entry points) that only exist *in the clone*; `git pull` keeps you current without reinstalling |
+| **PyPI wheel** — `pip install 'lerobot[feetech]'` | conda env's `site-packages` holds the published wheel; no clone | "Try it out" installs; you don't need the example scripts; you'd rather not manage a clone directory |
+
+The component picks the path automatically: if `$LEROBOT_DIR` (or `~/lerobot` by
+default) contains a `pyproject.toml`, it does the **editable install** from
+there; otherwise it falls back to PyPI. The cmake-policy activate hook is the
+same either way.
 
 ### The recipe baked into `setup-home.sh`
 
 The `lerobot` component creates a conda env tuned for SO-arm 101 (Python 3.10,
-`lerobot[feetech]`, the cmake-policy activate hook). Override the defaults via
-env vars:
+`lerobot[feetech]`, the cmake-policy activate hook). Override defaults via env
+vars:
 
 ```bash
-# Default install — SO-arm 101 hardware only:
+# Default install — uses ~/lerobot if cloned, else PyPI:
 ./setup-home.sh lerobot
 
 # Add HF's small VLA policy + video encoding extras:
 LEROBOT_EXTRAS="feetech,smolvla,pyav" ./setup-home.sh lerobot
 
+# Clone in a non-default location:
+LEROBOT_DIR=~/robotics/lerobot ./setup-home.sh lerobot
+
 # Different env name / Python version:
 LEROBOT_ENV=lerobot-dev LEROBOT_PY=3.11 ./setup-home.sh lerobot
+
+# Force PyPI (e.g. you don't want a clone at all):
+LEROBOT_DIR=/nonexistent ./setup-home.sh lerobot
+```
+
+If you don't have a clone yet and want the editable path:
+
+```bash
+git clone https://github.com/huggingface/lerobot.git ~/lerobot
+./setup-home.sh lerobot
 ```
 
 After it finishes:
@@ -296,12 +326,15 @@ After it finishes:
 | Activate the env | `conda activate lerobot` |
 | Allow serial port access (one-time, then re-login) | `sudo usermod -aG uucp "$USER"` |
 | Find your servo controller | `ls /dev/ttyACM* /dev/ttyUSB*` |
-| Add more extras later (cmake hook already active) | `pip install 'lerobot[feetech,smolvla,pyav]'` |
+| Track upstream LeRobot (editable install only) | `cd ~/lerobot && git pull`  (no reinstall) |
+| Add more extras later (cmake hook already active) | `pip install -e "~/lerobot[feetech,smolvla,pyav]"` |
 
 To tear everything down: `uninstall.sh lerobot` removes the conda env (Anaconda
-itself stays). The companion `uninstall.sh uv` component clears uv venvs / build
-caches / managed Pythons (the pacman `uv` binary itself is left in place — it's
-free disk-wise).
+itself stays). **The `~/lerobot` clone is your work — the uninstaller deliberately
+does not delete it**; remove it manually if you really want to (`rm -rf ~/lerobot`).
+The companion `uninstall.sh uv` component clears uv venvs / build caches /
+managed Pythons (the pacman `uv` binary itself is left in place — it's free
+disk-wise).
 
 ---
 

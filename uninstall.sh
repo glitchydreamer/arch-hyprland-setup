@@ -42,7 +42,7 @@ COMPONENTS=(
     "isaac|Isaac Sim container caches, the IsaacLab clone, the isaac-sim launcher, xorg-xauth"
     "ros2|The ros2-humble launcher + its Docker image + the Fast DDS UDP profile (also clears a leftover Jazzy image/launcher; image only if Docker is still present)"
     "anaconda|Anaconda (AUR) + the conda fish init; leaves your project envs' data under ~/anaconda3 if external"
-    "lerobot|Conda env 'lerobot' (LeRobot for SO-arm 101); override env name with LEROBOT_ENV — leaves Anaconda itself"
+    "lerobot|Conda env 'lerobot' (LeRobot for SO-arm 101); override env name with LEROBOT_ENV — leaves Anaconda AND the ~/lerobot clone (user data; remove manually if wanted)"
     "uv|uv venv (~/.venv), build cache (~/.cache/uv) and uv-managed Pythons; keeps the pacman uv binary"
     "cuda|CUDA toolkit + cuDNN + the /etc/profile.d/cuda.sh PATH (leaves the NVIDIA driver alone)"
     "icons|Switch the GTK icon theme back to the caelestia default (Papirus-Dark); keeps the Sweet/candy packages so you can re-apply"
@@ -238,6 +238,14 @@ do_lerobot() {
         say "    · conda env '$env_name' not present — skip"
     fi
     say "    · Anaconda itself is untouched (run 'anaconda' component to remove it)."
+    # The local clone is user data (calibration files, your scripts, your branches).
+    # The uninstaller deliberately does NOT delete it — user removes manually if so.
+    local clone="${LEROBOT_DIR:-$HOME/lerobot}"
+    if [ -d "$clone" ]; then
+        local kb; kb=$(du -sk "$clone" 2>/dev/null | awk '{print $1}'); kb=${kb:-0}
+        say "    · clone left in place: $clone  ($(human_kb "$kb"))"
+        say "      to delete it too (your work — be sure):  rm -rf \"$clone\""
+    fi
 }
 
 do_uv() {

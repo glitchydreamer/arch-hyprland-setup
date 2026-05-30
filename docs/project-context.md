@@ -428,3 +428,26 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     section with the script invocations + uucp/serial-port next-steps table.
     The LeRobot install was **not auto-run** during this change — user invokes
     `./setup-home.sh lerobot` when ready (heavy PyTorch download).
+- **2026-05-30 — LeRobot install made clone-aware (editable from ~/lerobot
+  preferred).** User pointed out they had an HF LeRobot clone at `~/lerobot`
+  (260 MB, recent commit `b8ad81bf`) and asked whether to keep it. The official
+  docs offer two install paths (PyPI wheel vs `pip install -e .` from a clone);
+  for real-hardware SO-arm 101 work the editable path is the right one because
+  `examples/`, `scripts/`, and `src/lerobot/scripts/` (calibration / teleop /
+  dataset-record entry points the HF docs reference) only exist *in the clone*,
+  not the wheel — and `git pull` keeps the install current with no reinstall.
+  - `do_lerobot()` in setup-home.sh is now **clone-aware**: if
+    `$LEROBOT_DIR` (default `~/lerobot`) contains a `pyproject.toml`, it runs
+    `pip install -e "$dir[$extras]"`; otherwise falls back to
+    `pip install "lerobot[$extras]"`. Says/dry-run messages reflect the chosen
+    mode; finished output prints the clone path + the `git pull` upstream-tracking
+    recipe.
+  - `do_lerobot()` in uninstall.sh **does NOT delete the clone** (it's user
+    data — branches, calibration files, recorded datasets). Prints its size +
+    a manual `rm -rf` hint instead. The `LEROBOT_DIR` env var honoured here too.
+  - Docs: learn/07-dev-environment.md gained an "Editable clone vs PyPI" table
+    and an explicit `git clone …/lerobot.git ~/lerobot` quick-start; the
+    "After it finishes" checklist gained `cd ~/lerobot && git pull` as the
+    update path. Gotcha 6 footer points readers at the editable section.
+  - Memory `project-lerobot-soarm-101-install` updated to reflect editable as
+    the default and `LEROBOT_DIR` as the override.

@@ -57,7 +57,7 @@ COMPONENTS=(
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
     "git|Global git defaults (branch, autoSetupRemote, rerere, editor, ...)"
-    "lerobot|Conda env 'lerobot' with LeRobot for SO-arm 101 real hardware (feetech extras + Arch cmake-4 workaround baked into an activate hook). Overrides: LEROBOT_ENV / LEROBOT_EXTRAS / LEROBOT_PY"
+    "lerobot|Conda env 'lerobot' with LeRobot for SO-arm 101 real hardware (feetech extras + cmake-4 hook). Editable install from ~/lerobot if present (else PyPI). Overrides: LEROBOT_DIR / LEROBOT_ENV / LEROBOT_EXTRAS / LEROBOT_PY"
 )
 
 do_hyprland() {
@@ -542,13 +542,27 @@ do_lerobot() {
     local extras="${LEROBOT_EXTRAS:-feetech}"
     local py="${LEROBOT_PY:-3.10}"
 
-    say "    · target: env=$env_name, python=$py, pip extras=lerobot[$extras]"
+    # Install source: prefer an editable install from a local clone (LEROBOT_DIR or
+    # ~/lerobot) because the examples/, scripts/, and src/lerobot/scripts/ entry
+    # points the HF docs reference for SO-arm 101 calibration/teleop/recording
+    # only exist in the clone — not in the PyPI wheel. `git pull` keeps it current.
+    # If no clone is found, fall back to a plain PyPI install of the published wheel.
+    local clone="${LEROBOT_DIR:-$HOME/lerobot}"
+    local mode pip_target
+    if [ -f "$clone/pyproject.toml" ]; then
+        mode="editable clone at $clone"
+        pip_target="-e $clone[$extras]"
+    else
+        mode="PyPI (no clone at $clone — fallback)"
+        pip_target="lerobot[$extras]"
+    fi
+    say "    · target: env=$env_name, python=$py, source=$mode"
 
     if [ "$DRY_RUN" -eq 1 ]; then
         say "    [dry-run] conda create -n $env_name python=$py"
         say "    [dry-run] write activate.d/cmake_policy.sh (CMAKE_POLICY_VERSION_MINIMUM=3.5)"
         say "    [dry-run] pip install -U pip setuptools wheel"
-        say "    [dry-run] pip install 'lerobot[$extras]'"
+        say "    [dry-run] pip install $pip_target"
         return
     fi
 
@@ -579,12 +593,17 @@ HOOK
     say "    · upgrading pip/setuptools/wheel inside '$env_name' …"
     python -m pip install --upgrade pip setuptools wheel
 
-    say "    · installing lerobot[$extras] (heavy: PyTorch + native builds; minutes)…"
-    pip install "lerobot[$extras]"
+    say "    · installing $pip_target (heavy: PyTorch + native builds; minutes)…"
+    # shellcheck disable=SC2086  # intentional word-splitting so -e + path are 2 args
+    pip install $pip_target
 
     conda deactivate
 
     say "    · done. Activate any time with:  conda activate $env_name"
+    if [ -f "$clone/pyproject.toml" ]; then
+        say "    · editable install — \`import lerobot\` points at $clone."
+        say "      Track upstream: cd $clone && git pull   (no reinstall needed)."
+    fi
     say
     say "    SO-arm 101 next steps (real hardware):"
     say "      1. Plug the Feetech controller (USB). Find its serial port:"
@@ -594,7 +613,11 @@ HOOK
     say "      3. Quick sanity-check inside the env:"
     say "           conda activate $env_name && python -c 'import lerobot; print(lerobot.__version__)'"
     say "      4. To add more extras later (e.g. smolvla policy + video):"
-    say "           conda activate $env_name && pip install 'lerobot[feetech,smolvla,pyav]'"
+    if [ -f "$clone/pyproject.toml" ]; then
+        say "           conda activate $env_name && pip install -e \"$clone[feetech,smolvla,pyav]\""
+    else
+        say "           conda activate $env_name && pip install 'lerobot[feetech,smolvla,pyav]'"
+    fi
     say "         (the cmake-4 env var is already active via the activate hook)."
 }
 
