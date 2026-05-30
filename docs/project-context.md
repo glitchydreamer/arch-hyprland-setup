@@ -479,3 +479,28 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
   - Dry-run verified: clone-fresh path prints `[dry-run] git clone …`; the
     `LEROBOT_NO_CLONE=1` path skips it; the existing-clone path detects
     pyproject.toml and uses editable without re-cloning.
+- **2026-05-30 — LeRobot Python default bumped 3.10 → 3.12 (upstream
+  requires-python bump) + fail-fast on pip errors.** First live run of
+  `./setup-home.sh lerobot` hit `ERROR: Package 'lerobot' requires a different
+  Python: 3.10.20 not in '>=3.12'` — upstream LeRobot's `pyproject.toml` was
+  updated to `requires-python = ">=3.12"` (commit b8ad81bf-era), but the
+  component defaulted to 3.10. The script SILENTLY continued past the failure
+  and printed the success banner — fixed both:
+  - Default `LEROBOT_PY` is now **3.12**. Override (e.g. for pinning to an
+    older lerobot release that still accepts 3.10/3.11) still works.
+  - `pip install` is now wrapped in an `if ! pip install …; then …; return 1; fi`
+    block: on failure, the component deactivates the env, prints a focused
+    diagnostic (likely causes + the exact recovery commands
+    `LEROBOT_KEEP_CLONE=1 ./uninstall.sh lerobot && ./setup-home.sh lerobot`),
+    and exits non-zero — no more bogus "done." after a failed install.
+  - **Live verification done:** removed the broken env via
+    `LEROBOT_KEEP_CLONE=1 ./uninstall.sh lerobot` (reclaimed 196 MB, clone
+    preserved), re-ran `./setup-home.sh lerobot`, install succeeded with
+    `lerobot 0.5.2`, `torch 2.11.0+cu130` (CUDA True), `feetech-servo-sdk
+    1.0.0` (note: import name is `scservo_sdk`, not `feetech_servo_sdk` —
+    legacy Feetech SDK module identity). Editable confirmed: `lerobot.__file__`
+    points at `/home/gamingsoul03/lerobot/src/lerobot`.
+  - Docs `learn/07-dev-environment.md`: "Python 3.10" → "Python 3.12"; example
+    override changed from `LEROBOT_PY=3.11` to `LEROBOT_PY=3.13`; intro
+    paragraph notes the upstream `>=3.12` constraint with the "pin lower only
+    if you've also pinned an older lerobot release" caveat. Memory updated.

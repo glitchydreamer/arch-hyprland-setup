@@ -540,7 +540,9 @@ do_lerobot() {
     # when recording datasets, etc. Deliberately NOT [all] — that drags in hf-libero
     # → robomimic → egl-probe (the cmake-4 hot zone) plus simulators you don't need.
     local extras="${LEROBOT_EXTRAS:-feetech}"
-    local py="${LEROBOT_PY:-3.10}"
+    # LeRobot upstream now requires Python >= 3.12 (per its pyproject.toml).
+    # Override with LEROBOT_PY if you need to pin to an older lerobot release.
+    local py="${LEROBOT_PY:-3.12}"
 
     # Install source: prefer an editable install from a local clone (LEROBOT_DIR or
     # ~/lerobot) because the examples/, scripts/, and src/lerobot/scripts/ entry
@@ -632,7 +634,22 @@ HOOK
 
     say "    · installing $pip_target (heavy: PyTorch + native builds; minutes)…"
     # shellcheck disable=SC2086  # intentional word-splitting so -e + path are 2 args
-    pip install $pip_target
+    if ! pip install $pip_target; then
+        conda deactivate
+        say
+        say "!!! pip install failed for $pip_target."
+        say "    The conda env '$env_name' was created but does NOT contain a working"
+        say "    LeRobot install. Common causes:"
+        say "      - lerobot requires a newer Python than '$py' (check pyproject.toml in"
+        say "        the clone; bump with LEROBOT_PY=<ver> ./setup-home.sh lerobot)"
+        say "      - a transitive build dep needs a system package missing on this host"
+        say "      - the cmake-4 policy env var didn't apply (rare; the activate hook is"
+        say "        only sourced by 'conda activate', which this script just did)"
+        say "    To rebuild from scratch, drop the env and re-run:"
+        say "      LEROBOT_KEEP_CLONE=1 ./uninstall.sh lerobot   # keeps ~/lerobot"
+        say "      ./setup-home.sh lerobot                       # try again"
+        return 1
+    fi
 
     conda deactivate
 

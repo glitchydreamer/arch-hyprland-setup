@@ -297,10 +297,11 @@ The cmake-policy activate hook is the same either way.
 
 ### The recipe baked into `setup-home.sh`
 
-The `lerobot` component creates a conda env tuned for SO-arm 101 (Python 3.10,
+The `lerobot` component creates a conda env tuned for SO-arm 101 (Python 3.12,
 `lerobot[feetech]`, the cmake-policy activate hook) and — by default —
 **clones HF's LeRobot repo to `~/lerobot` and installs it editable**. Override
-defaults via env vars:
+defaults via env vars (note: LeRobot upstream now requires Python ≥ 3.12, so
+pin lower only if you've also pinned an older `lerobot` release).
 
 ```bash
 # Default install — clones HF/lerobot → ~/lerobot, editable install:
@@ -312,8 +313,8 @@ LEROBOT_EXTRAS="feetech,smolvla,pyav" ./setup-home.sh lerobot
 # Clone into a non-default location:
 LEROBOT_DIR=~/robotics/lerobot ./setup-home.sh lerobot
 
-# Different env name / Python version:
-LEROBOT_ENV=lerobot-dev LEROBOT_PY=3.11 ./setup-home.sh lerobot
+# Different env name / Python version (LeRobot requires ≥3.12):
+LEROBOT_ENV=lerobot-dev LEROBOT_PY=3.13 ./setup-home.sh lerobot
 
 # Skip the clone — install the published PyPI wheel instead (great for
 # A/B testing the wheel vs the editable clone):
