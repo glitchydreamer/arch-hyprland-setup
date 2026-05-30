@@ -329,10 +329,16 @@ After it finishes:
 | Step | Command |
 |---|---|
 | Activate the env | `conda activate lerobot` |
-| Allow serial port access (one-time, then re-login) | `sudo usermod -aG uucp "$USER"` |
+| Allow serial port access (canonical — also adds `lock` + `wireshark`) | `./install.sh groups` |
+| …or just the one group, manually | `sudo usermod -aG uucp "$USER"` |
+| Confirm group took effect (log out + back in first) | `id -nG \| tr ' ' '\n' \| grep uucp` |
 | Find your servo controller | `ls /dev/ttyACM* /dev/ttyUSB*` |
 | Track upstream LeRobot (editable install only) | `cd ~/lerobot && git pull`  (no reinstall) |
 | Add more extras later (cmake hook already active) | `pip install -e "~/lerobot[feetech,smolvla,pyav]"` |
+
+The component's printed post-install summary now **detects** whether you're
+already in `uucp` and only prompts you if you're not — so a re-run on a
+properly-configured machine just confirms with a check mark.
 
 ### Cleanup
 

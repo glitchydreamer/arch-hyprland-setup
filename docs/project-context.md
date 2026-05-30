@@ -504,3 +504,15 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     override changed from `LEROBOT_PY=3.11` to `LEROBOT_PY=3.13`; intro
     paragraph notes the upstream `>=3.12` constraint with the "pin lower only
     if you've also pinned an older lerobot release" caveat. Memory updated.
+- **2026-05-30 — `setup-home.sh lerobot` checklist detects existing `uucp`
+  membership.** Confirmed user is already in `uucp` (along with lock,
+  wireshark, docker) — `install.sh groups` had run during the original setup,
+  so the post-install printout's unconditional "run `sudo usermod -aG uucp`"
+  was wrong (would either add a no-op duplicate or worry users about a step
+  they'd already completed). do_lerobot's printed step #2 now inspects
+  `id -nG`: if `uucp` is present, prints "✓ already in 'uucp' group — nothing
+  to do"; otherwise prints both `./install.sh groups` (canonical — also adds
+  lock + wireshark for embedded/wireshark workflows) and the standalone
+  `sudo usermod -aG uucp "$USER"` one-liner. Docs updated to point at
+  `install.sh groups` as the canonical path. No live changes (user already
+  configured); installation declared complete — just plug in the SO-arm.

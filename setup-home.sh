@@ -662,8 +662,17 @@ HOOK
     say "    SO-arm 101 next steps (real hardware):"
     say "      1. Plug the Feetech controller (USB). Find its serial port:"
     say "           ls /dev/ttyACM* /dev/ttyUSB*"
-    say "      2. Give yourself permission on the serial device (one-time, then re-login):"
-    say "           sudo usermod -aG uucp \"\$USER\""
+    # Detect whether the user is already in 'uucp' (Arch's serial group). The
+    # install.sh 'groups' component is the canonical place to add it (alongside
+    # lock + wireshark); we just inform here, since setup-home.sh runs no sudo.
+    if id -nG "$USER" 2>/dev/null | tr ' ' '\n' | grep -qx uucp; then
+        say "      2. Serial-port permission: \xE2\x9C\x93 already in 'uucp' group — nothing to do."
+    else
+        say "      2. Serial-port permission: NOT in 'uucp' group. Add it (one of):"
+        say "           ./install.sh groups            # canonical (adds uucp + lock + wireshark)"
+        say "           sudo usermod -aG uucp \"\$USER\"  # uucp only"
+        say "         Either way, log out and back in for the group to take effect."
+    fi
     say "      3. Quick sanity-check inside the env:"
     say "           conda activate $env_name && python -c 'import lerobot; print(lerobot.__version__)'"
     say "      4. To add more extras later (e.g. smolvla policy + video):"
