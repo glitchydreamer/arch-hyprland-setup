@@ -48,6 +48,7 @@ COMPONENTS=(
     "icons|Switch the GTK icon theme back to the caelestia default (Papirus-Dark); keeps the Sweet/candy packages so you can re-apply"
     "inputremap|input-remapper (AUR) + its daemon/service + ~/.config presets — no longer needed (the Razer mouse remaps via onboard memory)"
     "extras|Remove unused apps + their ~/.config/.cache/.state: Zed, Dolphin (using nautilus), Inkscape, Kate, HyprKCS"
+    "fastfetch|Revert fastfetch to the OS ASCII logo, drop ~/.config/fastfetch/logo.sixel + any animated.* copy + fish_greeting animation hook (keeps the fastfetch-logo helper itself)"
 )
 
 # ---- helpers ----------------------------------------------------------------
@@ -352,6 +353,33 @@ do_extras() {
     reclaim kate-state   "$HOME/.local/state/katestaterc"
     reclaim kate-fb      "$HOME/.local/state/UserFeedback.org.kde.kate"
     reclaim hyprkcs-cfg  "$HOME/.config/hyprkcs"
+}
+
+do_fastfetch() {
+    # Reverts fastfetch back to the OS ASCII logo. We keep the helper binary
+    # (~/.local/bin/fastfetch-logo) and the chafa/ffmpeg packages — they're
+    # cheap and any future logo set goes through the same helper. Use the
+    # helper's own --none flag when present (it knows to unwind the
+    # fish_greeting animation hook too); otherwise fall back to a manual sweep.
+    if [ "$DRY_RUN" -eq 1 ]; then
+        say "    [dry-run] fastfetch-logo --none  (or manual sweep if helper missing)"
+        return 0
+    fi
+    if [ -x "$HOME/.local/bin/fastfetch-logo" ]; then
+        "$HOME/.local/bin/fastfetch-logo" --none
+    else
+        local cfg="$HOME/.config/fastfetch/config.jsonc"
+        if [ -f "$cfg" ] && command -v jq >/dev/null; then
+            local tmp; tmp=$(mktemp)
+            jq '.logo = null' "$cfg" > "$tmp" && mv "$tmp" "$cfg"
+        fi
+        rm -f "$HOME/.config/fastfetch/logo.sixel" \
+              "$HOME/.config/fastfetch"/animated.{gif,mp4,webm,mkv,mov} 2>/dev/null || true
+        # Strip the fish_greeting marker + the chafa playback line just below it.
+        local fg="$HOME/.config/fish/functions/fish_greeting.fish"
+        [ -f "$fg" ] && sed -i '/fastfetch-logo: animated playback/,+1d' "$fg"
+    fi
+    say "    · fastfetch logo cleared. Helper at ~/.local/bin/fastfetch-logo stays."
 }
 
 # ---- arg parsing ------------------------------------------------------------

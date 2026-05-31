@@ -53,7 +53,8 @@ COMPONENTS=(
     "caelestia|Caelestia shell.json tweaks (weather/dashboard temperature in °C, not °F)"
     "nautilus|Sweet icons: synthwave Sweet-Purple folders + candy app icons as the GTK icon theme (ICON_THEME=<variant> to pick another)"
     # (the daily file manager is nautilus; the old 'dolphin' tweak component was removed)
-    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, vnc-server, remote, lerobot-verify"
+    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, vnc-server, remote, lerobot-verify, fastfetch-logo"
+    "fastfetch|Point fastfetch at a custom image / GIF / video logo via the fastfetch-logo helper (interactive: just give it the file path)"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
     "git|Global git defaults (branch, autoSetupRemote, rerere, editor, ...)"
@@ -591,7 +592,257 @@ else:
 PY
 EOF
 
-    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-humble" "$BIN/vnc-server" "$BIN/remote" "$BIN/lerobot-verify"
+    # fastfetch-logo — set fastfetch's logo to any image / animated GIF / video.
+    # Pre-renders to sixel via chafa (true bitmap quality in foot/ghostty/kitty
+    # & graceful fallback elsewhere). Defaults pick the safe layout (position:
+    # top) because foot wipes sixel pixels on rows where it later prints text —
+    # putting modules underneath the image dodges that bug. See
+    # docs/learn/12-fastfetch-logo.md for the full story.
+    cat > "$BIN/fastfetch-logo" <<'EOF'
+#!/usr/bin/env bash
+# fastfetch-logo — point fastfetch at a custom image / animated GIF / video.
+#
+#   fastfetch-logo PATH                   # auto: image/gif/video → sixel logo
+#   fastfetch-logo --size WxH PATH        # chafa render size (default 70x18)
+#   fastfetch-logo --frame T PATH         # static frame at T seconds (gif/video)
+#   fastfetch-logo --animate PATH         # animated playback via fish_greeting
+#   fastfetch-logo --position top|left    # default: top (avoids foot row-clear)
+#   fastfetch-logo --none                 # revert to OS ASCII logo
+#   fastfetch-logo --info                 # show current logo state
+#
+# Defaults are tuned for foot at JetBrains Mono 12pt (cell ≈ 8×17 px). The
+# --size argument is in *chafa chars* (chafa assumes ~10×20 px cells), so the
+# helper scales up width/height in the fastfetch config to match foot's actual
+# cell footprint. Bigger --size = sharper but may overflow the viewport.
+set -euo pipefail
+
+CFG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch"
+CFG="$CFG_DIR/config.jsonc"
+SIXEL="$CFG_DIR/logo.sixel"
+ANIM_MARK="# fastfetch-logo: animated playback"   # marker in fish_greeting
+
+SIZE="70x18"
+POSITION="top"
+FRAME_TIME="1"
+DURATION="3"
+MODE="set"          # set | none | info | animate
+SRC=""
+
+usage() { sed -n '2,15p' "$0" | sed 's/^# \?//'; }
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --size)      SIZE="$2"; shift 2 ;;
+        --position)  POSITION="$2"; shift 2 ;;
+        --frame)     FRAME_TIME="$2"; shift 2 ;;
+        --duration)  DURATION="$2"; shift 2 ;;
+        --animate)   MODE="animate"; shift ;;
+        --none)      MODE="none"; shift ;;
+        --info)      MODE="info"; shift ;;
+        -h|--help)   usage; exit 0 ;;
+        -*)          echo "Unknown option: $1" >&2; exit 2 ;;
+        *)           SRC="$1"; shift ;;
+    esac
+done
+
+need() { command -v "$1" >/dev/null || { echo "Missing dep: $1 (install.sh terminal & media)" >&2; exit 1; }; }
+need jq
+
+ensure_config() {
+    mkdir -p "$CFG_DIR"
+    [ -f "$CFG" ] || printf '{ "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json", "logo": null }\n' > "$CFG"
+}
+
+revert_fish_greeting() {
+    local fg="$HOME/.config/fish/functions/fish_greeting.fish"
+    [ -f "$fg" ] || return 0
+    grep -q "$ANIM_MARK" "$fg" || return 0
+    # Drop the marker line and the chafa line just below it.
+    sed -i "/$ANIM_MARK/,+1d" "$fg"
+}
+
+case "$MODE" in
+    info)
+        ensure_config
+        echo "config: $CFG"
+        echo "sixel:  $SIXEL$([ -f "$SIXEL" ] && echo " ($(du -h "$SIXEL" | cut -f1))")"
+        echo "logo block:"
+        jq '.logo // "null (OS ASCII fallback)"' "$CFG"
+        fg="$HOME/.config/fish/functions/fish_greeting.fish"
+        if [ -f "$fg" ] && grep -q "$ANIM_MARK" "$fg"; then
+            echo "fish_greeting: animated playback ACTIVE"
+            grep -A1 "$ANIM_MARK" "$fg" | sed 's/^/  /'
+        fi
+        exit 0
+        ;;
+    none)
+        ensure_config
+        tmp=$(mktemp)
+        jq '.logo = null' "$CFG" > "$tmp" && mv "$tmp" "$CFG"
+        rm -f "$SIXEL" "$CFG_DIR/animated."{gif,mp4,webm,mkv,mov} 2>/dev/null || true
+        revert_fish_greeting
+        echo "Logo cleared (OS ASCII fallback). fish_greeting animation removed."
+        exit 0
+        ;;
+esac
+
+[ -n "$SRC" ] || { usage; exit 2; }
+[ -e "$SRC" ] || { echo "File not found: $SRC" >&2; exit 1; }
+SRC="$(realpath "$SRC")"
+
+mime=$(file -b --mime-type "$SRC" 2>/dev/null || echo "")
+ext="${SRC##*.}"; ext="${ext,,}"
+case "$mime" in
+    image/gif)     kind=gif ;;
+    image/*)       kind=image ;;
+    video/*)       kind=video ;;
+    *)
+        case "$ext" in
+            jpg|jpeg|png|webp|bmp|tiff|tif) kind=image ;;
+            gif)                             kind=gif ;;
+            mp4|mkv|webm|mov|avi)            kind=video ;;
+            *) echo "Unsupported type: $mime ($ext)" >&2; exit 1 ;;
+        esac ;;
+esac
+
+if [ "$MODE" = "animate" ]; then
+    [ "$kind" = "image" ] && { echo "--animate needs a GIF or video (got still image)." >&2; exit 1; }
+    need chafa
+    ensure_config
+    # Copy source so the original can move/disappear without breaking the shell.
+    dst_ext="${SRC##*.}"
+    dst="$CFG_DIR/animated.$dst_ext"
+    install -m 0644 "$SRC" "$dst"
+    # Clear the fastfetch logo (image is played by fish_greeting before fastfetch).
+    tmp=$(mktemp)
+    jq '.logo = null' "$CFG" > "$tmp" && mv "$tmp" "$CFG"
+    rm -f "$SIXEL"
+    # Wire the playback into fish_greeting (idempotent — revert first).
+    fg="$HOME/.config/fish/functions/fish_greeting.fish"
+    revert_fish_greeting
+    if [ -f "$fg" ]; then
+        # Insert the chafa playback line just BEFORE the existing fastfetch call.
+        if grep -q 'fastfetch' "$fg"; then
+            awk -v mark="    $ANIM_MARK" \
+                -v cmd="    chafa --animate=on --duration=$DURATION --format=sixel --size=$SIZE '$dst'" \
+                '/fastfetch/ && !done { print mark; print cmd; done=1 } { print }' \
+                "$fg" > "${fg}.new" && mv "${fg}.new" "$fg"
+        else
+            printf '\n%s\n%s\n' "    $ANIM_MARK" \
+                "    chafa --animate=on --duration=$DURATION --format=sixel --size=$SIZE '$dst'" >> "$fg"
+        fi
+    fi
+    echo "Animated playback wired into fish_greeting."
+    echo "  source : $dst"
+    echo "  size   : $SIZE     duration: ${DURATION}s"
+    echo "Open a new fish shell to see it play, then fastfetch runs underneath."
+    exit 0
+fi
+
+# Static-frame path: image / gif-first-frame / video-frame.
+need chafa
+ensure_config
+
+if [ "$kind" = "gif" ] || [ "$kind" = "video" ]; then
+    need ffmpeg
+    tmp_frame=$(mktemp --suffix=.png)
+    trap 'rm -f "$tmp_frame"' EXIT
+    echo ">>> Extracting frame at ${FRAME_TIME}s from $(basename "$SRC")"
+    ffmpeg -y -hide_banner -loglevel error -ss "$FRAME_TIME" -i "$SRC" -vframes 1 "$tmp_frame" \
+        || { echo "Frame extraction failed." >&2; exit 1; }
+    render_src="$tmp_frame"
+else
+    render_src="$SRC"
+fi
+
+echo ">>> Rendering sixel via chafa (size=$SIZE, $kind)"
+chafa --format=sixel --size="$SIZE" --animate=off "$render_src" > "$SIXEL"
+
+# Compensate for the chafa-vs-foot cell-aspect mismatch (chafa assumes ~10×20 px,
+# foot's actual is ~8×17). Multiply both by 1.2 + round up — slightly generous so
+# modules don't overlap the sixel; extra empty cells are harmless.
+chafa_w="${SIZE%x*}"; chafa_h="${SIZE#*x}"
+ff_w=$(awk "BEGIN{print int($chafa_w*1.2)+1}")
+ff_h=$(awk "BEGIN{print int($chafa_h*1.2)+1}")
+
+# Keep the source as a literal tilde path so the config is portable across homes.
+src_path="~/.config/fastfetch/logo.sixel"
+tmp=$(mktemp)
+jq --arg src "$src_path" --arg pos "$POSITION" \
+   --argjson w "$ff_w" --argjson h "$ff_h" \
+   '.logo = {source: $src, type: "raw", position: $pos, width: $w, height: $h, padding: {top:1, left:2, right:4}}' \
+   "$CFG" > "$tmp" && mv "$tmp" "$CFG"
+
+# A previously-active animated playback would shadow the new static logo.
+revert_fish_greeting
+
+cat <<MSG
+
+Done.
+  sixel    : $SIXEL ($(du -h "$SIXEL" | cut -f1))
+  position : $POSITION    chafa size: $SIZE    fastfetch cell area: ${ff_w}×${ff_h}
+
+Open a NEW foot terminal and run \`fastfetch\`.
+  - clipped? try a smaller --size (e.g. --size 60x14)
+  - pixelated? try a larger --size (e.g. --size 90x24) — too big = clip
+  - foot's cell aspect (~8×17 px) drives the math; ghostty/kitty differ.
+MSG
+EOF
+
+    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-humble" "$BIN/vnc-server" "$BIN/remote" "$BIN/lerobot-verify" "$BIN/fastfetch-logo"
+}
+
+do_fastfetch() {
+    # Interactive: prompt for a media path, then call ~/.local/bin/fastfetch-logo.
+    # No path supplied → leave the current config untouched. Idempotent.
+    if [ ! -x "$BIN/fastfetch-logo" ]; then
+        say "!!! fastfetch-logo helper not found at $BIN. Run the 'scripts' component first."
+        return 1
+    fi
+    if ! command -v fastfetch >/dev/null; then
+        say "!!! fastfetch isn't installed yet (it ships with caelestia; install.sh covers it via the AUR if needed)."
+        return 1
+    fi
+    if ! command -v chafa >/dev/null; then
+        say "!!! chafa missing — run 'install.sh terminal' first (or sudo pacman -S chafa)."
+        return 1
+    fi
+
+    say "\n### fastfetch logo (image / animated GIF / video)"
+    say "Supply a path to an image (jpg/png/webp/bmp), an animated GIF, or a video file."
+    say "Leave empty to skip (keeps the existing logo); type 'none' to revert to the OS ASCII."
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        say "    [dry-run] would prompt for a path and call $BIN/fastfetch-logo"
+        return 0
+    fi
+
+    local path mode_choice extra=()
+    read -rp "  Media path: " path
+    [ -z "$path" ] && { say "    · no path given — keeping current logo."; return 0; }
+    if [ "$path" = "none" ]; then
+        "$BIN/fastfetch-logo" --none
+        return 0
+    fi
+
+    # Quick kind detection so we can offer animated playback for GIF/video.
+    local kind=image
+    case "$(file -b --mime-type "$path" 2>/dev/null)" in
+        image/gif) kind=gif ;;
+        image/*)   kind=image ;;
+        video/*)   kind=video ;;
+    esac
+
+    if [ "$kind" != "image" ]; then
+        read -rp "  '$path' is a $kind. Animate it on shell startup? [y/N]: " mode_choice
+        case "$mode_choice" in y|Y|yes|YES) extra+=(--animate) ;; esac
+    fi
+
+    local size
+    read -rp "  chafa --size [70x18]: " size
+    [ -n "$size" ] && extra+=(--size "$size")
+
+    "$BIN/fastfetch-logo" "${extra[@]}" "$path"
 }
 
 do_fish() {

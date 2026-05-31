@@ -50,7 +50,10 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   `editors`, `embedded`, `audio` (incl. the DualSense PipeWire 1.6.5 pin +
   touchpad udev rule), `gpu`, `docker` (Docker + NVIDIA Container Toolkit;
   data-root on /home/docker-data + containerd-snapshotter=false; for ROS 2 Humble /
-  GPU containers), `media`, `terminal`, `kde`, `display`, `monitor` (HWiNFO
+  GPU containers), `media` (haruna/obs/gimp/okular/gwenview/swayimg + `ffmpeg`
+  for video decoding & frame extraction by the fastfetch-logo helper),
+  `terminal` (fzf/rg/fd/bat/zoxide/lazygit/gh/tmux/tree/jq/yq + `chafa`,
+  the terminal-image renderer that drives fastfetch-logo), `kde`, `display`, `monitor` (HWiNFO
   equivalent — psensor + hardinfo2 GUIs, mission-center, nvtop, btop, lm_sensors),
   `storage` (NTFS/exFAT userspace drivers + gnome-disk-utility so
   Windows-formatted SSDs mount in nautilus — Arch omits these by default,
@@ -639,3 +642,66 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     benchmark dialog if you don't want to leave the partition view.
   - No memory file added — small package add with no surprising lesson; this
     history entry is the durable record.
+- **2026-05-31 — fastfetch custom-image/GIF/video logo via the
+  fastfetch-logo helper.** User wanted to replace fastfetch's OS ASCII
+  logo with a real image (Sukuna lofi wallpaper at the time), and
+  ultimately a flexible system for swapping in any image, animated GIF,
+  or video later. Long debugging arc (transcript captures the journey;
+  this entry is the summary):
+  - **fastfetch's own image protocols are quirky on Arch.** The repo
+    `fastfetch-git` build's `--list-features` does NOT include `sixel` —
+    the sixel rendering goes through `imagemagick7` instead, and that
+    coder *crop-fills* the source rather than preserving aspect, slicing
+    the top half off any 16:9 image. `type: chafa` works once
+    `pacman -S chafa` provides `libchafa.so` (silent ASCII fallback if
+    not), but it's character-cell block-art, intrinsically pixelated.
+  - **Working architecture**: pre-render with the chafa **CLI** (which
+    preserves aspect properly), point fastfetch at the file with
+    `type: raw` so it streams the bytes verbatim. Bypasses the
+    imagemagick coder entirely. Output = native sixel, foot draws it
+    pixel-perfect.
+  - **Foot row-clear bug discovered**: with `position: left` (logo and
+    modules in parallel rows), foot wipes sixel pixels on any cell-row
+    where text is subsequently printed — even when text is in different
+    columns. Result: only the rows below where modules end survived
+    (the desk/hands strip — head + torso clipped). Fix: `position: top`
+    puts the image on its own rows where nothing else writes.
+    [[project-fastfetch-sixel-foot-quirks]] captures this so we don't
+    re-discover it.
+  - **chafa size ≠ foot cells.** chafa internally assumes ~10×20 px
+    cells; foot at JetBrains Mono 12pt is ~8×17. So chafa
+    `--size=70x18` (claims 18 rows) actually renders into ~21 foot
+    rows. The helper scales fastfetch's JSON `width`/`height` up by
+    ~1.2× to reserve the real footprint.
+  - **Helper script** `~/.local/bin/fastfetch-logo` (deployed by
+    `setup-home.sh scripts`): auto-detects image vs GIF vs video,
+    extracts a frame via `ffmpeg -ss T -vframes 1` for the latter two,
+    pre-renders to `~/.config/fastfetch/logo.sixel` via chafa, edits
+    `config.jsonc` via `jq`. Flags: `--size`, `--frame`, `--position`,
+    `--animate` (GIF/video: wires a `chafa --animate=on` line into
+    `fish_greeting.fish` for shell-startup playback; default 3 s
+    duration; `--none` reverts everything including the fish_greeting
+    hook).
+  - **New `setup-home.sh fastfetch` component**: interactive prompt
+    that asks for a media path (empty = keep current, `none` = revert),
+    offers `--animate` for GIF/video, and forwards to the helper. Lets
+    a clean rebuild swap the logo with a single answered prompt.
+  - **install.sh**: `chafa` added to the `terminal` component
+    (alongside fzf/rg/bat/...) since it's a generic CLI image tool and
+    chafa is the missing piece without which the helper silently falls
+    back to ASCII. `ffmpeg` added to the `media` component (was a
+    transitive dep already via haruna/obs/gimp but now explicit) so
+    GIF/video frame extraction works on a fresh box.
+  - **uninstall.sh**: new `fastfetch` component calls
+    `fastfetch-logo --none` (which knows to clear sixel + animation
+    hook + jq the config back to `null`); falls back to a manual sweep
+    if the helper is missing.
+  - **Docs**: `reference.md` §6.11 (command table + quick recipe);
+    `learn/12-fastfetch-logo.md` (full walkthrough of the protocol
+    matrix, the cell-size math, the foot row-clear bug, why
+    `type: raw` instead of `type: sixel`); `mkdocs.yml` nav updated.
+  - **Live migration done**: the existing `sukuna.sixel` (set
+    manually during the debugging arc) was re-rendered via the helper
+    to `logo.sixel`; orphan file removed; config now references the
+    helper-managed path. User's current setup unchanged visually.
+

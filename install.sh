@@ -294,8 +294,14 @@ PY
     say "    · added $USER_NAME to the docker group — log out/in to activate, then:"
     say "      ros2-humble pull  # fetch the ROS 2 Humble image (~4 GB)"
 }
-do_media()   { pac media haruna obs-studio gimp okular gwenview swayimg; }
-do_terminal() { pac terminal fzf ripgrep fd bat zoxide lazygit github-cli tmux tree yq rsync; }
+do_media()   { pac media haruna obs-studio gimp okular gwenview swayimg ffmpeg; }
+do_terminal() {
+    # chafa = the terminal image renderer the fastfetch-logo helper drives.
+    # fastfetch itself is bundled with caelestia (fastfetch-git from the AUR),
+    # so it doesn't need its own line here; what's missing on a fresh box is
+    # chafa, without which the helper silently falls back to ASCII.
+    pac terminal fzf ripgrep fd bat zoxide lazygit github-cli tmux tree yq rsync chafa
+}
 
 do_monitor() {
     # HWiNFO-equivalent stack for Arch. All in the official 'extra' repo — no AUR

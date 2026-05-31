@@ -485,7 +485,7 @@ npm 11, pnpm 10, yarn classic.
 
 ### 6.9 Terminal productivity
 
-fish (shell, with caelestia config), starship (prompt), fzf, ripgrep (`rg`), fd, bat, eza, zoxide (`cd` replacement), lazygit (`lg`), gh (GitHub CLI), tmux, tree, jq, yq.
+fish (shell, with caelestia config), starship (prompt), fzf, ripgrep (`rg`), fd, bat, eza, zoxide (`cd` replacement), lazygit (`lg`), gh (GitHub CLI), tmux, tree, jq, yq, **chafa** (terminal image renderer; drives the fastfetch-logo helper — see §6.11).
 
 ### 6.10 System monitoring (HWiNFO-equivalent stack)
 
@@ -523,6 +523,42 @@ component prints `· mission-center already provided (skipping the repo build
 to avoid the AUR git conflict)` when it skips. **nvidia-settings** lives in
 the `gpu` component because it ships with the NVIDIA stack and needs to track
 the driver.
+
+### 6.11 fastfetch with a custom image / GIF / video logo
+
+caelestia ships fastfetch (`fastfetch-git` from the AUR) and a config at
+`~/.config/fastfetch/config.jsonc`. The `fastfetch` component of
+`setup-home.sh` installs **`~/.local/bin/fastfetch-logo`**, an interactive
+helper for swapping the logo to any image, animated GIF, or video without
+hand-editing JSON.
+
+| Command | What it does |
+|---|---|
+| `fastfetch-logo PATH` | Auto-detect, render the file as a sixel logo. For GIF/video, extracts a static frame at 1 s. |
+| `fastfetch-logo --size WxH PATH` | Override chafa render size (default `70x18`). Bigger = sharper but more rows. |
+| `fastfetch-logo --frame T PATH` | For GIF/video, extract the frame at T seconds before rendering. |
+| `fastfetch-logo --animate PATH` | (GIF/video only) wires a `chafa --animate=on` line into `fish_greeting.fish` to play the clip every time a new shell opens, and clears fastfetch's logo so they don't fight. Pair with `--duration N` (default 3 s). |
+| `fastfetch-logo --position top\|left` | Layout. **`top` is the default** because foot wipes sixel pixels on any row where it later prints text — putting the modules below the image (top) dodges the bug. `left` works in kitty/ghostty. |
+| `fastfetch-logo --none` | Revert to the OS ASCII logo and undo the fish_greeting animation hook. |
+| `fastfetch-logo --info` | Print the current config + sixel state. |
+
+The helper writes the rendered sixel to `~/.config/fastfetch/logo.sixel` and
+sets the config's `logo` block to `type: raw` so fastfetch just streams the
+bytes. The actual cell footprint in foot is larger than chafa's `--size`
+suggests (chafa assumes ~10×20 px cells; foot at JetBrains Mono 12pt is
+~8×17), so the helper scales the JSON `width`/`height` up by ~1.2× to leave
+room for the modules. See [Learn / fastfetch](learn/12-fastfetch-logo.md) for
+the full sizing math + the foot row-clear bug story.
+
+**Quick recipe**:
+```bash
+bash install.sh terminal media          # ensures chafa + ffmpeg
+bash setup-home.sh fastfetch            # interactive: ask for a path
+# or, by hand:
+fastfetch-logo ~/Pictures/Wallpapers/something.jpg
+fastfetch-logo --animate ~/Videos/loop.mp4
+fastfetch-logo --none
+```
 
 ---
 
