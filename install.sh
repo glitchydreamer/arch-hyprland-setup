@@ -192,7 +192,7 @@ COMPONENTS=(
     "kde|KDE settings apps (systemsettings, discover, kinfocenter)"
     "display|Display inspection tools (drm-info, wdisplays, wlr-randr, brightnessctl)"
     "monitor|System monitoring — HWiNFO-style: psensor + hardinfo2 (GUIs), mission-center (Task Mgr equiv), nvtop, btop, lm_sensors"
-    "storage|Mount Windows/other drives + Disks app (ntfs-3g, exfatprogs, gnome-disk-utility)"
+    "storage|Mount Windows/other drives + Disks app + disk benchmark (ntfs-3g, exfatprogs, gnome-disk-utility, kdiskmark)"
     "remote|SSH + remote desktop: freerdp/remmina (out) + wayvnc (VNC in); sshd left OFF, toggle with the 'remote' helper"
     "theme|Candy rainbow icons (AUR: candy-icons + sweet-folders) — GTK icon theme for nautilus etc."
     "aurapps|AUR apps (sweet-cursors, brave, edge, claude-desktop)"
@@ -344,9 +344,14 @@ do_storage() {
     # (Arch, unlike Ubuntu, doesn't ship them). With these installed, clicking an
     # internal Windows SSD in nautilus mounts it. gnome-disk-utility = the "Disks"
     # app from Ubuntu (partitions, free space, SMART). udisks2 is already a dep.
-    pac storage ntfs-3g exfatprogs gnome-disk-utility
+    # kdiskmark = CrystalDiskMark-style sequential/random read+write benchmark
+    # (Qt6 GUI, drives `fio` under the hood); the closest match to the Windows
+    # tool. Lives here rather than in `monitor` because it's disk-specific and
+    # pairs naturally with gnome-disks' own SMART/benchmark dialogs.
+    pac storage ntfs-3g exfatprogs gnome-disk-utility kdiskmark
     say "    · after this, internal NTFS drives mount on click in nautilus."
     say "    · free space / partitions:  gnome-disks   (GUI)   ·   df -h   (CLI)"
+    say "    · disk read/write benchmark (CrystalDiskMark equivalent):  kdiskmark"
 }
 
 do_remote() {

@@ -882,6 +882,11 @@ encrypted partition will prompt for its passphrase instead.
 - GUI: **`gnome-disks`** (gnome-disk-utility) — partitions, free space, SMART.
 - GUI usage map: **`filelight`** (already installed).
 - CLI: `df -h` (free space per mount), `lsblk -f` (devices + filesystems).
+- Benchmark (CrystalDiskMark equivalent): **`kdiskmark`** — Qt6 GUI for
+  sequential / random read+write throughput and IOPS, drives `fio` under the
+  hood. Installed by the `storage` component alongside the Disks app.
+  gnome-disks also has its own *Benchmark* dialog in the menu if you want a
+  quick read-only sweep without leaving the partition view.
 
 ### 9.4 SSH (both directions) — on demand
 `openssh` is installed by `bash install.sh remote`, but **`sshd` is left OFF by

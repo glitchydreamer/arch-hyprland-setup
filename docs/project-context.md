@@ -54,7 +54,8 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   equivalent — psensor + hardinfo2 GUIs, mission-center, nvtop, btop, lm_sensors),
   `storage` (NTFS/exFAT userspace drivers + gnome-disk-utility so
   Windows-formatted SSDs mount in nautilus — Arch omits these by default,
-  unlike Ubuntu), `remote` (enable `sshd` + freerdp/remmina for RDP/VNC *out* +
+  unlike Ubuntu — plus `kdiskmark`, the CrystalDiskMark-equivalent
+  Qt6 disk-benchmark GUI), `remote` (enable `sshd` + freerdp/remmina for RDP/VNC *out* +
   `wayvnc` as a VNC server *into* this Hyprland box — RDP-into-Wayland is
   unsupported, VNC is the working path), `theme` (candy-icons + sweet-folders
   from the AUR — the rainbow GTK icon set), `aurapps`, `groups`, `shell`.
@@ -618,3 +619,23 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     `psensor hardinfo2 nvtop btop lm_sensors lib32-lm_sensors`.
   - **User re-runs `./install.sh monitor`** to actually install psensor +
     hardinfo2 (the other four are already there and `--needed` skips them).
+- **2026-05-31 — `psensor` + `hardinfo2` live-installed; `kdiskmark` folded
+  into the `storage` component.** User confirmed the re-run of
+  `./install.sh monitor` succeeded — both GUIs now present (closing out the
+  prior session's outstanding item). Separately, they installed `kdiskmark`
+  ad-hoc (`extra` repo, Qt6 GUI for sequential/random disk read+write
+  throughput + IOPS, drives `fio` under the hood — the CrystalDiskMark
+  equivalent) and asked to add it to the installer so a future fresh
+  rebuild picks it up automatically.
+  - Placed in the **`storage`** component (not `monitor`) — it's disk-specific
+    and pairs naturally with gnome-disks' own Benchmark dialog, while
+    `monitor` is for *live* system status (sensors, processes, GPU). Same
+    rationale as keeping `nvidia-settings` in `gpu` rather than `monitor`:
+    fit by *subject*, not by *kind of tool*.
+  - `do_storage()` now installs `ntfs-3g exfatprogs gnome-disk-utility
+    kdiskmark`; component description and the post-install hint line both
+    updated. Reference.md §9.3 ("Disk free space / partitions") picked up a
+    bullet for kdiskmark + a note that gnome-disks has its own quick
+    benchmark dialog if you don't want to leave the partition view.
+  - No memory file added — small package add with no surprising lesson; this
+    history entry is the durable record.
