@@ -560,6 +560,53 @@ fastfetch-logo --animate ~/Videos/loop.mp4
 fastfetch-logo --none
 ```
 
+### 6.12 iPad / Android tablet as graphic tablet & touchscreen (Weylus)
+
+Installed via `install.sh tablet`. Uses the maintained community fork
+([electronstudio/WeylusCommunityEdition](https://github.com/electronstudio/WeylusCommunityEdition))
+shipped as a prebuilt AUR binary — `weylus-community-bin`. Upstream
+H-M-H/Weylus has been unmaintained since 2022 and its `weylus` source-build
+PKGBUILD **no longer compiles** on current rustc (the transitive
+`syntex_pos 0.42` crate uses `RustcEncodable`/`Decodable` derive macros
+modern rustc removed).
+
+| Step | Command / file |
+|---|---|
+| Install | `bash install.sh tablet` — pulls `weylus-community-bin` + `gst-plugin-pipewire`, sets up uinput |
+| Same network as your tablet | Desktop and iPad/Android on the same LAN (or hotspot). Weylus serves a webpage, the tablet visits it. |
+| Launch | `weylus` (GUI) — set an access code, leave defaults, press **Start** |
+| On the tablet | Open the printed URL (`http://<desktop-ip>:1701`) in Safari / Chrome / Firefox. Enter the access code. |
+| Pen pressure | Apple Pencil (Safari, iPadOS 13+) and S-Pen / active styli (recent Chromium/Firefox) come through via Pointer Events. Capacitive touch works everywhere. |
+| Stop | Close the Weylus GUI, or `pkill weylus`. The TCP/WS ports close with the process. |
+
+**Ports**: 1701 (webserver) and 9001 (WebSocket). Default Arch has no
+firewall; if you've enabled `ufw`/`firewalld` later, allow those two for
+the LAN side only.
+
+**uinput plumbing** the installer sets up so Weylus can inject pointer
+/ stylus events:
+
+- `/etc/udev/rules.d/60-weylus-uinput.rules` — makes `/dev/uinput`
+  group-owned by `uinput` mode 0660, and creates a static node so the
+  device exists at boot.
+- `/etc/modules-load.d/uinput.conf` — autoloads the kernel module.
+- Your user added to the `uinput` group. **Requires a fresh login** for
+  the group to apply (`groups | grep uinput` to verify).
+
+**Wayland capture** uses `xdg-desktop-portal-hyprland` (already in
+caelestia) plus `gst-plugin-pipewire` (installed by this component).
+Without `gst-plugin-pipewire` the capture falls back to X11 and you get
+a black frame on Hyprland.
+
+**Revert**: `bash uninstall.sh tablet` — removes Weylus, the udev rule,
+the modules-load file, the user from the `uinput` group, and the
+per-user state in `~/.local/share/weylus`. Leaves `gst-plugin-pipewire`
+(shared with audio).
+
+See [Learn / Tablet as drawing pad](learn/13-weylus-tablet.md) for the
+full walkthrough — why the community fork, latency tuning, pen pressure
+debugging, and the "I see a black screen on the tablet" recipe.
+
 ---
 
 ## 7. Common commands cheat-sheet

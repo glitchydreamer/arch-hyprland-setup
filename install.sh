@@ -194,6 +194,7 @@ COMPONENTS=(
     "monitor|System monitoring — HWiNFO-style: psensor + hardinfo2 (GUIs), mission-center (Task Mgr equiv), nvtop, btop, lm_sensors"
     "storage|Mount Windows/other drives + Disks app + disk benchmark (ntfs-3g, exfatprogs, gnome-disk-utility, kdiskmark)"
     "remote|SSH + remote desktop: freerdp/remmina (out) + wayvnc (VNC in); sshd left OFF, toggle with the 'remote' helper"
+    "tablet|Use an iPad/Android tablet as a graphic tablet / touchscreen via Weylus Community Edition (weylus-community-bin AUR + uinput group/udev/module setup)"
     "theme|Candy rainbow icons (AUR: candy-icons + sweet-folders) — GTK icon theme for nautilus etc."
     "aurapps|AUR apps (sweet-cursors, brave, edge, claude-desktop)"
     "groups|Add your user to the serial + wireshark groups (uucp, lock, wireshark)"
@@ -373,6 +374,60 @@ do_remote() {
     say "      (always-on at boot instead:  sudo systemctl enable --now sshd)"
     say "    · RDP/VNC OUT to Windows:  remmina   (or  xfreerdp /v:<host> /u:<user>)"
     say "    · VNC INTO this box:       vnc-server   (localhost; tunnel: ssh -L 5900:localhost:5900 $USER_NAME@<ip>)"
+}
+
+do_tablet() {
+    # Weylus = a small web-server you run on the desktop; you open its URL on an
+    # iPad / Android browser and the tablet acts as a graphic tablet (pen pressure
+    # via Apple Pencil / S-Pen) or a plain touchscreen pointing into the live
+    # desktop. Upstream H-M-H/Weylus (the AUR `weylus` source build) hasn't been
+    # touched since 2022 and no longer compiles on current rustc — its transitive
+    # `syntex_pos 0.42` uses RustcEncodable/Decodable derive macros that modern
+    # rustc removed. The maintained fork is electronstudio/WeylusCommunityEdition;
+    # `weylus-community-bin` ships its prebuilt Linux binary so we sidestep the
+    # whole Rust build path. conflicts with weylus / weylus-bin / weylus-git, so
+    # the AUR helper handles the swap if any of those were installed before.
+    #
+    # gst-plugin-pipewire is the optdepend that enables Wayland (xdg-desktop-portal
+    # screencast) capture — without it, capture falls back to X11 and on Hyprland
+    # you get a black frame. Installed explicitly so a clean box without the
+    # 'audio' component still works. xdg-desktop-portal[-hyprland] is already part
+    # of caelestia's base.
+    say "\n>>> Weylus Community Edition (AUR via ${HELPER:-none}) + screencast plugin"
+    aur weylus-community-bin || FAILED+=("aur:weylus")
+    pac tablet gst-plugin-pipewire
+
+    # uinput: Weylus writes pointer/keystroke events into /dev/uinput. By default
+    # that node is root-only; running Weylus as your user requires a group + udev
+    # rule so the node is group-writable, and the user must be in that group.
+    # We also force-load the uinput module at boot (it's usually a kernel module
+    # autoloaded on first use, but with the udev rule below the static_node trick
+    # creates the device node up front so Weylus doesn't race against modprobe).
+    say "\n### uinput group + udev rule + module autoload (so Weylus can inject input)"
+    if [ "$DRY_RUN" -eq 1 ]; then
+        say "    [dry-run] groupadd -r uinput; usermod -aG uinput $USER_NAME"
+        say "    [dry-run] write /etc/udev/rules.d/60-weylus-uinput.rules + /etc/modules-load.d/uinput.conf"
+        say "    [dry-run] udevadm control --reload-rules; modprobe uinput"
+        return
+    fi
+    getent group uinput >/dev/null || sudo groupadd -r uinput || FAILED+=("uinput group")
+    if ! id -nG "$USER_NAME" | tr ' ' '\n' | grep -qx uinput; then
+        sudo usermod -aG uinput "$USER_NAME" || FAILED+=("uinput membership")
+    fi
+    sudo tee /etc/udev/rules.d/60-weylus-uinput.rules >/dev/null <<'EOF'
+KERNEL=="uinput", GROUP="uinput", MODE="0660", OPTIONS+="static_node=uinput"
+EOF
+    sudo tee /etc/modules-load.d/uinput.conf >/dev/null <<'EOF'
+uinput
+EOF
+    sudo udevadm control --reload-rules || FAILED+=("udev reload")
+    sudo modprobe uinput 2>/dev/null || true
+    say "    · log out + back in so your shell picks up the uinput group, then run:"
+    say "        weylus      # opens the GUI; pick an access code + press Start"
+    say "      and open the printed http://<your-ip>:1701 URL in your tablet's browser."
+    say "    · Wayland capture needs xdg-desktop-portal-hyprland (already in caelestia)"
+    say "      and gst-plugin-pipewire (just installed). Pen pressure works in Safari"
+    say "      (iPadOS) and recent Chromium/Firefox via Pointer Events."
 }
 
 do_theme() {

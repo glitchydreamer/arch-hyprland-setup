@@ -60,7 +60,12 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   unlike Ubuntu — plus `kdiskmark`, the CrystalDiskMark-equivalent
   Qt6 disk-benchmark GUI), `remote` (enable `sshd` + freerdp/remmina for RDP/VNC *out* +
   `wayvnc` as a VNC server *into* this Hyprland box — RDP-into-Wayland is
-  unsupported, VNC is the working path), `theme` (candy-icons + sweet-folders
+  unsupported, VNC is the working path), `tablet` (use an iPad/Android tablet as
+  a graphic tablet / touchscreen via **Weylus Community Edition** — the
+  prebuilt `weylus-community-bin`; upstream H-M-H/Weylus is dead and no longer
+  compiles on current rustc — plus the `uinput` group + udev rule + module
+  autoload so the daemon can inject pen/pointer events, and
+  `gst-plugin-pipewire` for the Hyprland portal screencast), `theme` (candy-icons + sweet-folders
   from the AUR — the rainbow GTK icon set), `aurapps`, `groups`, `shell`.
   CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
@@ -68,7 +73,11 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   `cuda`, `icons` (switch the GTK icon theme back to the caelestia default
   Papirus-Dark; keeps the Sweet/candy packages so `setup-home.sh nautilus`
   re-applies instantly), `inputremap` (remove input-remapper + its daemon + presets —
-  no longer needed since the Razer mouse remaps via onboard memory), `extras`
+  no longer needed since the Razer mouse remaps via onboard memory), `fastfetch`
+  (revert the fastfetch logo + sixel file + animation hook),
+  `tablet` (remove Weylus + the uinput udev rule/module-load file + drop the
+  user from the `uinput` group; keeps `gst-plugin-pipewire` because it's shared
+  with audio/screen recording), `extras`
   (remove unused apps + their home data: Zed, Dolphin, Inkscape, Kate, HyprKCS).
   Each removes its packages + data + configs + launchers and reports
   reclaimed space. Note: the reclaim total counts **both** the deleted home/data
@@ -704,4 +713,44 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     manually during the debugging arc) was re-rendered via the helper
     to `logo.sixel`; orphan file removed; config now references the
     helper-managed path. User's current setup unchanged visually.
+
+- **2026-06-02 — iPad as graphic tablet via Weylus Community Edition.**
+  User wanted to use an iPad as a writing pad. Tried the AUR `weylus`
+  source build first — it failed at compile time on `syntex_pos 0.42`:
+  modern rustc removed the `RustcEncodable`/`Decodable` derive macros
+  that 2022-era crate used. Upstream H-M-H/Weylus is unmaintained
+  (last release 0.11.4, Oct 2022). Switched to the community fork
+  [electronstudio/WeylusCommunityEdition](https://github.com/electronstudio/WeylusCommunityEdition),
+  shipped via the prebuilt `weylus-community-bin` AUR package — fresh
+  May 2026 release, no Rust build path, conflicts with the legacy
+  variants so the AUR helper handles the swap.
+  - **New `install.sh tablet` component**: installs
+    `weylus-community-bin` + `gst-plugin-pipewire` (the optdepend that
+    enables xdg-desktop-portal screencast capture on Wayland — without
+    it Hyprland gives a black frame), creates the `uinput` group +
+    udev rule (`/etc/udev/rules.d/60-weylus-uinput.rules` with
+    `static_node=uinput` so the node exists before lazy modprobe) +
+    `/etc/modules-load.d/uinput.conf`, adds the user to the group,
+    reloads udev. Needs a logout/login for the group to take effect.
+  - **Why `gst-plugin-pipewire` is on the package list explicitly**:
+    it's only an optdepend of the package, so a clean box without the
+    `audio` component (which pulls it transitively via the PipeWire
+    stack) would silently miss it. Then the portal hands GStreamer a
+    PipeWire stream that has no decoder → black tablet screen.
+  - **uinput plumbing rationale**: Weylus writes pointer/keystroke
+    events to `/dev/uinput`, root-only by default. The udev rule makes
+    the node group-readable to `uinput` mode 0660; the static_node
+    trick creates the device up-front so Weylus doesn't race against
+    the kernel module's lazy autoload. The modules-load file pins the
+    module so it's there at boot even if nothing else asked for it.
+  - **`uninstall.sh tablet`**: removes the package, the udev rule, the
+    modules-load file, drops the user from the `uinput` group, removes
+    the group if it ends up empty, and clears `~/.local/share/weylus`
+    + `~/.config/weylus`. Leaves `gst-plugin-pipewire` alone (cheap
+    and shared with audio/screen recording).
+  - **Docs**: `reference.md` §6.12 (command table + ports + portal
+    chain debug recipe); `learn/13-weylus-tablet.md` (full walkthrough
+    — why the community fork, uinput plumbing explained, Wayland-vs-X11
+    capture, pen-pressure matrix per browser, latency tuning); nav
+    entry in `mkdocs.yml`. Memory: `project-weylus-tablet.md`.
 

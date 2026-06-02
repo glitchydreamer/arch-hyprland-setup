@@ -49,6 +49,7 @@ COMPONENTS=(
     "inputremap|input-remapper (AUR) + its daemon/service + ~/.config presets — no longer needed (the Razer mouse remaps via onboard memory)"
     "extras|Remove unused apps + their ~/.config/.cache/.state: Zed, Dolphin (using nautilus), Inkscape, Kate, HyprKCS"
     "fastfetch|Revert fastfetch to the OS ASCII logo, drop ~/.config/fastfetch/logo.sixel + any animated.* copy + fish_greeting animation hook (keeps the fastfetch-logo helper itself)"
+    "tablet|Weylus (any variant) + the uinput udev rule + module autoload + uinput group membership (~/.local/share/weylus access-codes too); leaves gst-plugin-pipewire alone (cheap, shared)"
 )
 
 # ---- helpers ----------------------------------------------------------------
@@ -380,6 +381,45 @@ do_fastfetch() {
         [ -f "$fg" ] && sed -i '/fastfetch-logo: animated playback/,+1d' "$fg"
     fi
     say "    · fastfetch logo cleared. Helper at ~/.local/bin/fastfetch-logo stays."
+}
+
+do_tablet() {
+    say ">>> Weylus + uinput plumbing"
+    # Drop whichever weylus variant landed (install.sh uses weylus-community-bin,
+    # but if someone built from source via 'weylus' or pulled 'weylus-bin' we
+    # clean those too — they all conflict and only one can be present at a time).
+    remove_pkgs weylus-pkgs weylus-community-bin weylus-bin weylus weylus-git weylus-community-git
+    # uinput artefacts the install component wrote.
+    [ -f /etc/udev/rules.d/60-weylus-uinput.rules ] && \
+        run weylus-udev sudo rm -f /etc/udev/rules.d/60-weylus-uinput.rules
+    [ -f /etc/modules-load.d/uinput.conf ] && \
+        run weylus-modules sudo rm -f /etc/modules-load.d/uinput.conf
+    # Drop the user from the uinput group; remove the group itself if it ends up
+    # empty (so the next 'tablet' install starts from a clean slate).
+    if id -nG "$USER_NAME" 2>/dev/null | tr ' ' '\n' | grep -qx uinput; then
+        run weylus-group sudo gpasswd -d "$USER_NAME" uinput
+    else
+        say "    · $USER_NAME not in uinput group — skip"
+    fi
+    if getent group uinput >/dev/null 2>&1; then
+        local members; members=$(getent group uinput | awk -F: '{print $4}')
+        if [ -z "$members" ]; then
+            run weylus-group-del sudo groupdel uinput
+        else
+            say "    · uinput group still has members ($members) — leaving it"
+        fi
+    fi
+    # Reload udev so the (now-removed) rule stops applying; the uinput device node
+    # reverts to root-only on next boot. modprobe -r is fine but not required.
+    if [ "$DRY_RUN" -eq 0 ]; then
+        sudo udevadm control --reload-rules 2>/dev/null || true
+    fi
+    # Weylus state (per-user access codes, certificates) — small but worth clearing
+    # for a clean removal.
+    reclaim weylus-state  "$HOME/.local/share/weylus"
+    reclaim weylus-config "$HOME/.config/weylus"
+    say "    · removed. gst-plugin-pipewire stays (other apps use it)."
+    say "    · the group change needs a fresh login to take effect."
 }
 
 # ---- arg parsing ------------------------------------------------------------
