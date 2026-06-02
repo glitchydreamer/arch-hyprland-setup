@@ -395,7 +395,15 @@ do_tablet() {
     # of caelestia's base.
     say "\n>>> Weylus Community Edition (AUR via ${HELPER:-none}) + screencast plugin"
     aur weylus-community-bin || FAILED+=("aur:weylus")
-    pac tablet gst-plugin-pipewire
+    # gst-plugin-pipewire: on a clean box it's missing and we need to pull it;
+    # on this DualSense-pinned box it's ALREADY at 1.6.5 and `pacman -S --needed`
+    # still tries to upgrade to the (IgnorePkg'd) 1.6.6, which fails the whole
+    # transaction. Guard the install so the pin doesn't trip the component.
+    if pacman -Qq gst-plugin-pipewire >/dev/null 2>&1; then
+        say "    · gst-plugin-pipewire already installed — skip (PipeWire pin keeps 1.6.5)"
+    else
+        pac tablet gst-plugin-pipewire
+    fi
 
     # uinput: Weylus writes pointer/keystroke events into /dev/uinput. By default
     # that node is root-only; running Weylus as your user requires a group + udev
