@@ -39,6 +39,7 @@ RECLAIMED_KB=0
 # component. The menu and `all` are generated from this list.
 COMPONENTS=(
     "docker|Docker engine, buildx, containerd, NVIDIA container toolkit, all images/data, the docker group"
+    "vm|QEMU/KVM + libvirt + virt-manager + virt-viewer + OVMF/swTPM/guestfs, the default NAT net, ALL guest disk images under /var/lib/libvirt, /etc/libvirt, the nested-virt modprobe drop-in, and libvirt/kvm group membership"
     "isaac|Isaac Sim container caches, the IsaacLab clone, the isaac-sim launcher, xorg-xauth"
     "ros2|The ros2-humble launcher + its Docker image + the Fast DDS UDP profile (also clears a leftover Jazzy image/launcher; image only if Docker is still present)"
     "anaconda|Anaconda (AUR) + the conda fish init; leaves your project envs' data under ~/anaconda3 if external"
@@ -160,6 +161,51 @@ do_docker() {
     else
         say "    · $USER_NAME not in docker group — skip"
     fi
+}
+
+do_vm() {
+    say ">>> QEMU/KVM + libvirt + virt-manager virtualization stack"
+    # Stop the default NAT network + the daemons first so nothing holds the virbr0
+    # bridge / storage pools open while packages and data go away.
+    if command -v virsh >/dev/null 2>&1; then
+        run vm-net-stop   sudo virsh net-destroy default
+        run vm-net-noauto sudo virsh net-autostart --disable default
+    fi
+    run vm-daemon sudo systemctl disable --now \
+        libvirtd.service libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket \
+        virtlogd.service virtlockd.service
+    # Remove the stack. -Rns sweeps the cascaded deps (the qemu-* sub-packages,
+    # spice, etc.). edk2-ovmf/swtpm/libguestfs/virt-viewer were pulled in solely
+    # for this component, so they go too.
+    remove_pkgs vm-pkgs qemu-full libvirt virt-manager virt-viewer \
+                edk2-ovmf swtpm libguestfs
+    # dnsmasq + dmidecode are general-purpose utilities other things may want; try
+    # to remove them but -Rns will (correctly) refuse if anything still needs them.
+    remove_pkgs vm-extra dnsmasq dmidecode
+    # The space hogs: guest disk images + storage pools live under /var/lib/libvirt
+    # (default images dir is /var/lib/libvirt/images). This is what frees real GBs
+    # after building Gentoo/LFS guests. The whole tree is root-owned → sudo.
+    reclaim vm-varlib /var/lib/libvirt sudo
+    reclaim vm-etc    /etc/libvirt      sudo
+    # Per-user virt-manager state (connection list, window/default settings).
+    reclaim vm-cfg    "$HOME/.config/libvirt"
+    reclaim vm-share  "$HOME/.local/share/libvirt"
+    reclaim vm-cache  "$HOME/.cache/libvirt"
+    # The nested-virt modprobe drop-in install.sh wrote.
+    [ -f /etc/modprobe.d/kvm-nested.conf ] && \
+        run vm-nested sudo rm -f /etc/modprobe.d/kvm-nested.conf
+    # Drop the secondary group memberships install.sh granted (never the primary).
+    # Leave the groups themselves — 'kvm' is a system group other tooling uses.
+    local g
+    for g in libvirt kvm; do
+        if id -nG "$USER_NAME" 2>/dev/null | tr ' ' '\n' | grep -qx "$g"; then
+            run "vm-group-$g" sudo gpasswd -d "$USER_NAME" "$g"
+        else
+            say "    · $USER_NAME not in $g group — skip"
+        fi
+    done
+    say "    · removed. KVM kernel modules are in-tree (nothing to uninstall there)."
+    say "    · the dropped groups need a fresh login to take effect."
 }
 
 do_isaac() {

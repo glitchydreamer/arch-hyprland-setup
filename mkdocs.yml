@@ -22,6 +22,7 @@ nav:
       - 11. System maintenance & upgrades: learn/11-system-maintenance.md
       - 12. fastfetch with a custom image/GIF/video: learn/12-fastfetch-logo.md
       - 13. iPad/Android tablet as a drawing pad (Weylus): learn/13-weylus-tablet.md
+      - 14. Virtual machines (QEMU/KVM + virt-manager): learn/14-virtual-machines.md
       - Glossary: learn/glossary.md
   - Full Reference: reference.md
   - Guides:

@@ -187,6 +187,7 @@ COMPONENTS=(
     "audio|PipeWire audio apps + the DualSense fix (1.6.5 pin + touchpad udev rule)"
     "gpu|GPU/gaming (lib32 nvidia, gamemode, mangohud, nvidia-settings)"
     "docker|Docker + NVIDIA Container Toolkit (data-root on /home; for ROS 2 Humble / GPU containers)"
+    "vm|QEMU/KVM + virt-manager virtualization (libvirt, OVMF UEFI, swTPM, virt-viewer, guestfs) for Gentoo/LFS & other guest OSes; adds libvirt+kvm groups, default NAT net, nested virt — works on both linux & linux-lts"
     "media|Multimedia apps (haruna, obs, gimp, okular, gwenview, swayimg)"
     "terminal|Terminal productivity (fzf, ripgrep, fd, bat, zoxide, lazygit, tmux, ...)"
     "kde|KDE settings apps (systemsettings, discover, kinfocenter)"
@@ -295,6 +296,93 @@ PY
     say "    · added $USER_NAME to the docker group — log out/in to activate, then:"
     say "      ros2-humble pull  # fetch the ROS 2 Humble image (~4 GB)"
 }
+# QEMU/KVM + libvirt + virt-manager — a full desktop virtualization stack for
+# running guest operating systems (the use case here is building Gentoo / Linux
+# From Scratch in throwaway VMs, but it runs anything: Windows, *BSD, other
+# distros). Everything is in the official 'extra' repo, so it's always the newest
+# rolling release — "latest and greatest" needs no AUR build.
+#
+# Why this is kernel-agnostic (works on BOTH linux and linux-lts with nothing
+# extra): KVM hardware acceleration lives INSIDE the kernel — the kvm +
+# kvm_intel/kvm_amd + vhost modules ship in-tree with every Arch kernel. There's
+# no DKMS module and no per-kernel rebuild (unlike the NVIDIA stack). Whichever
+# kernel you boot, /dev/kvm is there. The only kernel-touching file this writes
+# is the nested-virt modprobe option, which the running kernel reads at module
+# load — same file, both kernels.
+#
+#   qemu-full      the emulator + ALL UI/audio/block/network backends AND every
+#                  guest architecture (x86_64 plus ARM/RISC-V/… — handy for
+#                  cross-arch LFS experiments), not just the host arch.
+#   libvirt        the management daemon virt-manager / virsh talk to.
+#   virt-manager   the GTK management GUI.
+#   virt-viewer    the SPICE/VNC guest-console window.
+#   edk2-ovmf      UEFI firmware for guests (modern installers + Secure Boot).
+#   swtpm          software TPM 2.0 (Windows 11 guests, measured-boot tests).
+#   dnsmasq        backs libvirt's default NAT network (guest DHCP + outbound).
+#   dmidecode      lets libvirt read host SMBIOS for guest CPU/board passthrough.
+#   libguestfs     virt-* tools to inspect/edit guest disk images from the host
+#                  (virt-resize, guestfish — useful when crafting LFS/Gentoo imgs).
+do_vm() {
+    pac vm qemu-full libvirt virt-manager virt-viewer edk2-ovmf swtpm \
+           dnsmasq dmidecode libguestfs
+    say "\n### libvirt: group access + daemon + default NAT network + nested virt"
+    if [ "$DRY_RUN" -eq 1 ]; then
+        say "    [dry-run] usermod -aG libvirt,kvm $USER_NAME"
+        say "    [dry-run] set unix_sock_group/perms in /etc/libvirt/libvirtd.conf"
+        say "    [dry-run] systemctl enable --now libvirtd.service"
+        say "    [dry-run] virsh net-define(if needed)/autostart/start default"
+        say "    [dry-run] write /etc/modprobe.d/kvm-nested.conf (Intel/AMD auto-detected)"
+        return
+    fi
+    command -v virsh >/dev/null || { say "    · libvirt not installed — skipping config."; FAILED+=("vm:not-installed"); return; }
+    # Group access: members of 'libvirt' manage the SYSTEM QEMU instance
+    # (qemu:///system) without a polkit password each time; 'kvm' grants direct
+    # /dev/kvm access. Like every group change here, it needs a fresh login.
+    sudo usermod -aG libvirt,kvm "$USER_NAME" || FAILED+=("vm:groups")
+    # Let the libvirt group own the read-write control socket (Arch-wiki standard).
+    # The stock libvirtd.conf ships these keys commented out; flip them in place
+    # whether they're currently commented or not.
+    if [ -f /etc/libvirt/libvirtd.conf ]; then
+        sudo sed -i \
+            -e 's/^#\?unix_sock_group = .*/unix_sock_group = "libvirt"/' \
+            -e 's/^#\?unix_sock_rw_perms = .*/unix_sock_rw_perms = "0770"/' \
+            /etc/libvirt/libvirtd.conf || FAILED+=("vm:sockcfg")
+    fi
+    # Enable the daemon (socket-activated; pulls in virtlogd/virtlockd as needed).
+    sudo systemctl enable --now libvirtd.service || FAILED+=("vm:daemon")
+    # Default NAT network: guests get DHCP + outbound NAT with zero host config.
+    # libvirt ships the template at /etc/libvirt/qemu/networks/default.xml; define
+    # it if it isn't known yet, then mark it autostart and bring it up now.
+    if ! sudo virsh net-info default >/dev/null 2>&1; then
+        [ -f /etc/libvirt/qemu/networks/default.xml ] && \
+            sudo virsh net-define /etc/libvirt/qemu/networks/default.xml 2>/dev/null
+    fi
+    sudo virsh net-autostart default 2>/dev/null || true
+    sudo virsh net-start default 2>/dev/null || true   # harmless if already active
+    # Nested virtualization: lets a guest itself run KVM (test a hypervisor, or run
+    # a VM inside your LFS/Gentoo guest). Off by default; set the right per-vendor
+    # module option. Detect Intel vs AMD from the CPU and write the modprobe drop-in.
+    local vendor cpumod
+    vendor=$(grep -m1 '^vendor_id' /proc/cpuinfo | awk '{print $3}')
+    case "$vendor" in
+        GenuineIntel) cpumod=kvm_intel ;;
+        AuthenticAMD) cpumod=kvm_amd ;;
+        *)            cpumod="" ;;
+    esac
+    if [ -n "$cpumod" ]; then
+        echo "options $cpumod nested=1" | sudo tee /etc/modprobe.d/kvm-nested.conf >/dev/null \
+            || FAILED+=("vm:nested")
+        # Apply now if the module is idle (no VMs yet on a fresh setup); if it's in
+        # use the reload fails harmlessly and the option takes effect next boot.
+        sudo modprobe -r "$cpumod" 2>/dev/null && sudo modprobe "$cpumod" 2>/dev/null || true
+    fi
+    say "    · added $USER_NAME to libvirt,kvm — LOG OUT/IN before launching virt-manager."
+    say "    · confirm hardware virt is enabled in firmware:  LC_ALL=C lscpu | grep Virtualization"
+    say "      (should show VT-x or AMD-V; if blank, turn it on in the UEFI/BIOS setup)."
+    say "    · KVM modules ship with BOTH linux and linux-lts — no per-kernel setup needed."
+    say "    · launch:  virt-manager   (auto-connects to qemu:///system)"
+}
+
 do_media()   { pac media haruna obs-studio gimp okular gwenview swayimg ffmpeg; }
 do_terminal() {
     # chafa = the terminal image renderer the fastfetch-logo helper drives.

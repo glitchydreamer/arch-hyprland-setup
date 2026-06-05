@@ -50,7 +50,14 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   `editors`, `embedded`, `audio` (incl. the DualSense PipeWire 1.6.5 pin +
   touchpad udev rule), `gpu`, `docker` (Docker + NVIDIA Container Toolkit;
   data-root on /home/docker-data + containerd-snapshotter=false; for ROS 2 Humble /
-  GPU containers), `media` (haruna/obs/gimp/okular/gwenview/swayimg + `ffmpeg`
+  GPU containers), `vm` (**QEMU/KVM + virt-manager** desktop virtualization for
+  building Gentoo / Linux From Scratch & running any guest OS — `qemu-full` +
+  `libvirt` + `virt-manager` + `virt-viewer` + `edk2-ovmf` + `swtpm` + `dnsmasq`
+  + `dmidecode` + `libguestfs` from the official repo, so always newest; adds the
+  user to `libvirt`+`kvm`, sets the libvirt-group socket perms, enables
+  `libvirtd`, defines/starts the default NAT net, and writes a vendor-detected
+  nested-virt modprobe drop-in. **Kernel-agnostic**: KVM modules are in-tree on
+  both `linux` and `linux-lts`, no DKMS), `media` (haruna/obs/gimp/okular/gwenview/swayimg + `ffmpeg`
   for video decoding & frame extraction by the fastfetch-logo helper),
   `terminal` (fzf/rg/fd/bat/zoxide/lazygit/gh/tmux/tree/jq/yq + `chafa`,
   the terminal-image renderer that drives fastfetch-logo), `kde`, `display`, `monitor` (HWiNFO
@@ -69,7 +76,12 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   from the AUR — the rainbow GTK icon set), `aurapps`, `groups`, `shell`.
   CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
-  counterpart to `install.sh`): components `docker`, `isaac`, `ros2`, `anaconda`,
+  counterpart to `install.sh`): components `docker`, `vm` (remove the whole
+  QEMU/KVM + libvirt + virt-manager stack and **delete all guest disk images
+  under `/var/lib/libvirt`** — the real GBs after Gentoo/LFS builds — plus
+  `/etc/libvirt`, per-user virt-manager state, the nested-virt drop-in, and the
+  `libvirt`/`kvm` group memberships; KVM modules are in-tree so nothing to
+  uninstall there), `isaac`, `ros2`, `anaconda`,
   `cuda`, `icons` (switch the GTK icon theme back to the caelestia default
   Papirus-Dark; keeps the Sweet/candy packages so `setup-home.sh nautilus`
   re-applies instantly), `inputremap` (remove input-remapper + its daemon + presets —
@@ -753,4 +765,46 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     — why the community fork, uinput plumbing explained, Wayland-vs-X11
     capture, pen-pressure matrix per browser, latency tuning); nav
     entry in `mkdocs.yml`. Memory: `project-weylus-tablet.md`.
+
+- **2026-06-05 — Virtual machines: QEMU/KVM + virt-manager (`vm`
+  component).** User wants to learn/build Gentoo and Linux From Scratch
+  in VMs and chose the QEMU + virt-manager stack for performance +
+  features. Added an **on-demand** `vm` component (deliberately *not*
+  a mandatory app — install when wanted, `uninstall.sh vm` to reclaim
+  the disk).
+  - **New `install.sh vm` component**: installs `qemu-full` (full
+    emulator + all backends + every guest arch, not just x86_64),
+    `libvirt`, `virt-manager`, `virt-viewer`, `edk2-ovmf` (UEFI/Secure
+    Boot for guests), `swtpm` (TPM 2.0 for Win11 guests), `dnsmasq`
+    (default NAT net), `dmidecode`, and `libguestfs` (host-side disk
+    image tools) — all from the official `extra` repo, so always the
+    newest rolling release ("latest and greatest" with no AUR build).
+    Then: `usermod -aG libvirt,kvm`; sets `unix_sock_group="libvirt"`
+    + `unix_sock_rw_perms="0770"` in `/etc/libvirt/libvirtd.conf`;
+    `systemctl enable --now libvirtd.service`; defines (if needed) +
+    autostarts + starts the default NAT network; writes
+    `/etc/modprobe.d/kvm-nested.conf` with the vendor-detected option
+    (`kvm_intel`/`kvm_amd nested=1`) for nested virtualization.
+  - **Why it works on both kernels with nothing extra**: KVM lives in
+    the kernel — `kvm` + `kvm_intel`/`kvm_amd` + `vhost` are in-tree on
+    *both* `linux` and `linux-lts`. No DKMS, no per-kernel rebuild
+    (contrast the NVIDIA stack). The only kernel-touching file the
+    component writes is the nested-virt modprobe drop-in, read by
+    whichever kernel boots. So a single install covers both.
+  - **`uninstall.sh vm`**: stops the default network + the libvirt
+    daemons, `-Rns` the whole stack (qemu-full + sub-packages + spice
+    via cascade, edk2-ovmf/swtpm/libguestfs/virt-viewer; dnsmasq +
+    dmidecode best-effort), then **deletes all guest disk images +
+    storage pools under `/var/lib/libvirt`** (the real space hogs after
+    Gentoo/LFS builds — the reclaim tally shows the GBs), `/etc/libvirt`,
+    per-user virt-manager state (`~/.config/libvirt`,
+    `~/.local/share/libvirt`, `~/.cache/libvirt`), the nested-virt
+    drop-in, and drops the `libvirt`/`kvm` group memberships. Leaves
+    the groups themselves (`kvm` is a system group other tooling uses)
+    and the in-tree kernel modules.
+  - **Docs**: `reference.md` §6.13 (package table + config summary +
+    verify/revert recipes); `learn/14-virtual-machines.md` (full
+    walkthrough — KVM vs emulation, why virt-manager, a first
+    Gentoo/LFS guest, virtio/hugepages/CPU-pinning perf, nested virt);
+    nav entry in `mkdocs.yml`. Memory: `project-qemu-virt-manager.md`.
 

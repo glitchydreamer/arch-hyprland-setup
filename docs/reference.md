@@ -607,6 +607,71 @@ See [Learn / Tablet as drawing pad](learn/13-weylus-tablet.md) for the
 full walkthrough — why the community fork, latency tuning, pen pressure
 debugging, and the "I see a black screen on the tablet" recipe.
 
+### 6.13 Virtual machines — QEMU/KVM + virt-manager (Gentoo / LFS / any guest OS)
+
+Installed **on demand** via `install.sh vm` (it is *not* part of `all`-by-habit
+mandatory apps — run it when you actually want to spin up guests, remove it with
+`uninstall.sh vm` to reclaim the disk). The use case is building **Gentoo** and
+**Linux From Scratch** in throwaway VMs, but the stack runs anything: Windows,
+the BSDs, other distros, cross-arch images.
+
+Everything is pulled from the official `extra` repo, so you always get the
+**newest rolling release** — no AUR build is needed for "latest and greatest".
+
+| Package | Why |
+|---|---|
+| `qemu-full` | The emulator + **all** UI/audio/block/network backends **and every guest architecture** (x86_64 plus ARM/RISC-V/… for cross-arch LFS), not just the host arch. |
+| `libvirt` | The management daemon `virt-manager`/`virsh` talk to. |
+| `virt-manager` | The GTK management GUI. |
+| `virt-viewer` | The SPICE/VNC guest-console window. |
+| `edk2-ovmf` | UEFI firmware for guests (modern installers + Secure Boot). |
+| `swtpm` | Software TPM 2.0 (Windows 11 guests, measured-boot tests). |
+| `dnsmasq` | Backs libvirt's default NAT network (guest DHCP + outbound). |
+| `dmidecode` | Lets libvirt read host SMBIOS for guest CPU/board passthrough. |
+| `libguestfs` | `virt-resize`, `guestfish`, etc. — inspect/edit guest disk images from the host (handy when crafting LFS/Gentoo images). |
+
+**Works on both kernels with zero extra setup.** KVM acceleration lives *inside*
+the kernel — the `kvm` + `kvm_intel`/`kvm_amd` + `vhost` modules ship **in-tree
+with every Arch kernel**. There is no DKMS module and no per-kernel rebuild
+(unlike the NVIDIA stack), so whether you boot `linux` or `linux-lts`,
+`/dev/kvm` is there. The only kernel-touching file the component writes is the
+nested-virt modprobe option, which the running kernel reads at module load —
+same file, both kernels.
+
+**What `install.sh vm` configures after installing the packages:**
+
+- Adds your user to the **`libvirt`** group (manage the system QEMU instance
+  `qemu:///system` without a polkit prompt) and the **`kvm`** group (direct
+  `/dev/kvm` access). **Requires a fresh login** to take effect.
+- Sets `unix_sock_group = "libvirt"` + `unix_sock_rw_perms = "0770"` in
+  `/etc/libvirt/libvirtd.conf` so the `libvirt` group owns the control socket.
+- `systemctl enable --now libvirtd.service`.
+- Defines (if needed), autostarts, and starts the **default NAT network** so
+  guests get DHCP + outbound networking with zero host config.
+- Writes `/etc/modprobe.d/kvm-nested.conf` with the right per-vendor option
+  (`kvm_intel nested=1` or `kvm_amd nested=1`, auto-detected from the CPU) to
+  enable **nested virtualization** (run KVM inside a guest).
+
+| Step | Command / note |
+|---|---|
+| Install | `bash install.sh vm` |
+| Verify HW virt | `LC_ALL=C lscpu \| grep Virtualization` (should show VT-x / AMD-V; if blank, enable it in UEFI/BIOS) |
+| Log out / in | once, for the `libvirt` + `kvm` groups to apply |
+| Launch | `virt-manager` (auto-connects to `qemu:///system`) |
+| Check nested | `cat /sys/module/kvm_intel/parameters/nested` → `Y` (or `kvm_amd`) |
+
+**Revert / reclaim disk**: `bash uninstall.sh vm` — stops the daemon + default
+network, removes the whole stack, and **deletes all guest disk images** under
+`/var/lib/libvirt` (the space hogs after building Gentoo/LFS), `/etc/libvirt`,
+the per-user virt-manager state, the nested-virt drop-in, and drops the
+`libvirt`/`kvm` group memberships. KVM kernel modules are in-tree, so there's
+nothing to uninstall there.
+
+See [Learn / Virtual machines](learn/14-virtual-machines.md) for the full
+walkthrough — KVM vs emulation, why virt-manager over plain QEMU, a first
+Gentoo/LFS guest, performance tuning (virtio, hugepages, CPU pinning), and
+nested virt.
+
 ---
 
 ## 7. Common commands cheat-sheet
