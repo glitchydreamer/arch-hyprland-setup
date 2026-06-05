@@ -144,9 +144,20 @@ Pinning isn't "set and forget forever." Two slow-moving issues to keep an eye on
 
 Even a bad upgrade is recoverable on this machine:
 
-- **Two kernels = never stranded.** If an LTS update breaks the GPU, reboot and pick
-  `linux` (mainline 7.0.10) from the Limine boot menu, then fix things from a working
-  desktop. Keeping a second kernel installed is cheap insurance.
+- **A second kernel as a *console* fallback.** A second installed kernel (`linux`,
+  mainline) lets you boot *something* from the Limine menu if an LTS update won't
+  boot. **Caveat that bites on this box:** while the NVIDIA driver is pinned at **580**,
+  mainline `linux` (now 7.0) is **too new for 580 to compile against**, so that kernel
+  boots to a TTY with **no GPU driver** — fine for command-line repair, but Hyprland
+  won't start there. So the mainline kernel is an *emergency console*, not a graphical
+  fallback. If you don't want it (it also fails its DKMS build noisily on every
+  upgrade), removing it is clean and supported — `linux-lts` is the only kernel inside
+  580's support window anyway:
+  ```bash
+  sudo pacman -Rns linux linux-headers   # keep only linux-lts (the 580/Isaac kernel)
+  ```
+  The package cache + `downgrade` + Limine UKIs (below) are the real recovery path for a
+  single-kernel system.
 - **The package cache is a time machine.** Every `.pkg.tar.zst` you've ever installed
   sits in `/var/cache/pacman/pkg/`. To roll a single package back to a cached version,
   the `downgrade` tool (AUR) makes it a one-liner. (Don't `pacman -Scc` away the *whole*

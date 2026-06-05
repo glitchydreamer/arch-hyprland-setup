@@ -322,8 +322,12 @@ do_health() {
         fi
     done < <(installed_kernels)
 
-    say "\n### DKMS + initramfs auto-repair"
-    heal_dkms_initramfs
+    # NB: the kernel-headers sync + dkms autoinstall + mkinitcpio repair already
+    # ran in the mandatory prereqs immediately before this — we do NOT re-run it
+    # here (that would rebuild + double the warnings). The matrix above reflects
+    # the post-repair state; any unbuildable kernel was flagged up in that step.
+    say "\n### DKMS + initramfs"
+    say "    · auto-repair ran in the upgrade step above; matrix reflects the result."
 
     say "\n### Orphaned packages (installed as deps, now needed by nothing)"
     local orph; orph=$(pacman -Qtdq 2>/dev/null)
