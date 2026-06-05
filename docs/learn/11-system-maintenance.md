@@ -129,6 +129,27 @@ Pinning isn't "set and forget forever." Two slow-moving issues to keep an eye on
      silent landmine.
    - This is exactly *why* you boot LTS: its slow cadence buys 580 a long, stable life.
 
+!!! question "Can't I just run a different driver per kernel — 580 for LTS, a newer one for mainline?"
+    No — and it's worth knowing why, because it's a common (reasonable!) assumption.
+    The NVIDIA driver is **two pieces**: (1) the **kernel modules** (`nvidia.ko`, …),
+    which *are* built per-kernel by DKMS, and (2) the **userspace libraries**
+    (`nvidia-utils` → `libcuda.so`, `libGLX_nvidia.so`, …), which are **system-wide and
+    single-version** — only one copy can be installed. The iron rule is that the kernel
+    module and the userspace libs **must be the same version**, or you get
+    `Failed to initialize NVML: Driver/library version mismatch` and nothing works. So
+    the *effective* driver version is singular for the whole machine no matter how many
+    kernels you have; DKMS builds that one version for each kernel, and a kernel it can't
+    build against simply goes without. **CUDA and cuDNN** ride on top of `libcuda.so`
+    (the `nvidia-smi` "CUDA Version" is just the max the driver supports), so they inherit
+    the same single-version constraint — they're tied to the driver, not the kernel. The
+    escape hatches don't help either: a **container** uses the *host's* driver (NVIDIA
+    Container Toolkit injects the host userspace), and single-GPU **VM passthrough** would
+    take the card away from your desktop. Net: you can run 580 *or* a newer driver, not
+    both — which is why a mainline kernel that 580 can't build for is a **console-only
+    emergency kernel** (boots to a TTY for repairs; no Hyprland) rather than a graphical
+    fallback, until the day you move the whole box to a newer driver with
+    `nvidia-switch.sh latest`.
+
 2. **PipeWire 1.6.5** is lower-risk — it's userspace and fairly self-contained. The
    worst case is the dependency-conflict above: some future app demands a newer
    PipeWire, pacman refuses to upgrade *that app*, and you choose between unpinning
