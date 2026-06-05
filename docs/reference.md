@@ -672,6 +672,56 @@ walkthrough — KVM vs emulation, why virt-manager over plain QEMU, a first
 Gentoo/LFS guest, performance tuning (virtio, hugepages, CPU pinning), and
 nested virt.
 
+### 6.14 System health & rolling-release self-repair (the `health` component + auto-heal)
+
+`install.sh` is **rolling-release self-healing**. Every run — for *any* component —
+the mandatory prereq step does more than a plain upgrade:
+
+1. **Keyring first.** `archlinux-keyring` is pulled at the front of the `-Syu`, so a
+   long gap between updates can't fail the whole transaction on an expired signing key.
+2. **Kernel headers in lockstep.** It detects every installed kernel via
+   `/usr/lib/modules/*/pkgbase` and folds each one's matching `-headers`
+   (`linux-headers`, `linux-lts-headers`, …) **into the same `-Syu`**. So when a kernel
+   rolls forward its headers roll with it, and the DKMS module (NVIDIA) builds against
+   the right version in one transaction — closing the **"new kernel booted with no GPU
+   driver"** trap. Only real repo targets are added, so a custom/AUR kernel can't abort
+   the upgrade with "target not found".
+3. **Always a full `-Syu`**, never `-Sy` (partial upgrades are the #1 way to break Arch).
+4. **Post-upgrade DKMS + initramfs self-heal.** Runs `dkms autoinstall` for every
+   kernel that has headers, regenerates the initramfs/UKI with `mkinitcpio -P` if the
+   module set changed, then **verifies** each kernel has its module. If one genuinely
+   can't be built (the pinned 580 driver being too old for a brand-new kernel API), it
+   prints the concrete options — boot the kernel that *is* built, `nvidia-switch.sh
+   latest`, or remove the unused kernel — instead of leaving a silent landmine.
+
+Because this lives in the always-run prereqs, **re-running `install.sh` repairs a
+botched upgrade.** The exact state this box was left in (mainline `linux` updated
+without `linux-headers`, so its UKI had no NVIDIA) is fixed simply by running the
+script again: the next run installs the headers, rebuilds NVIDIA for that kernel, and
+regenerates its boot image.
+
+For a one-shot doctor with **no app install**:
+
+```bash
+bash install.sh health
+```
+
+The `health` component does the same kernel/headers/DKMS auto-repair, then prints a
+read-only report:
+
+| Report section | What it shows |
+|---|---|
+| Kernels ↔ headers ↔ DKMS | per-kernel: headers present? DKMS module built? |
+| Orphaned packages | `pacman -Qtdq` — installed-as-dep, now needed by nothing (review, not auto-removed) |
+| Failed systemd units | `systemctl --failed` |
+| Pending `.pacnew` | config files needing a merge (`pacdiff`, from pacman-contrib) |
+| Held-back pins | the active `IgnorePkg` lines (PipeWire 1.6.5, NVIDIA 580) so you remember what's frozen on purpose |
+
+Only the auto-repair changes anything; the report half is pure inspection. Under
+`--dry-run`, even the repair is simulated. See
+[Learn / System maintenance](learn/11-system-maintenance.md) for the full mental model
+of rolling upgrades, pinning, and DKMS-vs-kernel risk.
+
 ---
 
 ## 7. Common commands cheat-sheet

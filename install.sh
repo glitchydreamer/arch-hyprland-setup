@@ -172,11 +172,111 @@ install_cuda() {
 }
 
 # ============================================================================
+# Rolling-release resilience — keep out-of-tree DKMS modules (NVIDIA, VirtualBox,
+# …) building across kernel upgrades so a `pacman -Syu` never leaves a kernel
+# without its modules. That's the exact trap this box hit: the regular `linux`
+# kernel rolled forward but its `linux-headers` weren't installed, so the NVIDIA
+# DKMS build failed and mkinitcpio baked a module-less UKI → that kernel boots
+# with no GPU driver. The functions below detect installed kernels, keep their
+# headers in lockstep, rebuild DKMS, and regenerate the boot images — automatically.
+# ============================================================================
+
+# Emit "<kernelversion> <pkgbase>" for each installed kernel. Kernels are found
+# the canonical way (each owns /usr/lib/modules/<ver>/pkgbase). We skip pkgbase
+# files NOT owned by an installed package, so a stale/old running-kernel module
+# dir left behind by an upgrade doesn't generate false "missing module" warnings.
+installed_kernels() {
+    local f
+    for f in /usr/lib/modules/*/pkgbase; do
+        [ -r "$f" ] || continue
+        pacman -Qo "$f" >/dev/null 2>&1 || continue
+        printf '%s %s\n' "$(basename "$(dirname "$f")")" "$(cat "$f")"
+    done
+}
+
+# Echo the -headers package for every installed kernel, but ONLY when it's an
+# installable target (in a repo, or already installed). This is deliberate: a
+# custom/AUR kernel whose -headers isn't a repo package must NOT be folded into
+# `pacman -Syu` or the whole upgrade aborts with "target not found".
+kernel_headers_pkgs() {
+    local kver base hdr
+    while read -r kver base; do
+        hdr="${base}-headers"
+        if pacman -Qq "$hdr" >/dev/null 2>&1 || pacman -Si "$hdr" >/dev/null 2>&1; then
+            printf '%s\n' "$hdr"
+        fi
+    done < <(installed_kernels) | sort -u
+}
+
+# After the big upgrade: make sure every DKMS module is built for every installed
+# kernel and present in each boot image. Auto-repairs what it can (dkms
+# autoinstall + a single mkinitcpio -P when something actually changed) and loudly
+# flags what it can't (e.g. a pinned-old driver that won't compile against a
+# brand-new kernel) with the concrete options — never silently leaving a landmine.
+heal_dkms_initramfs() {
+    if ! command -v dkms >/dev/null 2>&1; then
+        say "    · no DKMS on this system — nothing to heal."; return
+    fi
+    if [ "$DRY_RUN" -eq 1 ]; then
+        say "    [dry-run] dkms autoinstall per kernel; mkinitcpio -P if the module set changed; verify"
+        return
+    fi
+    local before after kver base
+    before=$(dkms status 2>/dev/null)
+    # Build any modules still missing, per installed kernel that has headers.
+    while read -r kver base; do
+        if [ -d "/usr/lib/modules/$kver/build" ] || [ -e "/usr/lib/modules/$kver/build" ]; then
+            say "    · dkms autoinstall -k $kver"
+            sudo dkms autoinstall -k "$kver" 2>&1 | sed 's/^/      /' || true
+        else
+            say "    · $kver: no kernel headers present yet — skipping dkms build"
+        fi
+    done < <(installed_kernels)
+    after=$(dkms status 2>/dev/null)
+
+    # If autoinstall changed anything, the new module must land in the
+    # initramfs/UKI — pacman's mkinitcpio hook only fires during package txns,
+    # so regenerate here. (No-op-cheap when nothing changed.)
+    if [ "$before" != "$after" ]; then
+        say "    · DKMS set changed — regenerating initramfs/UKI for all presets"
+        sudo mkinitcpio -P 2>&1 | sed 's/^/      /' || FAILED+=("mkinitcpio")
+    fi
+
+    # Verify: any installed kernel that has headers but STILL no DKMS module is a
+    # genuine problem (usually: pinned driver too old for a too-new kernel).
+    local still_missing=()
+    while read -r kver base; do
+        if [ -e "/usr/lib/modules/$kver/build" ] \
+           && ! dkms status -k "$kver" 2>/dev/null | grep -q installed; then
+            still_missing+=("$kver")
+        fi
+    done < <(installed_kernels)
+
+    if [ "${#still_missing[@]}" -gt 0 ]; then
+        FAILED+=("dkms-unbuilt:${still_missing[*]}")
+        say ""
+        say "    !! DKMS modules could NOT be built for kernel(s): ${still_missing[*]}"
+        say "    !! Those kernels would boot WITHOUT the NVIDIA driver. This almost"
+        say "    !! always means the pinned driver is too old for a brand-new kernel."
+        say "    !! Pick one (none is done automatically — they change what boots):"
+        say "    !!   • Just boot the kernel that IS built (this box runs the 580"
+        say "    !!     driver on linux-lts, which stays built & healthy), or"
+        say "    !!   • Move the NVIDIA stack to a version that supports the new kernel:"
+        say "    !!       bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh latest"
+        say "    !!   • If you never boot that kernel, remove it so the warning stops:"
+        say "    !!       sudo pacman -Rns <kernel-package>   # e.g. linux"
+    else
+        say "    · every installed kernel has its DKMS modules + initramfs ✓"
+    fi
+}
+
+# ============================================================================
 # Components — a row here + a matching do_<name>() teaches install.sh a new one.
 # The menu and `all` are generated from this list; selected components run in
 # THIS order (dependencies hold) regardless of how they were typed.
 # ============================================================================
 COMPONENTS=(
+    "health|Rolling-release self-repair + doctor: sync each kernel's headers, rebuild DKMS modules (NVIDIA…) for every kernel + regenerate initramfs/UKI, report orphans/failed-units/.pacnew/held pins (this also runs automatically on every install.sh invocation)"
     "build|Compilers + build/debug tooling (clang, cmake, ninja, gdb, boost, eigen, ...)"
     "cuda|CUDA toolkit + cuDNN matched to your NVIDIA driver, and the CUDA PATH"
     "python|Python scientific stack (numpy/scipy/pandas/sklearn/jupyter/ruff/...)"
@@ -201,6 +301,64 @@ COMPONENTS=(
     "groups|Add your user to the serial + wireshark groups (uucp, lock, wireshark)"
     "shell|Switch your login shell to fish"
 )
+
+# Standalone "doctor": the rolling-release self-repair (also run by the mandatory
+# prereqs on every invocation) plus a read-only health report. `install.sh health`
+# is the one-shot "something feels off after an update — fix what you can and tell
+# me what you can't" entry point. Repairs are idempotent; reports never change anything.
+do_health() {
+    say "\n>>> System health check (rolling-release doctor)"
+
+    say "\n### Kernels ↔ headers ↔ DKMS modules"
+    local kver base hdr
+    while read -r kver base; do
+        if pacman -Qq "${base}-headers" >/dev/null 2>&1; then hdr="headers ✓"; else hdr="headers MISSING"; fi
+        if command -v dkms >/dev/null 2>&1 && dkms status -k "$kver" 2>/dev/null | grep -q installed; then
+            say "    · $kver ($base): $hdr · dkms ✓"
+        elif command -v dkms >/dev/null 2>&1; then
+            say "    · $kver ($base): $hdr · dkms — none built"
+        else
+            say "    · $kver ($base): $hdr · (no dkms on system)"
+        fi
+    done < <(installed_kernels)
+
+    say "\n### DKMS + initramfs auto-repair"
+    heal_dkms_initramfs
+
+    say "\n### Orphaned packages (installed as deps, now needed by nothing)"
+    local orph; orph=$(pacman -Qtdq 2>/dev/null)
+    if [ -n "$orph" ]; then
+        say "    · $(printf '%s\n' "$orph" | wc -l) orphan(s): $(echo $orph | tr '\n' ' ')"
+        say "      review, then reclaim with:  sudo pacman -Rns \$(pacman -Qtdq)"
+    else
+        say "    · none ✓"
+    fi
+
+    say "\n### Failed systemd units"
+    local fu; fu=$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}')
+    [ -n "$fu" ] && say "    · $(echo $fu | tr '\n' ' ')   (inspect: systemctl status <unit>)" \
+                 || say "    · none ✓"
+
+    if [ "$DRY_RUN" -eq 0 ] && command -v pacdiff >/dev/null 2>&1; then
+        say "\n### Pending .pacnew config merges"
+        local pn; pn=$(sudo pacdiff -o 2>/dev/null)
+        if [ -n "$pn" ]; then
+            say "    · $(printf '%s\n' "$pn" | wc -l) file(s) need merging:"
+            printf '%s\n' "$pn" | sed 's/^/      /'
+            say "      merge with:  sudo DIFFPROG=nvim pacdiff"
+        else
+            say "    · none ✓"
+        fi
+    fi
+
+    say "\n### Held-back packages (IgnorePkg in /etc/pacman.conf)"
+    local pins; pins=$(grep -E '^[[:space:]]*IgnorePkg' /etc/pacman.conf 2>/dev/null | sed 's/.*=//')
+    [ -n "$pins" ] && say "    ·$pins" || say "    · none"
+    say "      (these are pinned on purpose — e.g. the DualSense PipeWire 1.6.5 pin"
+    say "       and the NVIDIA stack held at the Isaac-validated 580 by nvidia-switch.sh.)"
+
+    say "\n>>> Health check complete."
+}
 
 do_build() {
     pac build base-devel clang lld lldb cmake ninja meson ccache gdb valgrind \
@@ -617,18 +775,41 @@ if [ "$ASSUME_YES" -eq 0 ] && [ "$DRY_RUN" -eq 0 ]; then
 fi
 
 # ============================================================================
-# Mandatory prereqs (always) — DB refresh, base tooling, AUR helper.
+# Mandatory prereqs (always) — full upgrade (rolling-release safe), base tooling,
+# AUR helper, then DKMS/initramfs self-heal. This block is why simply re-running
+# install.sh repairs a botched upgrade: it pulls each kernel's headers IN the same
+# transaction as the kernel, so DKMS rebuilds in lockstep and no kernel is left
+# module-less.
 # ============================================================================
 hr
-say "### Refreshing package databases"
-if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] sudo pacman -Syu"; else
-    sudo pacman -Syu --noconfirm || FAILED+=("pacman -Syu")
+say "### Full system upgrade — keyring + every kernel's headers, in one transaction"
+# 1) Refresh the keyring FIRST. On a box that hasn't updated in a while an expired
+#    signing key makes the whole -Syu fail ("invalid or corrupted package").
+# 2) Fold each installed kernel's matching -headers into the SAME -Syu, so when a
+#    kernel rolls forward its headers do too and the DKMS hook builds against the
+#    right version immediately (the fix for the "new kernel, no GPU driver" trap).
+#    kernel_headers_pkgs only emits installable targets, so this can't abort the
+#    upgrade on a custom/AUR kernel whose -headers isn't a repo package.
+# 3) Always a FULL -Syu (never -Sy): partial upgrades are the #1 way to break Arch.
+mapfile -t HDRS < <(kernel_headers_pkgs)
+say "    · kernel headers kept in sync: ${HDRS[*]:-none found}"
+if [ "$DRY_RUN" -eq 1 ]; then
+    say "    [dry-run] sudo pacman -Syu --needed archlinux-keyring ${HDRS[*]}"
+else
+    sudo pacman -Syu --needed --noconfirm archlinux-keyring "${HDRS[@]}" \
+        || FAILED+=("pacman -Syu")
 fi
-# Done up front so `gh auth login` + `git push` work afterward, and so the AUR
-# components below have a helper to use.
+# Base tooling, done up front so `gh auth login` + `git push` work afterward and
+# the AUR components below have a helper to use.
 pac prereqs git base-devel github-cli openssh
 ensure_aur_helper
 say ">>> AUR helper: ${HELPER:-none}"
+
+# Self-heal DKMS + boot images after the upgrade — catches the rolling-release
+# "kernel updated but its out-of-tree module didn't" class automatically, every run.
+hr
+say "### Post-upgrade DKMS + initramfs self-heal"
+heal_dkms_initramfs
 
 # Run selected components in canonical order.
 for row in "${COMPONENTS[@]}"; do
@@ -658,6 +839,12 @@ Next (gh + an AUR helper are installed, so the only auth step is manual):
        hyprctl reload
   5. Anaconda (general ML): open a new fish shell, then
        conda activate base    # base is not auto-activated by design
+
+Rolling-release self-heal: every install.sh run does a full upgrade with each
+kernel's headers in lockstep, then rebuilds DKMS modules + initramfs/UKI — so
+re-running this script also REPAIRS a botched upgrade. For a one-shot doctor
+(kernel/DKMS repair + orphans/failed-units/.pacnew/pins report) with no app
+install:  bash ~/Documents/arch-hyprland-setup/install.sh health
 
 To cleanly remove a component later (CUDA, Anaconda, ...), use the interactive
 uninstaller:  bash ~/Documents/arch-hyprland-setup/uninstall.sh

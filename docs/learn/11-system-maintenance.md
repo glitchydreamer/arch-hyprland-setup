@@ -76,12 +76,15 @@ IgnorePkg = libpipewire pipewire pipewire-audio pipewire-alsa pipewire-pulse pip
 And the kernel picture:
 
 ```text
-linux       7.0.10   (mainline — installed, kept as a fallback)
-linux-lts   6.18.33  (LTS — what you actually boot)
+linux       7.0.11   (mainline — installed, kept as a fallback)
+linux-lts   6.18.34  (LTS — what you actually boot)
 ```
 
 You boot **linux-lts** because the LTS series moves slowly, which keeps the pinned
-580 driver buildable for far longer (more on that below).
+580 driver buildable for far longer (more on that below). Each kernel needs its
+matching headers (`linux-headers`, `linux-lts-headers`) for the NVIDIA DKMS module to
+build — `install.sh` keeps those in sync for you automatically (see *Letting the
+scripts do it for you*, below).
 
 ## How `IgnorePkg` interacts with upgrades — your pins are safe
 
@@ -108,14 +111,22 @@ Pinning isn't "set and forget forever." Two slow-moving issues to keep an eye on
 
 1. **NVIDIA 580 (DKMS) vs. a moving kernel.** Your driver is not a fixed binary — it's
    a **DKMS** module that *recompiles itself against the kernel's source headers*
-   every time `linux-lts` updates. Today 580 builds cleanly against 6.18.x. But
-   eventually linux-lts will move to a kernel series whose internal API 580 can no
-   longer compile against → the DKMS build **fails during the upgrade** → no NVIDIA
-   module → black screen on that kernel.
-   - **You will see it happen** — `Error! Bad return status for module build on kernel …`
-     scrolls past during `-Syu`. That's your cue to *also* hold the kernel
-     (add `linux-lts` to `IgnorePkg`) or to revisit the driver pin entirely. It won't
-     ambush you silently.
+   every time a kernel updates. Two distinct things can go wrong here, and it's worth
+   keeping them separate:
+   - **Missing headers (the common, fully-fixable one).** DKMS can only build if the
+     kernel's matching `-headers` package is installed (`linux` needs `linux-headers`,
+     `linux-lts` needs `linux-lts-headers`). If a kernel is installed *without* its
+     headers, the build is skipped, `mkinitcpio` bakes a **module-less** boot image,
+     and that kernel boots with no GPU driver. This is exactly what bit the mainline
+     `linux` kernel on this box. **`install.sh` now prevents and repairs this
+     automatically** — see the next section.
+   - **Driver too old for the kernel API (the slow, real limit).** Eventually a kernel
+     series bumps an internal API that 580 can no longer compile against *even with
+     headers present* → `Error! Bad return status for module build on kernel …`. That's
+     your cue to *also* hold the kernel (add it to `IgnorePkg`), move the driver with
+     `nvidia-switch.sh latest`, or simply boot the kernel that still builds. The
+     self-heal below detects this and prints those exact options instead of leaving a
+     silent landmine.
    - This is exactly *why* you boot LTS: its slow cadence buys 580 a long, stable life.
 
 2. **PipeWire 1.6.5** is lower-risk — it's userspace and fairly self-contained. The
@@ -144,9 +155,54 @@ Even a bad upgrade is recoverable on this machine:
   `sudo pacman -Sy archlinux-keyring` first, *then* the full `-Su`. Updating regularly
   avoids this entirely.
 
+## Letting the scripts do it for you — the self-heal + `install.sh health`
+
+The "watch the DKMS line and react" ritual is good to *understand*, but you don't
+have to do it by hand. `install.sh` is built to be **rolling-release self-healing**:
+every time you run it (for *any* component), the mandatory prereq step does a
+**full upgrade with every installed kernel's headers folded into the same
+transaction**, then rebuilds DKMS modules and regenerates the boot images. Concretely:
+
+1. **Keyring first.** It pulls `archlinux-keyring` at the front of the upgrade, so a
+   long gap between updates can't fail the whole thing on an expired signing key.
+2. **Headers in lockstep.** It detects each installed kernel (`linux`, `linux-lts`, …)
+   and adds its `-headers` to the `-Syu`. So when a kernel rolls forward, its headers
+   roll with it and DKMS builds against the right version *in the same transaction* —
+   the "new kernel, no GPU driver" trap can't form. (It only adds headers that are
+   real repo packages, so a custom/AUR kernel never aborts the upgrade.)
+3. **Post-upgrade self-heal.** It runs `dkms autoinstall` for every kernel that has
+   headers and, if anything new was built, regenerates the initramfs/UKI with
+   `mkinitcpio -P`. Then it **verifies** every kernel actually has its module and, if
+   one genuinely can't be built (driver-too-old case), prints the concrete options
+   rather than failing silently.
+
+Because all of that lives in the always-run prereqs, **re-running `install.sh`
+repairs a botched upgrade** — including the exact state this box was left in (mainline
+`linux` updated without `linux-headers`): the next run installs the headers, rebuilds
+NVIDIA for that kernel, and regenerates its UKI.
+
+For a one-shot doctor with no app install:
+
+```bash
+bash install.sh health
+```
+
+`health` does the same kernel/headers/DKMS repair, then prints a read-only report:
+a kernel ↔ headers ↔ DKMS matrix, orphaned packages, failed systemd units, pending
+`.pacnew` config merges, and the active `IgnorePkg` pins (so you remember what's held
+on purpose). It changes nothing except the auto-repair; the report half is pure
+inspection.
+
+!!! tip "You can still do it by hand"
+    Nothing about the scripts stops you running `sudo pacman -Syu` yourself — the
+    self-heal just makes the script path safe to lean on. If you upgrade manually and
+    later see a kernel/driver oddity, `bash install.sh health` is the quickest "fix
+    what you can, tell me what you can't" button.
+
 ## The update ritual
 
-A safe, boring routine — do this weekly-ish:
+A safe, boring routine — do this weekly-ish (or just run `bash install.sh health`,
+which automates steps 2–3 and 6):
 
 1. **Read the news first.** Glance at the [archlinux.org](https://archlinux.org) front
    page for "manual intervention required" notices — the rare breaking changes are

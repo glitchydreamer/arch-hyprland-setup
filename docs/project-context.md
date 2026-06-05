@@ -46,7 +46,14 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   candy app icons — as the GTK icon theme; `ICON_THEME=<variant>` to pick another),
   `scripts`, `fish`, `wireplumber`, `git`. The **source of truth** for
   those files; edit & re-run.
-- `install.sh` — components: `build`, `cuda`, `python`, `anaconda`, `node`,
+- `install.sh` — **rolling-release self-healing**: the always-run prereqs do a
+  full `-Syu` with `archlinux-keyring` + every installed kernel's `-headers`
+  folded into the *same* transaction (so DKMS/NVIDIA rebuilds in lockstep and no
+  kernel is left module-less), then auto-`dkms autoinstall` + `mkinitcpio -P` +
+  verify. Re-running the script therefore REPAIRS a botched upgrade. Components:
+  `health` (standalone doctor: the same kernel-headers/DKMS/initramfs auto-repair
+  + a read-only report of orphans, failed units, `.pacnew`, and `IgnorePkg`
+  pins), `build`, `cuda`, `python`, `anaconda`, `node`,
   `editors`, `embedded`, `audio` (incl. the DualSense PipeWire 1.6.5 pin +
   touchpad udev rule), `gpu`, `docker` (Docker + NVIDIA Container Toolkit;
   data-root on /home/docker-data + containerd-snapshotter=false; for ROS 2 Humble /
@@ -807,4 +814,40 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     walkthrough — KVM vs emulation, why virt-manager, a first
     Gentoo/LFS guest, virtio/hugepages/CPU-pinning perf, nested virt);
     nav entry in `mkdocs.yml`. Memory: `project-qemu-virt-manager.md`.
+
+- **2026-06-05 — Rolling-release self-heal + `health` doctor component.**
+  Installing the `vm` component surfaced a latent breakage: the mandatory
+  `pacman -Syu` install.sh runs first had rolled the mainline `linux` kernel
+  to 7.0.11, but `linux-headers` was **not installed**, so the NVIDIA 580
+  DKMS module couldn't build for it and `mkinitcpio` baked a module-less
+  `arch-linux.efi` (`==> ERROR: module not found: 'nvidia'`). linux-lts
+  (6.18.34) stayed fine (its headers + DKMS built). User asked to make the
+  scripts robust so a system-wide upgrade can't break things and so re-running
+  them auto-resolves issues.
+  - **Hardened the mandatory prereqs** (so EVERY install.sh run self-heals):
+    (1) `archlinux-keyring` pulled at the front of the upgrade (expired-key
+    safety); (2) new `kernel_headers_pkgs()` enumerates installed kernels via
+    `/usr/lib/modules/*/pkgbase` and folds each one's `-headers` into the SAME
+    `-Syu` — but only repo-installable targets, so a custom/AUR kernel can't
+    abort the txn with "target not found"; (3) always full `-Syu`, never `-Sy`.
+  - **`heal_dkms_initramfs()`** runs after the upgrade: `dkms autoinstall -k`
+    per installed kernel that has headers, `mkinitcpio -P` if the DKMS set
+    changed, then verifies every kernel has its module. If one genuinely can't
+    build (pinned driver too old for a too-new kernel) it adds a FAILED tag and
+    prints the real options (boot the built kernel / `nvidia-switch.sh latest`
+    / remove the unused kernel) — never a silent landmine. `installed_kernels()`
+    skips pkgbase files not owned by a package, so a stale running-kernel module
+    dir doesn't cause false positives.
+  - **New `health` component**: standalone doctor — the same auto-repair plus a
+    read-only report (kernel↔headers↔DKMS matrix, `pacman -Qtdq` orphans,
+    `systemctl --failed`, `pacdiff -o` `.pacnew` files, active `IgnorePkg`
+    pins). `bash install.sh health` = "fix what you can, tell me what you can't".
+  - **Effect on the reported breakage**: re-running install.sh now installs
+    `linux-headers` in-transaction → DKMS rebuilds NVIDIA for 7.0.11 (if 580
+    supports it) → UKI regenerated; if 580 can't compile against 7.0 the heal
+    flags it with options. linux-lts remains the healthy daily kernel.
+  - **Docs**: `reference.md` §6.14; `learn/11-system-maintenance.md` (new
+    "Letting the scripts do it for you" section + headers/DKMS split in the
+    pinning-risk discussion + kernel versions refreshed); install.sh component
+    map above. Memory: `feedback-rolling-release-self-heal.md`.
 
