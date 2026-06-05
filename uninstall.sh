@@ -348,6 +348,17 @@ do_uv() {
 
 do_icons() {
     say ">>> Switch GTK icon theme back to the caelestia default"
+    # First remove the system dconf LOCK install.sh wrote (it pins the icon theme so
+    # upgrades/caelestia can't reset it). While that lock is in place gsettings can't
+    # change the key, so this MUST come before the gsettings set below. We drop our
+    # local.d files + the lock and rebuild the db; the profile's system-db:local line
+    # is harmless and left in place.
+    if [ -f /etc/dconf/db/local.d/locks/icon-theme ] || [ -f /etc/dconf/db/local.d/10-icon-theme ]; then
+        run icons-unlock sudo rm -f /etc/dconf/db/local.d/locks/icon-theme /etc/dconf/db/local.d/10-icon-theme
+        run icons-dconf-update sudo dconf update
+    else
+        say "    · no icon-theme dconf lock present — skip"
+    fi
     # Restore the prior icon theme (Papirus-Dark; override with ICON_THEME=<name>)
     # and drop the gtk-icon-theme-name override lines so gsettings/caelestia decide.
     local default="${ICON_THEME:-Papirus-Dark}"

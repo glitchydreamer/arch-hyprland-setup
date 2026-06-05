@@ -43,7 +43,10 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
 - `setup-home.sh` — components: `hyprland`, `caelestia` (merges `shell.json`
   shell/dashboard tweaks — e.g. weather in °C via `services.useFahrenheit=false`),
   `nautilus` (sets a Sweet icon theme — synthwave **Sweet-Purple** folders +
-  candy app icons — as the GTK icon theme; `ICON_THEME=<variant>` to pick another),
+  candy app icons — as the GTK icon theme via gsettings + GTK3/4 settings.ini;
+  `ICON_THEME=<variant>` to pick another. For PERSISTENCE across upgrades use
+  `install.sh theme`, which adds a system dconf lock so caelestia/GTK can't reset
+  it to Papirus-Dark),
   `scripts`, `fish`, `wireplumber`, `git`. The **source of truth** for
   those files; edit & re-run.
 - `install.sh` — **rolling-release self-healing**: the always-run prereqs do a
@@ -80,7 +83,12 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   compiles on current rustc — plus the `uinput` group + udev rule + module
   autoload so the daemon can inject pen/pointer events, and
   `gst-plugin-pipewire` for the Hyprland portal screencast), `theme` (candy-icons + sweet-folders
-  from the AUR — the rainbow GTK icon set), `aurapps`, `groups`, `shell`.
+  from the AUR — the rainbow GTK icon set — AND a **system dconf lock** that pins
+  the icon theme so an upgrade / caelestia colour-scheme change can't revert it to
+  Papirus-Dark; variant via `ICON_THEME`, default Sweet-Purple. The two AUR
+  packages are the complete minimal set — all 12 colour variants ship inside the
+  one ~2 MiB `sweet-folders-icons-git`, so there's nothing extra to prune for
+  disk), `aurapps`, `groups`, `shell`.
   CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
   counterpart to `install.sh`): components `docker`, `vm` (remove the whole
@@ -90,8 +98,10 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   `libvirt`/`kvm` group memberships; KVM modules are in-tree so nothing to
   uninstall there), `isaac`, `ros2`, `anaconda`,
   `cuda`, `icons` (switch the GTK icon theme back to the caelestia default
-  Papirus-Dark; keeps the Sweet/candy packages so `setup-home.sh nautilus`
-  re-applies instantly), `inputremap` (remove input-remapper + its daemon + presets —
+  Papirus-Dark — now also **removes the system dconf icon-theme lock** install.sh
+  wrote, FIRST, since a locked key can't otherwise be changed; keeps the
+  Sweet/candy packages so `setup-home.sh nautilus` re-applies instantly),
+  `inputremap` (remove input-remapper + its daemon + presets —
   no longer needed since the Razer mouse remaps via onboard memory), `fastfetch`
   (revert the fastfetch logo + sixel file + animation hook),
   `tablet` (remove Weylus + the uinput udev rule/module-load file + drop the
@@ -850,4 +860,32 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     "Letting the scripts do it for you" section + headers/DKMS split in the
     pinning-risk discussion + kernel versions refreshed); install.sh component
     map above. Memory: `feedback-rolling-release-self-heal.md`.
+
+- **2026-06-05 — Sweet icon theme made persistent (system dconf lock).**
+  After the day's big `-Syu`+reboot the user's Sweet-Purple nautilus icons had
+  reverted to Papirus-Dark: the packages + all `Sweet-*` themes were still
+  installed, but the **`gsettings` icon-theme had been reset to Papirus-Dark**
+  (caelestia's dep/default) while the GTK3/4 `settings.ini` still said
+  Sweet-Purple — nautilus follows gsettings, so it showed the default.
+  Re-applied immediately with `setup-home.sh --yes nautilus`, then baked in a
+  durable fix.
+  - **`install.sh theme` now writes a system dconf lock**: new helper
+    `lock_icon_theme()` ensures `/etc/dconf/profile/user` lists `system-db:local`,
+    writes `/etc/dconf/db/local.d/10-icon-theme` (`icon-theme='<variant>'`) and
+    `…/locks/icon-theme`, then `dconf update`. A *locked* key can't be changed
+    from the user session, so caelestia / a GTK update / a colour-scheme change
+    can no longer reset it. Variant via `ICON_THEME` (default Sweet-Purple),
+    same knob as setup-home.
+  - **`uninstall.sh icons` removes the lock first** (else the locked key can't be
+    reverted), then restores Papirus-Dark + strips the settings.ini lines.
+  - **Disk-cleanup reality check**: the 12 unused Sweet colour variants are all
+    one package (`sweet-folders-icons-git`, 2.27 MiB) that also provides
+    Sweet-Purple — pacman can't split them, and the unused folders total ~3 MB.
+    Declined to hand-delete package-owned files (would make `pacman -Qkk` report
+    corruption) for negligible gain; the `theme` install is already the minimal
+    two packages. (The 45 MB `Sweet-cursors` is the separate, in-use cursor theme.)
+  - **Docs**: `project-context.md` component maps (theme/nautilus/icons) + this
+    entry; `setup-home.sh` nautilus note points to `install.sh theme` for
+    persistence. Memory: `project-gtk-libadwaita-theming.md` (reset-on-upgrade
+    gotcha + the lock as the durable fix).
 

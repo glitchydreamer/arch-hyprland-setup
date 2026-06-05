@@ -245,6 +245,8 @@ do_nautilus() {
     set_ini_key "$HOME/.config/gtk-4.0/settings.ini" gtk-icon-theme-name "$variant"
     say ">>> GTK icon theme set to $variant (Sweet folders + candy app icons; nautilus & other GTK apps)."
     say "    · relaunch to see them:  nautilus -q   then reopen nautilus."
+    say "    · make it STICK across upgrades (system dconf lock so caelestia/GTK can't"
+    say "      reset it to Papirus-Dark):  ICON_THEME=$variant bash install.sh theme"
     say "    · switch back to caelestia default:  bash uninstall.sh icons"
 }
 

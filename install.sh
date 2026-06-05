@@ -119,6 +119,46 @@ pin_pipewire_dualsense() {
     systemctl --user restart pipewire pipewire-pulse wireplumber 2>/dev/null || true
 }
 
+# Make the GTK icon theme STICK across reboots, GTK upgrades, and caelestia
+# colour-scheme regenerations. Symptom this fixes: the icon theme silently
+# reverting to Papirus-Dark (caelestia's default) after an update — a plain
+# `gsettings set` (what setup-home does) can be overwritten again by whatever
+# re-asserts the default. We set a SYSTEM-level dconf default AND lock the key so
+# nothing in the user session can change it back. Idempotent. Variant via $1.
+lock_icon_theme() {
+    local variant="${1:-Sweet-Purple}"
+    say "\n### Persist the icon theme (system dconf lock → $variant)"
+    if [ "$DRY_RUN" -eq 1 ]; then
+        say "    [dry-run] ensure system-db:local in /etc/dconf/profile/user"
+        say "    [dry-run] write /etc/dconf/db/local.d/10-icon-theme (icon-theme='$variant') + locks/icon-theme; dconf update"
+        return
+    fi
+    if [ ! -d "/usr/share/icons/$variant" ]; then
+        say "    !! icon theme '$variant' not installed yet — install candy-icons + sweet-folders first (this component)."
+        FAILED+=("icon-lock:missing-theme"); return
+    fi
+    # dconf only consults the system db if the user profile lists it. Create/extend
+    # the profile minimally (adding a low-priority system layer is safe; user
+    # settings still win, except for keys we explicitly lock).
+    if [ ! -f /etc/dconf/profile/user ]; then
+        printf 'user-db:user\nsystem-db:local\n' | sudo tee /etc/dconf/profile/user >/dev/null \
+            || FAILED+=("icon-lock:profile")
+    elif ! grep -q '^system-db:local' /etc/dconf/profile/user; then
+        echo 'system-db:local' | sudo tee -a /etc/dconf/profile/user >/dev/null \
+            || FAILED+=("icon-lock:profile")
+    fi
+    sudo install -d /etc/dconf/db/local.d/locks || FAILED+=("icon-lock:dir")
+    printf "[org/gnome/desktop/interface]\nicon-theme='%s'\n" "$variant" \
+        | sudo tee /etc/dconf/db/local.d/10-icon-theme >/dev/null || FAILED+=("icon-lock:value")
+    echo '/org/gnome/desktop/interface/icon-theme' \
+        | sudo tee /etc/dconf/db/local.d/locks/icon-theme >/dev/null || FAILED+=("icon-lock:lock")
+    sudo dconf update || FAILED+=("icon-lock:update")
+    say "    · icon theme locked to $variant — survives reboots, GTK upgrades, and"
+    say "      caelestia colour-scheme changes (it can no longer reset to Papirus-Dark)."
+    say "    · change it later:  ICON_THEME=<variant> bash install.sh theme"
+    say "    · undo the lock (revert to caelestia default):  bash uninstall.sh icons"
+}
+
 # Install Anaconda (AUR) and wire it into the fish login shell.
 # Used for general ML/Python work. Idempotent: conda init is a no-op if the
 # managed block already exists, and we never auto-activate base.
@@ -690,10 +730,17 @@ EOF
 
 do_theme() {
     say "\n>>> Candy rainbow icons (AUR via ${HELPER:-none})"
-    # candy-icons = the rainbow/gradient icon set; sweet-folders supplies the matching
-    # folder icons it inherits. Both go to /usr/share/icons (pacman-tracked).
+    # candy-icons = the rainbow/gradient APP icons; sweet-folders supplies the
+    # coloured FOLDER icons that Inherit candy-icons. Both go to /usr/share/icons
+    # (pacman-tracked). These two packages are the COMPLETE, minimal set for the
+    # Sweet look — the 12 colour variants all ship inside sweet-folders-icons-git
+    # (one ~2 MiB package), so there's nothing extra to remove for disk.
     aur candy-icons-git sweet-folders-icons-git || FAILED+=("aur:theme")
-    say "    · apply with:  bash setup-home.sh nautilus   (sets candy-icons as the GTK icon theme)"
+    # Persistence: lock the icon theme at the system level so an upgrade / caelestia
+    # colour-scheme regeneration can't silently revert it to Papirus-Dark. Variant
+    # via ICON_THEME (default Sweet-Purple) — same knob setup-home.sh nautilus uses.
+    lock_icon_theme "${ICON_THEME:-Sweet-Purple}"
+    say "    · also apply the per-user GTK side:  bash setup-home.sh nautilus"
 }
 
 do_aurapps() {
