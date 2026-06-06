@@ -661,9 +661,17 @@ same file, both kernels.
 | Check nested | `cat /sys/module/kvm_intel/parameters/nested` → `Y` (or `kvm_amd`) |
 
 **Revert / reclaim disk**: `bash uninstall.sh vm` — stops the daemon + default
-network, removes the whole stack, and **deletes all guest disk images** under
-`/var/lib/libvirt` (the space hogs after building Gentoo/LFS), `/etc/libvirt`,
-the per-user virt-manager state, the nested-virt drop-in, and drops the
+network, removes the whole stack, and **deletes all guest disk images in every
+storage pool** — not just the default `/var/lib/libvirt` one but also any
+**custom pool you created on `/home`** (e.g. a `gentoo` pool). Before stopping the
+daemon it asks libvirt for every volume in every pool and removes only genuine VM
+disk images (`.qcow2`/`.raw`/`.img`/`.qed`/`.vmdk`/…), each as an individual file —
+so even if you **forget to tick "Delete associated storage" in virt-manager**, the
+orphaned disk on `/home` is still reclaimed. It deliberately **leaves your ISOs and
+any other files untouched** (a directory-type pool lists those as "volumes" too, but
+they're yours, not the script's) and prints their paths so you can delete them by
+hand if you want the space. It also removes `/etc/libvirt` (pool definitions live
+here), the per-user virt-manager state, the nested-virt drop-in, and drops the
 `libvirt`/`kvm` group memberships. KVM kernel modules are in-tree, so there's
 nothing to uninstall there.
 

@@ -39,7 +39,7 @@ RECLAIMED_KB=0
 # component. The menu and `all` are generated from this list.
 COMPONENTS=(
     "docker|Docker engine, buildx, containerd, NVIDIA container toolkit, all images/data, the docker group"
-    "vm|QEMU/KVM + libvirt + virt-manager + virt-viewer + OVMF/swTPM/guestfs, the default NAT net, ALL guest disk images under /var/lib/libvirt, /etc/libvirt, the nested-virt modprobe drop-in, and libvirt/kvm group membership"
+    "vm|QEMU/KVM + libvirt + virt-manager + virt-viewer + OVMF/swTPM/guestfs, the default NAT net, ALL guest disk images in EVERY pool (default + custom pools on /home), /etc/libvirt, the nested-virt modprobe drop-in, and libvirt/kvm group membership (leaves your ISOs untouched)"
     "isaac|Isaac Sim container caches, the IsaacLab clone, the isaac-sim launcher, xorg-xauth"
     "ros2|The ros2-humble launcher + its Docker image + the Fast DDS UDP profile (also clears a leftover Jazzy image/launcher; image only if Docker is still present)"
     "anaconda|Anaconda (AUR) + the conda fish init; leaves your project envs' data under ~/anaconda3 if external"
@@ -165,6 +165,31 @@ do_docker() {
 
 do_vm() {
     say ">>> QEMU/KVM + libvirt + virt-manager virtualization stack"
+    # --- Find guest disks in EVERY pool, not just the default one ----------------
+    # A VM disk may live in a CUSTOM pool on /home (e.g. a 'gentoo' pool pointing at
+    # ~/Documents/linux-iso/gentoo) that the /var/lib/libvirt sweep below would miss
+    # entirely — so a user who forgot to "Delete associated storage" in virt-manager
+    # would be left with a multi-GB qcow2 on /home. Ask libvirt — WHILE IT'S STILL
+    # RUNNING — for every volume in every pool, and remember the ones that are real
+    # VM disk images. We match only known disk extensions: a directory-type pool
+    # reports EVERY file in its dir as a "volume" (including the user's .iso and any
+    # stray files), and we must never delete those. Disks outside /var/lib/libvirt
+    # get reclaimed explicitly further down; ones inside it ride the dir sweep.
+    local VM_DISKS=() VM_SKIPPED=()
+    if command -v virsh >/dev/null 2>&1; then
+        local _pool _vol
+        while IFS= read -r _pool; do
+            [ -n "$_pool" ] || continue
+            while IFS= read -r _vol; do
+                [ -n "$_vol" ] || continue
+                case "${_vol,,}" in
+                    *.qcow2|*.qcow|*.raw|*.img|*.qed|*.vmdk|*.vdi|*.vhd|*.vhdx)
+                        VM_DISKS+=("$_vol") ;;
+                    *) VM_SKIPPED+=("$_vol") ;;   # .iso / unknown → not ours to delete
+                esac
+            done < <(sudo virsh vol-list "$_pool" 2>/dev/null | awk 'NR>2 && NF>=2 {print $2}')
+        done < <(sudo virsh pool-list --all --name 2>/dev/null)
+    fi
     # Stop the default NAT network + the daemons first so nothing holds the virbr0
     # bridge / storage pools open while packages and data go away.
     if command -v virsh >/dev/null 2>&1; then
@@ -186,6 +211,28 @@ do_vm() {
     # (default images dir is /var/lib/libvirt/images). This is what frees real GBs
     # after building Gentoo/LFS guests. The whole tree is root-owned → sudo.
     reclaim vm-varlib /var/lib/libvirt sudo
+    # Guest disks that live OUTSIDE /var/lib/libvirt (custom pools on /home, etc.).
+    # The default-pool disks are already gone with /var/lib/libvirt above, so skip
+    # those here to avoid a double "reclaim" of nothing. Each disk is removed as an
+    # individual FILE — the pool's directory (which may also hold the user's ISOs)
+    # is left in place. sudo: system-pool volumes are created root-owned.
+    local _d _dir
+    for _d in "${VM_DISKS[@]}"; do
+        case "$_d" in /var/lib/libvirt/*) continue ;; esac   # handled by the sweep
+        reclaim "vm-disk" "$_d" sudo
+        # If removing that disk emptied its directory, drop the now-empty dir too —
+        # but ONLY if empty, so a pool dir still holding ISOs/other files survives.
+        _dir=$(dirname "$_d")
+        if [ -d "$_dir" ] && [ -z "$(ls -A "$_dir" 2>/dev/null)" ]; then
+            run vm-disk-dir sudo rmdir "$_dir"
+        fi
+    done
+    # Anything we deliberately DIDN'T touch (ISOs / stray files in a dir pool): tell
+    # the user where they are so they can delete them by hand if they want the space.
+    if [ "${#VM_SKIPPED[@]}" -gt 0 ]; then
+        say "    · left in place (not VM disks — delete by hand if unwanted):"
+        for _d in "${VM_SKIPPED[@]}"; do say "        - $_d"; done
+    fi
     reclaim vm-etc    /etc/libvirt      sudo
     # Per-user virt-manager state (connection list, window/default settings).
     reclaim vm-cfg    "$HOME/.config/libvirt"

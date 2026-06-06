@@ -267,16 +267,33 @@ bash uninstall.sh vm
 This is a **clean** removal — it stops the daemon and default network, removes
 the whole stack (`qemu-full` + its sub-packages, `libvirt`, `virt-manager`,
 `virt-viewer`, `edk2-ovmf`, `swtpm`, `libguestfs`, and `dnsmasq`/`dmidecode` if
-nothing else needs them), and **deletes all guest disk images** under
-`/var/lib/libvirt` — which is where the real gigabytes are after building a few
-Gentoo/LFS images. It also clears `/etc/libvirt`, your per-user virt-manager
+nothing else needs them), and **deletes all guest disk images in every storage
+pool** — not only the default `/var/lib/libvirt` one but also any **custom pool
+you put on `/home`** (e.g. a `gentoo` pool pointing at `~/Documents/linux-iso/…`),
+which is where the real gigabytes are after building a few Gentoo/LFS images. It
+also clears `/etc/libvirt` (your pool definitions), your per-user virt-manager
 state, the nested-virt modprobe drop-in, and drops your `libvirt`/`kvm` group
 memberships. The reclaim tally at the end shows how much space you got back.
 
+!!! tip "You don't have to clean up in virt-manager first"
+    The two ways to free a VM's disk:
+
+    1. **In virt-manager** — right-click the VM ▸ *Delete*, and **tick "Delete
+       associated storage files"**. Use this when you want to remove *one* VM but
+       keep the virtualization stack for later (e.g. move on to LFS).
+    2. **`bash uninstall.sh vm`** — rips out the whole stack. It now also **sweeps
+       custom pools**, so even if you *forgot* to tick that box, the orphaned
+       `.qcow2` sitting in your `/home` pool is found and reclaimed anyway.
+
+    Either way, your downloaded **ISO is left alone** — the script removes only real
+    VM disk images (`.qcow2`/`.raw`/`.img`/…) and prints the path of anything it
+    skipped (ISOs, stray files) so you can delete it by hand. Remove an ISO with a
+    plain `rm`, e.g. `rm ~/Documents/linux-iso/gentoo/*.iso`.
+
 !!! warning "It deletes your VMs"
-    `uninstall.sh vm` removes `/var/lib/libvirt`, so **every guest and its disk
-    image goes with it**. If you've built something you want to keep, copy the
-    `.qcow2` out of `/var/lib/libvirt/images` (or your `/home/vms` pool) first.
+    `uninstall.sh vm` deletes the disk image of **every** guest in **every** pool,
+    so all your VMs go with it. If you've built something you want to keep, copy the
+    `.qcow2` out (from `/var/lib/libvirt/images` or your `/home` pool) first.
 
 The KVM kernel modules are in-tree, so there's nothing to uninstall there — they
 go dormant the moment nothing uses `/dev/kvm`.

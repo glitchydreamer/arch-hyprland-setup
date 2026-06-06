@@ -92,8 +92,12 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   CUDA is driver-matched.
 - `uninstall.sh` — interactive, component-based **clean** uninstaller (the
   counterpart to `install.sh`): components `docker`, `vm` (remove the whole
-  QEMU/KVM + libvirt + virt-manager stack and **delete all guest disk images
-  under `/var/lib/libvirt`** — the real GBs after Gentoo/LFS builds — plus
+  QEMU/KVM + libvirt + virt-manager stack and **delete all guest disk images in
+  EVERY pool** — the default `/var/lib/libvirt` one *and* any custom pool on
+  `/home`, found by querying libvirt for every volume before the daemon is
+  stopped; only real disk images `.qcow2/.raw/.img/…` go, ISOs/other files are
+  left alone and their paths printed — so a disk orphaned by forgetting
+  virt-manager's "Delete associated storage" is still reclaimed — plus
   `/etc/libvirt`, per-user virt-manager state, the nested-virt drop-in, and the
   `libvirt`/`kvm` group memberships; KVM modules are in-tree so nothing to
   uninstall there), `isaac`, `ros2`, `anaconda`,
@@ -808,17 +812,27 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     (contrast the NVIDIA stack). The only kernel-touching file the
     component writes is the nested-virt modprobe drop-in, read by
     whichever kernel boots. So a single install covers both.
-  - **`uninstall.sh vm`**: stops the default network + the libvirt
+  - **`uninstall.sh vm`**: BEFORE stopping anything it queries libvirt
+    (`virsh pool-list` → `vol-list` per pool, while the daemon is still
+    up) to find **guest disks in EVERY pool — including custom pools on
+    `/home`** (e.g. a `gentoo` pool at `~/Documents/linux-iso/gentoo`),
+    not just the default. Then stops the default network + the libvirt
     daemons, `-Rns` the whole stack (qemu-full + sub-packages + spice
     via cascade, edk2-ovmf/swtpm/libguestfs/virt-viewer; dnsmasq +
-    dmidecode best-effort), then **deletes all guest disk images +
-    storage pools under `/var/lib/libvirt`** (the real space hogs after
-    Gentoo/LFS builds — the reclaim tally shows the GBs), `/etc/libvirt`,
-    per-user virt-manager state (`~/.config/libvirt`,
-    `~/.local/share/libvirt`, `~/.cache/libvirt`), the nested-virt
-    drop-in, and drops the `libvirt`/`kvm` group memberships. Leaves
-    the groups themselves (`kvm` is a system group other tooling uses)
-    and the in-tree kernel modules.
+    dmidecode best-effort), **deletes all guest disk images + storage
+    pools under `/var/lib/libvirt`** (the default-pool space hogs), and
+    **reclaims any disk images found OUTSIDE `/var/lib/libvirt`** as
+    individual files (so a disk orphaned by forgetting virt-manager's
+    "Delete associated storage" is still freed). Safety: it removes only
+    real disk images (`.qcow2/.raw/.img/.qed/.vmdk/.vdi/.vhd/.qcow`);
+    **ISOs and any other files in a directory-type pool are left in place
+    and their paths printed** for manual deletion, and a custom pool's
+    directory is only `rmdir`'d if it ends up empty. Also clears
+    `/etc/libvirt` (pool definitions), per-user virt-manager state
+    (`~/.config/libvirt`, `~/.local/share/libvirt`, `~/.cache/libvirt`),
+    the nested-virt drop-in, and drops the `libvirt`/`kvm` group
+    memberships. Leaves the groups themselves (`kvm` is a system group
+    other tooling uses) and the in-tree kernel modules.
   - **Docs**: `reference.md` §6.13 (package table + config summary +
     verify/revert recipes); `learn/14-virtual-machines.md` (full
     walkthrough — KVM vs emulation, why virt-manager, a first
@@ -888,4 +902,35 @@ build_type=workflow`). The deploy now succeeds on every push. (Earlier note that
     entry; `setup-home.sh` nautilus note points to `install.sh theme` for
     persistence. Memory: `project-gtk-libadwaita-theming.md` (reset-on-upgrade
     gotcha + the lock as the durable fix).
+
+- **2026-06-06 — `uninstall.sh vm` now sweeps custom storage pools.** While
+  setting up the first Gentoo guest the user keeps the VM disk in a **custom
+  `gentoo` pool on `/home`** (`~/Documents/linux-iso/gentoo`), not the default
+  `/var/lib/libvirt/images`. The old `uninstall.sh vm` only reclaimed
+  `/var/lib/libvirt`, so a disk in that `/home` pool — e.g. one orphaned by
+  forgetting to tick virt-manager's *"Delete associated storage"* — would have
+  been left behind eating GBs. Fixed so a single `uninstall.sh vm` truly leaves
+  nothing behind regardless of where disks were stored.
+  - **How**: `do_vm()` now, **before** stopping the daemon, walks
+    `virsh pool-list --all --name` → `virsh vol-list <pool>` for every pool and
+    collects volume paths. After the existing `/var/lib/libvirt` sweep it
+    `reclaim`s each collected disk that lives **outside** `/var/lib/libvirt`
+    (those inside ride the sweep, so no double-count), then `rmdir`s the pool dir
+    only if it became empty.
+  - **Safety (important)**: a *directory*-type pool reports **every** file in its
+    dir as a "volume" — including the user's `.iso` and stray files. So the sweep
+    matches **only real disk-image extensions**
+    (`.qcow2/.qcow/.raw/.img/.qed/.vmdk/.vdi/.vhd/.vhdx`); everything else is
+    **left in place and its path printed** so the user can delete it by hand
+    (`rm …/gentoo/*.iso`). Verified against the live setup: the Gentoo ISO and the
+    empty `vm/` subdir were correctly classified as "skip", a future `.qcow2`
+    would be reclaimed, and the pool dir (still holding the ISO) is preserved.
+  - **Two cleanup paths documented**: (1) remove one VM but keep the stack →
+    virt-manager *Delete* + tick "Delete associated storage"; (2) remove
+    everything → `uninstall.sh vm`, which now also covers case (1)'s disk if you
+    forgot. ISOs always survive both.
+  - **Docs**: `reference.md` §6.13 revert recipe; `learn/14-virtual-machines.md`
+    "Reverting / reclaiming disk" (new tip on the two cleanup paths + ISOs being
+    spared); `project-context.md` uninstall map + this entry. Memory:
+    `project-qemu-virt-manager.md`.
 
