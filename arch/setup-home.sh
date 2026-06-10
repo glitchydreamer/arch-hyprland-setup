@@ -56,7 +56,7 @@ COMPONENTS=(
     "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, moveit2-humble, vnc-server, remote, lerobot-verify, fastfetch-logo"
     "fastfetch|Point fastfetch at a custom image / GIF / video logo via the fastfetch-logo helper (interactive: just give it the file path)"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
-    "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
+    "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack + a health check of the live routing"
     "git|Global git defaults (branch, autoSetupRemote, rerere, editor, ...)"
     "lerobot|Conda env 'lerobot' with LeRobot for SO-arm 101 real hardware (feetech extras + cmake-4 hook). Editable install from ~/lerobot if present (else PyPI). Overrides: LEROBOT_DIR / LEROBOT_ENV / LEROBOT_EXTRAS / LEROBOT_PY"
 )
@@ -997,7 +997,7 @@ do_wireplumber() {
     # The controller ships with ACP auto-profile/auto-port OFF, so plugging
     # earphones into its jack never moves audio off the internal speaker. Turn
     # them on so WirePlumber follows the jack. (Manual fallback: `dualsense-audio`.)
-    dry "~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf" && return
+    dry "~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf + DualSense audio health check" && return
     mkdir -p "$HOME/.config/wireplumber/wireplumber.conf.d"
     cat > "$HOME/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf" <<'EOF'
 monitor.alsa.rules = [
@@ -1014,6 +1014,63 @@ monitor.alsa.rules = [
   }
 ]
 EOF
+    dualsense_audio_healthcheck
+}
+
+# Read-only health check for the DualSense 3.5mm jack. Run by do_wireplumber after
+# writing the drop-in; also callable standalone. Catches the "jack is silent" state
+# at setup time and points at the fix. Non-fatal — the controller is usually off
+# when setup runs, and the drop-in only takes effect after WirePlumber reloads
+# (re-login, or `systemctl --user restart wireplumber`), so this reflects the
+# CURRENT (possibly pre-reload) routing.
+dualsense_audio_healthcheck() {
+    say "    · DualSense audio health check:"
+
+    # 1. The drop-in we rely on for auto-switching.
+    local conf="$HOME/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf"
+    if [ -f "$conf" ]; then
+        say "      ✓ auto-switch drop-in present (51-dualsense-headphones.conf)"
+    else
+        say "      ✗ drop-in MISSING — run: bash setup-home.sh wireplumber"
+    fi
+
+    # 2. Tools / services needed to introspect and route.
+    if ! command -v pactl >/dev/null 2>&1; then
+        say "      ? pactl not found — skipping live check (install pipewire-pulse)."
+        return
+    fi
+    if ! systemctl --user is-active --quiet wireplumber 2>/dev/null; then
+        say "      ? wireplumber.service inactive for this user — skipping live check."
+        return
+    fi
+
+    # 3. Live routing. There are two valid ways the jack becomes the live output, so
+    #    check BOTH: a Headphones *profile* (what `dualsense-audio` forces) OR a
+    #    headphone *port* active inside the current profile (what the auto-port
+    #    drop-in does). Either one counts as healthy.
+    local card profile port
+    card=$(pactl list cards short 2>/dev/null | awk '/Sony|DualSense/{print $2; exit}')
+    if [ -z "${card:-}" ]; then
+        say "      · no DualSense card detected (controller off/unplugged) — OK."
+        say "        When connected, headphones in the jack should auto-route once"
+        say "        WirePlumber has reloaded; if silent, run: dualsense-audio"
+        return
+    fi
+    profile=$(pactl list cards 2>/dev/null | awk -v c="$card" '
+        $1=="Name:" && $2==c {f=1; next}
+        f && /Active Profile:/ {sub(/^[[:space:]]*Active Profile:[[:space:]]*/,""); print; exit}')
+    port=$(pactl list sinks 2>/dev/null | awk '
+        /Sony|DualSense/ {s=1}
+        s && /Active Port:/ {sub(/^[[:space:]]*Active Port:[[:space:]]*/,""); print; exit}')
+    say "      · DualSense card: $card"
+    say "        active profile: '${profile:-unknown}'   active sink port: '${port:-none}'"
+    if printf '%s %s' "${profile:-}" "${port:-}" | grep -qi 'headphone'; then
+        say "      ✓ a Headphones profile/port is live — the 3.5mm jack is the route."
+    else
+        say "      ! no Headphones profile/port is active. If earphones in the jack are"
+        say "        silent, plug them in (auto-switch follows a WirePlumber reload) or"
+        say "        force the route now:  dualsense-audio"
+    fi
 }
 
 do_git() {

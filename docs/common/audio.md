@@ -98,6 +98,16 @@ correct conclusion was to *stop chasing it in software*. (Two routing helpers �
 WirePlumber auto-switch rule and a `dualsense-audio` script — were kept anyway,
 since they're correct and useful for *working* hardware.)
 
+!!! tip "Health check (Arch build)"
+    Running the Arch `setup-home.sh wireplumber` component writes the auto-switch
+    drop-in **and then runs a DualSense audio health check**: it confirms the drop-in
+    is present, and — if the controller is connected — reports the card's active
+    profile and the sink's active port, flagging when *neither* a Headphones profile
+    nor a headphone port is live (the "silent jack" state) and pointing at
+    `dualsense-audio` as the one-shot fix. It's read-only and non-fatal, so it's safe
+    to re-run any time you want to confirm where audio is actually routed. (Not on the
+    CachyOS build — its stock PipeWire routes the jack correctly with no helper.)
+
 !!! note "The meta-lesson"
     Problem A was software (and fixable by pinning); Problem B *looked* identical
     ("no sound") but was hardware. The way you tell them apart is **isolation
