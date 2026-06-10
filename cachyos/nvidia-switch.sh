@@ -205,6 +205,7 @@ limine_dump_entries() {
     local line rest n=0
     say "    · limine entries ($LIMINE_CONF):"
     while IFS= read -r line; do
+        line="${line#"${line%%[![:space:]]*}"}"          # strip leading whitespace (entries are indented)
         case "$line" in
             /*)
                 rest="${line#"${line%%[!/]*}"}"          # strip leading slashes
@@ -221,6 +222,7 @@ limine_dump_entries() {
 limine_leaf_index() {
     local want="$1" line rest n=0 target=0 t
     while IFS= read -r line; do
+        line="${line#"${line%%[![:space:]]*}"}"          # strip leading whitespace (entries are indented)
         case "$line" in
             /*)
                 rest="${line#"${line%%[!/]*}"}"
