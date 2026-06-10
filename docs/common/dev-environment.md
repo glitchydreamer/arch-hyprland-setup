@@ -62,6 +62,28 @@ approaches, and this machine uses a mix deliberately:
     any one project (the abandoned Isaac Sim attempt once used conda, but
     Anaconda outlived it).
 
+!!! warning "The harmless `OpenSSL 3's legacy provider failed to load` warning"
+    Every new shell prints this once, because the `conda init` hook runs
+    Anaconda's Python, and Anaconda's `/opt/anaconda/ssl/openssl.cnf` activates
+    only the `default` provider — so when conda asks OpenSSL for the *legacy*
+    provider, it warns. It is **purely cosmetic**: md5/sha/blake2 still work, only
+    ancient algorithms (md4/des/rc4) are affected, which conda doesn't need. The
+    *system* Python is unaffected. To silence it, activate the legacy provider in
+    Anaconda's config (run in a **plain terminal**, since it needs `sudo`):
+
+    ```sh
+    sudo cp -n /opt/anaconda/ssl/openssl.cnf /opt/anaconda/ssl/openssl.cnf.bak
+    grep -q '^legacy = legacy_sect' /opt/anaconda/ssl/openssl.cnf \
+      || sudo sed -i 's/^default = default_sect$/default = default_sect\nlegacy = legacy_sect/' /opt/anaconda/ssl/openssl.cnf
+    sudo sed -i '/^\[default_sect\]/{n; s/^# *activate = 1/activate = 1/}' /opt/anaconda/ssl/openssl.cnf
+    grep -q '^\[legacy_sect\]' /opt/anaconda/ssl/openssl.cnf \
+      || printf '\n[legacy_sect]\nactivate = 1\n' | sudo tee -a /opt/anaconda/ssl/openssl.cnf >/dev/null
+    ```
+
+    A future `conda update openssl` may rewrite `openssl.cnf` and re-mute the fix
+    (the `.bak` is your reference). If the warning ever comes back, it's safe to
+    ignore.
+
 ## The package philosophy
 
 A glance at the [installed software](../arch/reference.md#6-installed-software)
