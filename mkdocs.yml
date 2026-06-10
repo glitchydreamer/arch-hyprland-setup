@@ -1,35 +1,45 @@
-site_name: Arch + Hyprland Setup
-site_description: Personal reference for an Arch Linux + Hyprland (caelestia) workstation — file layout, settings, customizations, troubleshooting.
-site_url: https://glitchydreamer.github.io/arch-hyprland-setup/
-repo_url: https://github.com/glitchydreamer/arch-hyprland-setup
-repo_name: glitchydreamer/arch-hyprland-setup
+site_name: Hyprland Rice (multi-distro)
+site_description: Personal reference + reproducibility scripts for a Hyprland (caelestia) workstation across distros — Arch Linux and CachyOS. Shared learning core, per-distro specifics (packages, NVIDIA, bootloader).
+site_url: https://glitchydreamer.github.io/hyprland-rice/
+repo_url: https://github.com/glitchydreamer/hyprland-rice
+repo_name: glitchydreamer/hyprland-rice
 edit_uri: edit/main/docs/
 
 nav:
   - Home: index.md
-  - Learning Path:
-      - Start here — the big picture: learn/index.md
-      - 1. Arch Linux & pacman: learn/01-arch-and-pacman.md
-      - 2. Wayland & Hyprland: learn/02-wayland-and-hyprland.md
-      - 3. The caelestia shell: learn/03-caelestia-shell.md
-      - 4. Displays — resolution, refresh, HDR: learn/04-displays.md
-      - 5. NVIDIA on Linux: learn/05-nvidia.md
-      - 6. Audio on Linux: learn/06-audio.md
-      - 7. The developer environment: learn/07-dev-environment.md
-      - 8. Reproducibility & the scripts: learn/08-reproducibility.md
-      - 9. The troubleshooting mindset: learn/09-troubleshooting-mindset.md
-      - 10. Package management cheat-sheet: learn/10-package-management.md
-      - 11. System maintenance & upgrades: learn/11-system-maintenance.md
-      - 12. fastfetch with a custom image/GIF/video: learn/12-fastfetch-logo.md
-      - 13. iPad/Android tablet as a drawing pad (Weylus): learn/13-weylus-tablet.md
-      - 14. Virtual machines (QEMU/KVM + virt-manager): learn/14-virtual-machines.md
-      - Glossary: learn/glossary.md
-  - Full Reference: reference.md
-  - Guides:
-      - Coming from Ubuntu: coming-from-ubuntu.md
-      - Display setup: display.md
-      - Keybinds: keybinds.md
-  - Project context: project-context.md
+  - Common — Learning Path:
+      - Start here — the big picture: common/index.md
+      - Wayland & Hyprland: common/wayland-and-hyprland.md
+      - The caelestia shell: common/caelestia-shell.md
+      - Displays — resolution, refresh, HDR: common/displays.md
+      - NVIDIA on Linux (concepts): common/nvidia.md
+      - Audio on Linux: common/audio.md
+      - The developer environment: common/dev-environment.md
+      - Reproducibility & the scripts: common/reproducibility.md
+      - The troubleshooting mindset: common/troubleshooting-mindset.md
+      - fastfetch with a custom image/GIF/video: common/fastfetch-logo.md
+      - iPad/Android tablet as a drawing pad (Weylus): common/weylus-tablet.md
+      - Virtual machines (QEMU/KVM + virt-manager): common/virtual-machines.md
+      - Coming from Ubuntu: common/coming-from-ubuntu.md
+      - Glossary: common/glossary.md
+  - Arch Linux:
+      - Overview & project context: arch/project-context.md
+      - Arch Linux & pacman: arch/arch-and-pacman.md
+      - NVIDIA driver management: arch/nvidia.md
+      - Package management cheat-sheet: arch/package-management.md
+      - System maintenance & upgrades: arch/system-maintenance.md
+      - Display setup: arch/display.md
+      - Keybinds: arch/keybinds.md
+      - Full reference: arch/reference.md
+  - CachyOS:
+      - Overview & project context: cachyos/project-context.md
+      - CachyOS & pacman: cachyos/cachyos-and-pacman.md
+      - NVIDIA driver management: cachyos/nvidia.md
+      - Package management cheat-sheet: cachyos/package-management.md
+      - System maintenance & upgrades: cachyos/system-maintenance.md
+      - Display setup: cachyos/display.md
+      - Keybinds: cachyos/keybinds.md
+      - Full reference: cachyos/reference.md
 
 theme:
   name: material

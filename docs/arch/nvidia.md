@@ -51,11 +51,11 @@ graphics) on the GPU — the backbone of modern ML/AI and scientific computing.
 Practically it's a toolkit (`nvcc` compiler, libraries) plus a runtime that talks
 to the driver.
 
-The key gotcha, which the [install script](07-dev-environment.md) automates:
+The key gotcha, which the [install script](../common/dev-environment.md) automates:
 **your driver caps the maximum CUDA version you can use.** `nvidia-smi` shows a
 "CUDA Version" — that's the *highest* CUDA the installed driver supports, not
 what's installed. Install a CUDA newer than that ceiling and it won't run. The
-[dev environment page](07-dev-environment.md) explains the matching logic.
+[dev environment page](../common/dev-environment.md) explains the matching logic.
 
 ## Why NVIDIA was "the hard one" on Wayland
 
@@ -86,7 +86,7 @@ Counterintuitively, forcing `no_hardware_cursors = true` *caused* the stale
 cursor. (A *second*, unrelated cause existed too — the DualSense touchpad
 registering as an absolute pointer — fixed separately with a udev rule.) The full
 write-up with both causes is in the
-[reference](../reference.md#87-two-mouse-cursors-one-moving-one-stuck-at-centre).
+[reference](reference.md#87-two-mouse-cursors-one-moving-one-stuck-at-centre).
 This is a textbook example of "the obvious explanation (an input device) was
 wrong; the real cause was a layer down (the renderer)."
 
@@ -177,8 +177,8 @@ run on an older-minor driver of the same major (13.x). So the `cuda` action keep
 13.2 rather than forcing a needless downgrade; it only swaps when the *major*
 version exceeds the driver's ceiling. Run it after rebooting (the ceiling is only
 readable once the new driver is loaded). See the
-[dev environment page](07-dev-environment.md#robotics-isaac-sim-ros-2) and the
-[reproducibility page](08-reproducibility.md).
+[dev environment page](../common/dev-environment.md#robotics-isaac-sim-ros-2) and the
+[reproducibility page](../common/reproducibility.md).
 
 ## Practical NVIDIA commands
 
@@ -190,5 +190,5 @@ hyprctl monitors           # confirm the compositor sees the GPU's outputs
 
 ---
 
-**Next:** [Audio on Linux →](06-audio.md) — the modern sound stack, and a real
+**Next:** [Audio on Linux →](../common/audio.md) — the modern sound stack, and a real
 debugging story.

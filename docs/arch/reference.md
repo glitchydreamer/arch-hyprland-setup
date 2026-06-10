@@ -453,7 +453,7 @@ npm 11, pnpm 10, yarn classic.
 > atomically, pins the result (`IgnorePkg`), verifies the dkms build, rebuilds the
 > UKI, steers the Limine boot default, prunes the cache, and prints a recovery
 > note. `cuda` aligns CUDA+cuDNN to the loaded driver. `--dry-run` previews
-> everything; read [NVIDIA learn §the fix](learn/05-nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver).
+> everything; read [NVIDIA learn §the fix](nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver).
 
 ### 6.5 Audio / DualSense
 
@@ -547,7 +547,7 @@ sets the config's `logo` block to `type: raw` so fastfetch just streams the
 bytes. The actual cell footprint in foot is larger than chafa's `--size`
 suggests (chafa assumes ~10×20 px cells; foot at JetBrains Mono 12pt is
 ~8×17), so the helper scales the JSON `width`/`height` up by ~1.2× to leave
-room for the modules. See [Learn / fastfetch](learn/12-fastfetch-logo.md) for
+room for the modules. See [Learn / fastfetch](../common/fastfetch-logo.md) for
 the full sizing math + the foot row-clear bug story.
 
 **Quick recipe**:
@@ -603,7 +603,7 @@ the modules-load file, the user from the `uinput` group, and the
 per-user state in `~/.local/share/weylus`. Leaves `gst-plugin-pipewire`
 (shared with audio).
 
-See [Learn / Tablet as drawing pad](learn/13-weylus-tablet.md) for the
+See [Learn / Tablet as drawing pad](../common/weylus-tablet.md) for the
 full walkthrough — why the community fork, latency tuning, pen pressure
 debugging, and the "I see a black screen on the tablet" recipe.
 
@@ -675,7 +675,7 @@ here), the per-user virt-manager state, the nested-virt drop-in, and drops the
 `libvirt`/`kvm` group memberships. KVM kernel modules are in-tree, so there's
 nothing to uninstall there.
 
-See [Learn / Virtual machines](learn/14-virtual-machines.md) for the full
+See [Learn / Virtual machines](../common/virtual-machines.md) for the full
 walkthrough — KVM vs emulation, why virt-manager over plain QEMU, a first
 Gentoo/LFS guest, performance tuning (virtio, hugepages, CPU pinning), and
 nested virt.
@@ -727,7 +727,7 @@ read-only report:
 
 Only the auto-repair changes anything; the report half is pure inspection. Under
 `--dry-run`, even the repair is simulated. See
-[Learn / System maintenance](learn/11-system-maintenance.md) for the full mental model
+[Learn / System maintenance](system-maintenance.md) for the full mental model
 of rolling upgrades, pinning, and DKMS-vs-kernel risk.
 
 ---

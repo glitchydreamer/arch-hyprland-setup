@@ -139,7 +139,7 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
   caps at 13.0, 595 at 13.2 — that ceiling is only readable once the new driver is
   *loaded*, which is why CUDA alignment is the separate post-reboot `cuda` action,
   not bundled into `downgrade`. See
-  [§NVIDIA learn page](learn/05-nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver).
+  [§NVIDIA learn page](nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver).
 
 ## File map (live system, not the repo)
 

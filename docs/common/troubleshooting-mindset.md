@@ -37,7 +37,7 @@ flowchart TD
    then look. If the prediction fails, the guess was wrong — move on, don't pile
    on more changes.
 5. **Fix at the correct layer**, then [fold the fix into the
-   scripts](08-reproducibility.md) so it survives a rebuild.
+   scripts](reproducibility.md) so it survives a rebuild.
 
 ## Isolation testing — the key skill
 
@@ -57,7 +57,7 @@ the controller hardware. Isolate:
 
 Only the controller's headphone output stage is left → **hardware fault**, stop
 debugging software. Each test changed one variable and eliminated one layer. Full
-story: [Audio page](06-audio.md#case-study-the-dualsense-controllers-audio).
+story: [Audio page](audio.md#case-study-the-dualsense-controllers-audio).
 
 ### Isaac Sim (userspace vs kernel)
 
@@ -66,7 +66,7 @@ container (frozen userspace). Isolate by **running it in a container** — if th
 fixes it, it was userspace; if not, it's deeper. It *didn't* fix it → the bug is
 in the **kernel** driver, which a container can't replace → abandon the approach.
 One decisive test saved endless userspace fiddling. Full story:
-[NVIDIA page](05-nvidia.md#case-study-2-isaac-sim-and-a-bug-a-container-couldnt-fix).
+[NVIDIA page](../arch/nvidia.md#case-study-2-isaac-sim-and-a-bug-a-container-couldnt-fix).
 
 ### The ghost cursor (input vs renderer)
 
@@ -74,7 +74,7 @@ Symptom: a stuck cursor. Obvious guess: an input device. Isolate by **disabling
 every input device** — the cursor *survived*. That single test proved it was
 *not* input at all, redirecting the search to the NVIDIA renderer, where the real
 fix lay. Full story:
-[NVIDIA page](05-nvidia.md#case-study-1-the-ghost-cursor).
+[NVIDIA page](../arch/nvidia.md#case-study-1-the-ghost-cursor).
 
 !!! tip "The pattern"
     In all three, the *obvious* explanation was wrong, and one well-chosen test
@@ -96,14 +96,14 @@ Reach for the tool that inspects the layer you suspect:
 
 ## Rolling-release specific habits
 
-Because [Arch updates continuously](01-arch-and-pacman.md#the-rolling-release-bargain),
+Because [Arch updates continuously](../arch/arch-and-pacman.md#the-rolling-release-bargain),
 a class of problems is "an update broke X":
 
 - **Suspect the most recent update.** `/var/log/pacman.log` shows exactly what
   changed and when. If a thing broke "today," what upgraded today?
 - **Pin to roll back.** If a new version regressed, downgrade from the package
   cache (`/var/cache/pacman/pkg/`) and add `IgnorePkg` so the next upgrade can't
-  re-pull it — exactly what the [PipeWire fix](06-audio.md#problem-a-the-speaker-went-silent-a-software-regression)
+  re-pull it — exactly what the [PipeWire fix](audio.md#problem-a-the-speaker-went-silent-a-software-regression)
   does. Remove the pin once upstream ships a fix.
 - **Know that newest ≠ working.** That's the deal you took; the tools above make
   it manageable.
@@ -117,12 +117,12 @@ into the wrong layer. Document the conclusion (so future-you doesn't re-litigate
 it) and move on.
 
 The exhaustive, copy-pasteable fixes for this specific machine live in the
-[Full Reference → Troubleshooting](../reference.md#8-troubleshooting-recipes).
+[Full Reference → Troubleshooting](../arch/reference.md#8-troubleshooting-recipes).
 
 ---
 
 That's the conceptual Learning Path. One practical appendix follows — the
-[**package-management cheat-sheet →**](10-package-management.md) (the everyday
-pacman / yay / Flatpak commands). After that, the [Full Reference](../reference.md)
-is your manual, and the [project scripts](../project-context.md) are how you rebuild
+[**package-management cheat-sheet →**](../arch/package-management.md) (the everyday
+pacman / yay / Flatpak commands). After that, the [Full Reference](../arch/reference.md)
+is your manual, and the [project scripts](../arch/project-context.md) are how you rebuild
 it all. Unsure of a term? The [Glossary](glossary.md) has you covered.

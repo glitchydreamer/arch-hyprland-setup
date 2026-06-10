@@ -5,14 +5,14 @@
 # version, or purge it entirely. Built to make Isaac Sim / Isaac Lab usable on
 # Arch by dropping to the driver Isaac validates (580.x) and back.
 #
-#     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh              # menu
-#     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh status       # report
-#     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh downgrade    # -> 580.119.02
-#     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh downgrade 580.95.05
-#     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh latest       # -> repo newest
-#     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh cuda         # align CUDA to driver
-#     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh purge        # remove ALL nvidia
-#     bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh --dry-run downgrade
+#     bash ~/Documents/hyprland-rice/arch/nvidia-switch.sh              # menu
+#     bash ~/Documents/hyprland-rice/arch/nvidia-switch.sh status       # report
+#     bash ~/Documents/hyprland-rice/arch/nvidia-switch.sh downgrade    # -> 580.119.02
+#     bash ~/Documents/hyprland-rice/arch/nvidia-switch.sh downgrade 580.95.05
+#     bash ~/Documents/hyprland-rice/arch/nvidia-switch.sh latest       # -> repo newest
+#     bash ~/Documents/hyprland-rice/arch/nvidia-switch.sh cuda         # align CUDA to driver
+#     bash ~/Documents/hyprland-rice/arch/nvidia-switch.sh purge        # remove ALL nvidia
+#     bash ~/Documents/hyprland-rice/arch/nvidia-switch.sh --dry-run downgrade
 #
 # Flags:  --dry-run  print every command, change nothing.
 #         --yes/-y   skip confirmations (still prints the plan + recovery note).

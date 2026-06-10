@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # ============================================================================
-# install.sh — rebuilds the system-level half of the Arch + Hyprland + caelestia
-# setup on a fresh minimal install (NVIDIA + GDM). Interactive + component-based,
+# install.sh — rebuilds the system-level half of the CachyOS + Hyprland + caelestia
+# setup on a fresh minimal install (NVIDIA). Interactive + component-based,
 # the mirror image of uninstall.sh.
 #
 # Run setup-home.sh FIRST (it writes the home-dir configs, no sudo). THIS script
 # does the sudo-gated parts: packages (repo + AUR), driver-matched CUDA + cuDNN,
-# CUDA PATH, the DualSense audio fix, group membership, and the fish login shell.
+# CUDA PATH, audio apps, group membership, and the fish login shell. (CachyOS's
+# stock PipeWire handles the DualSense controller, so no audio workaround here.)
 #
-#     bash ~/Documents/arch-hyprland-setup/setup-home.sh        # 1. home configs
-#     bash ~/Documents/arch-hyprland-setup/install.sh           # 2. system, menu
-#     bash ~/Documents/arch-hyprland-setup/install.sh cuda audio # just these
-#     bash ~/Documents/arch-hyprland-setup/install.sh --yes all  # everything
-#     bash ~/Documents/arch-hyprland-setup/install.sh --dry-run all  # preview
+#     bash ~/Documents/hyprland-rice/cachyos/setup-home.sh        # 1. home configs
+#     bash ~/Documents/hyprland-rice/cachyos/install.sh           # 2. system, menu
+#     bash ~/Documents/hyprland-rice/cachyos/install.sh cuda audio # just these
+#     bash ~/Documents/hyprland-rice/cachyos/install.sh --yes all  # everything
+#     bash ~/Documents/hyprland-rice/cachyos/install.sh --dry-run all  # preview
 #
 # Flags:
 #   --dry-run   show what WOULD be installed/changed; touch nothing.
@@ -71,52 +72,6 @@ aur() {
     if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] ${HELPER:-aur} -S --needed $*"; return 0; fi
     [ -n "$HELPER" ] || { FAILED+=("aur:no-helper"); return 1; }
     "$HELPER" -S --needed "$@"
-}
-
-# Workaround: PipeWire 1.6.6 broke DualSense USB audio (built-in speaker AND the
-# 3.5mm headphone jack go silent — the kernel delivers frames but nothing sounds).
-# Pin to the last-good 1.6.5 until upstream fixes it. Self-limiting and idempotent:
-#   - only acts when the INSTALLED pipewire is in the known-bad range (so a fresh
-#     install with an already-fixed repo version is left alone),
-#   - downgrades only if the good packages are still in the pacman cache,
-#   - the IgnorePkg pin stops the next `pacman -Syu` from re-pulling the breakage.
-# Remove the IgnorePkg line + drop this call once a fixed PipeWire ships.
-BAD_PW_REGEX='^1:1\.6\.6'   # extend if new bad versions appear; clear when fixed
-# NOTE: alsa-card-profiles is versioned in lockstep with PipeWire (1:1.6.x) and
-# holds the ACP channel/profile data. Its 1.6.6 build breaks the DualSense 3.5mm
-# headphone channel map (jack silent, speaker fine) — it MUST be pinned/downgraded
-# alongside the pipewire-named packages, or the jack stays dead after the pin.
-PW_PKGS=(libpipewire pipewire pipewire-audio pipewire-alsa pipewire-pulse pipewire-jack gst-plugin-pipewire alsa-card-profiles)
-pin_pipewire_dualsense() {
-    command -v pipewire >/dev/null || { echo ">>> No pipewire installed — skipping DualSense pin."; return; }
-    local cur; cur=$(pacman -Q pipewire 2>/dev/null | awk '{print $2}')
-    echo ">>> PipeWire installed: ${cur:-unknown}"
-    if ! printf '%s' "$cur" | grep -qE "$BAD_PW_REGEX"; then
-        echo ">>> Not in the known-bad range — no DualSense workaround needed."
-        return
-    fi
-    echo ">>> PipeWire $cur is the DualSense-breaking version — applying workaround."
-    if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] downgrade+pin PipeWire to 1.6.5"; return; fi
-    # Downgrade from cache if the good set is present.
-    local good=() p f
-    for p in "${PW_PKGS[@]}"; do
-        f=$(ls -1 /var/cache/pacman/pkg/"$p"-1:1.6.5-*.pkg.tar.zst 2>/dev/null | tail -1)
-        [ -n "$f" ] && good+=("$f")
-    done
-    if [ "${#good[@]}" -eq "${#PW_PKGS[@]}" ]; then
-        sudo pacman -U --noconfirm "${good[@]}" || FAILED+=("pipewire-downgrade")
-    else
-        echo ">>> 1.6.5 not fully cached — can't auto-downgrade. Pinning to stop"
-        echo ">>> further breakage; downgrade manually from an archive if needed."
-        FAILED+=("pipewire-downgrade:no-cache")
-    fi
-    # Pin so `pacman -Syu` won't re-pull the broken version.
-    local pin="IgnorePkg = ${PW_PKGS[*]}"
-    if ! grep -qF "$pin" /etc/pacman.conf; then
-        sudo sed -i "0,/^\[options\]/s//[options]\n$pin/" /etc/pacman.conf \
-            || FAILED+=("pipewire-pin")
-    fi
-    systemctl --user restart pipewire pipewire-pulse wireplumber 2>/dev/null || true
 }
 
 # Make the GTK icon theme STICK across reboots, GTK upgrades, and caelestia
@@ -190,7 +145,7 @@ install_cuda() {
         FAILED+=("cuda:no-driver"); return
     fi
     local maxc repoc
-    maxc=$(nvidia-smi | grep -oP 'CUDA Version:\s*\K[0-9]+\.[0-9]+' | head -1)
+    maxc=$(nvidia-smi | grep -oP 'CUDA( UMD)? Version:\s*\K[0-9]+\.[0-9]+' | head -1)
     repoc=$(pacman -Si cuda 2>/dev/null | awk -F': +' '/^Version/{print $2}' | grep -oP '^[0-9]+\.[0-9]+')
     echo ">>> Driver supports up to CUDA $maxc; repo cuda is $repoc."
     if [ -z "$maxc" ] || [ -z "$repoc" ]; then
@@ -282,6 +237,18 @@ heal_dkms_initramfs() {
         sudo mkinitcpio -P 2>&1 | sed 's/^/      /' || FAILED+=("mkinitcpio")
     fi
 
+    # On stock CachyOS the NVIDIA module is the PREBUILT linux-cachyos*-nvidia-open
+    # package, not a DKMS module — so dkms has nothing registered and the per-kernel
+    # "is the module built?" check below must NOT fire (it would false-flag a
+    # perfectly healthy prebuilt-module kernel). Only verify when dkms actually has
+    # at least one module registered (true after nvidia-switch swaps in
+    # nvidia-open-dkms, or for any other DKMS module like VirtualBox).
+    if [ -z "$after" ]; then
+        say "    · no DKMS modules registered — CachyOS prebuilt linux-cachyos*-nvidia-open"
+        say "      handles the GPU per-kernel (pacman keeps it in lockstep). Nothing to verify."
+        return
+    fi
+
     # Verify: any installed kernel that has headers but STILL no DKMS module is a
     # genuine problem (usually: pinned driver too old for a too-new kernel).
     local still_missing=()
@@ -299,12 +266,13 @@ heal_dkms_initramfs() {
         say "    !! Those kernels would boot WITHOUT the NVIDIA driver. This almost"
         say "    !! always means the pinned driver is too old for a brand-new kernel."
         say "    !! Pick one (none is done automatically — they change what boots):"
-        say "    !!   • Just boot the kernel that IS built (this box runs the 580"
-        say "    !!     driver on linux-lts, which stays built & healthy), or"
+        say "    !!   • Just boot the kernel that IS built (after an nvidia-switch"
+        say "    !!     downgrade this box runs 580 on linux-cachyos-lts, which stays"
+        say "    !!     built & healthy; linux-cachyos 7.0 can't build 580), or"
         say "    !!   • Move the NVIDIA stack to a version that supports the new kernel:"
-        say "    !!       bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh latest"
+        say "    !!       bash ~/Documents/hyprland-rice/cachyos/nvidia-switch.sh latest"
         say "    !!   • If you never boot that kernel, remove it so the warning stops:"
-        say "    !!       sudo pacman -Rns <kernel-package>   # e.g. linux"
+        say "    !!       sudo pacman -Rns <kernel-package>   # e.g. linux-cachyos"
     else
         say "    · every installed kernel has its DKMS modules + initramfs ✓"
     fi
@@ -324,10 +292,10 @@ COMPONENTS=(
     "node|Node toolchain (node, pnpm, yarn)"
     "editors|Neovim"
     "embedded|Embedded/serial (picocom, minicom, arduino-cli, stlink, openocd, wireshark)"
-    "audio|PipeWire audio apps + the DualSense fix (1.6.5 pin + touchpad udev rule)"
+    "audio|PipeWire audio apps (pavucontrol, easyeffects, alsa-utils) — no DualSense workaround needed on CachyOS"
     "gpu|GPU/gaming (lib32 nvidia, gamemode, mangohud, nvidia-settings)"
     "docker|Docker + NVIDIA Container Toolkit (data-root on /home; for ROS 2 Humble / GPU containers)"
-    "vm|QEMU/KVM + virt-manager virtualization (libvirt, OVMF UEFI, swTPM, virt-viewer, guestfs) for Gentoo/LFS & other guest OSes; adds libvirt+kvm groups, default NAT net, nested virt — works on both linux & linux-lts"
+    "vm|QEMU/KVM + virt-manager virtualization (libvirt, OVMF UEFI, swTPM, virt-viewer, guestfs) for Gentoo/LFS & other guest OSes; adds libvirt+kvm groups, default NAT net, nested virt — works on both linux-cachyos & linux-cachyos-lts"
     "media|Multimedia apps (haruna, obs, gimp, okular, gwenview, swayimg)"
     "terminal|Terminal productivity (fzf, ripgrep, fd, bat, zoxide, lazygit, tmux, ...)"
     "kde|KDE settings apps (systemsettings, discover, kinfocenter)"
@@ -349,17 +317,24 @@ COMPONENTS=(
 do_health() {
     say "\n>>> System health check (rolling-release doctor)"
 
-    say "\n### Kernels ↔ headers ↔ DKMS modules"
-    local kver base hdr
+    say "\n### Kernels ↔ headers ↔ GPU module"
+    # On CachyOS each kernel's NVIDIA module is normally the PREBUILT package
+    # <pkgbase>-nvidia-open (e.g. linux-cachyos-lts-nvidia-open), kept in lockstep
+    # by pacman — no DKMS build. After nvidia-switch downgrades to nvidia-open-dkms,
+    # the module is built by DKMS instead. Report whichever applies, per kernel.
+    local kver base hdr gpu
     while read -r kver base; do
         if pacman -Qq "${base}-headers" >/dev/null 2>&1; then hdr="headers ✓"; else hdr="headers MISSING"; fi
-        if command -v dkms >/dev/null 2>&1 && dkms status -k "$kver" 2>/dev/null | grep -q installed; then
-            say "    · $kver ($base): $hdr · dkms ✓"
+        if pacman -Qq "${base}-nvidia-open" >/dev/null 2>&1; then
+            gpu="prebuilt nvidia-open ✓"
+        elif command -v dkms >/dev/null 2>&1 && dkms status -k "$kver" 2>/dev/null | grep -q installed; then
+            gpu="dkms nvidia ✓"
         elif command -v dkms >/dev/null 2>&1; then
-            say "    · $kver ($base): $hdr · dkms — none built"
+            gpu="no GPU module built"
         else
-            say "    · $kver ($base): $hdr · (no dkms on system)"
+            gpu="no prebuilt module, no dkms"
         fi
+        say "    · $kver ($base): $hdr · $gpu"
     done < <(installed_kernels)
 
     # NB: the kernel-headers sync + dkms autoinstall + mkinitcpio repair already
@@ -398,8 +373,8 @@ do_health() {
     say "\n### Held-back packages (IgnorePkg in /etc/pacman.conf)"
     local pins; pins=$(grep -E '^[[:space:]]*IgnorePkg' /etc/pacman.conf 2>/dev/null | sed 's/.*=//')
     [ -n "$pins" ] && say "    ·$pins" || say "    · none"
-    say "      (these are pinned on purpose — e.g. the DualSense PipeWire 1.6.5 pin"
-    say "       and the NVIDIA stack held at the Isaac-validated 580 by nvidia-switch.sh.)"
+    say "      (these are pinned on purpose — e.g. the NVIDIA stack held at the"
+    say "       Isaac-validated 580 by nvidia-switch.sh, if you've run a downgrade.)"
 
     say "\n>>> Health check complete."
 }
@@ -433,19 +408,11 @@ do_editors()  { pac editors neovim; }
 do_embedded() { pac embedded picocom minicom arduino-cli stlink openocd wireshark-qt; }
 
 do_audio() {
-    # alsa-utils: aplay/speaker-test for low-level audio debugging (DualSense jack).
+    # alsa-utils: aplay/speaker-test for low-level audio debugging.
+    # CachyOS's stock PipeWire drives the DualSense controller's audio (speaker +
+    # 3.5mm jack) correctly, so none of the Arch DualSense workarounds (the 1.6.5
+    # pin, the touchpad-ignore udev rule, the WirePlumber drop-in) are carried over.
     pac audio pavucontrol easyeffects alsa-utils
-    # DualSense audio: pin PipeWire off the 1.6.6 regression (no-op when not affected)
-    pin_pipewire_dualsense
-    say "\n### DualSense touchpad: stop it acting as a second (centred) cursor"
-    # The touchpad registers as an absolute pointer that parks a cursor at screen
-    # centre. hypr-user.conf disables it in Hyprland; this libinput rule is the
-    # belt-and-suspenders version (ignored before any compositor sees it).
-    if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] write 71-dualsense-touchpad-ignore.rules + reload udev"; return; fi
-    sudo tee /etc/udev/rules.d/71-dualsense-touchpad-ignore.rules >/dev/null <<'EOF'
-SUBSYSTEM=="input", ATTRS{name}=="Sony Interactive Entertainment DualSense Wireless Controller Touchpad", ENV{LIBINPUT_IGNORE_DEVICE}="1"
-EOF
-    sudo udevadm control --reload-rules
 }
 
 do_gpu()     { pac gpu lib32-nvidia-utils gamemode lib32-gamemode mangohud lib32-mangohud nvidia-settings; }
@@ -504,7 +471,7 @@ PY
 # distros). Everything is in the official 'extra' repo, so it's always the newest
 # rolling release — "latest and greatest" needs no AUR build.
 #
-# Why this is kernel-agnostic (works on BOTH linux and linux-lts with nothing
+# Why this is kernel-agnostic (works on BOTH linux-cachyos and linux-cachyos-lts with nothing
 # extra): KVM hardware acceleration lives INSIDE the kernel — the kvm +
 # kvm_intel/kvm_amd + vhost modules ship in-tree with every Arch kernel. There's
 # no DKMS module and no per-kernel rebuild (unlike the NVIDIA stack). Whichever
@@ -581,7 +548,7 @@ do_vm() {
     say "    · added $USER_NAME to libvirt,kvm — LOG OUT/IN before launching virt-manager."
     say "    · confirm hardware virt is enabled in firmware:  LC_ALL=C lscpu | grep Virtualization"
     say "      (should show VT-x or AMD-V; if blank, turn it on in the UEFI/BIOS setup)."
-    say "    · KVM modules ship with BOTH linux and linux-lts — no per-kernel setup needed."
+    say "    · KVM modules ship with BOTH linux-cachyos and linux-cachyos-lts — no per-kernel setup needed."
     say "    · launch:  virt-manager   (auto-connects to qemu:///system)"
 }
 
@@ -685,15 +652,9 @@ do_tablet() {
     # of caelestia's base.
     say "\n>>> Weylus Community Edition (AUR via ${HELPER:-none}) + screencast plugin"
     aur weylus-community-bin || FAILED+=("aur:weylus")
-    # gst-plugin-pipewire: on a clean box it's missing and we need to pull it;
-    # on this DualSense-pinned box it's ALREADY at 1.6.5 and `pacman -S --needed`
-    # still tries to upgrade to the (IgnorePkg'd) 1.6.6, which fails the whole
-    # transaction. Guard the install so the pin doesn't trip the component.
-    if pacman -Qq gst-plugin-pipewire >/dev/null 2>&1; then
-        say "    · gst-plugin-pipewire already installed — skip (PipeWire pin keeps 1.6.5)"
-    else
-        pac tablet gst-plugin-pipewire
-    fi
+    # gst-plugin-pipewire: the Wayland-capture optdepend. CachyOS has no PipeWire
+    # pin (unlike the Arch box), so a plain --needed install is safe.
+    pac tablet gst-plugin-pipewire
 
     # uinput: Weylus writes pointer/keystroke events into /dev/uinput. By default
     # that node is root-only; running Weylus as your user requires a group + udev
@@ -834,20 +795,31 @@ fi
 # ============================================================================
 hr
 say "### Full system upgrade — keyring + every kernel's headers, in one transaction"
-# 1) Refresh the keyring FIRST. On a box that hasn't updated in a while an expired
-#    signing key makes the whole -Syu fail ("invalid or corrupted package").
+# 1) Refresh the keyrings FIRST. On a box that hasn't updated in a while an expired
+#    signing key makes the whole -Syu fail ("invalid or corrupted package"). CachyOS
+#    needs BOTH keyrings — archlinux-keyring (core/extra) AND cachyos-keyring (the
+#    cachyos-* repos) — or packages from the cachyos repos fail signature checks.
 # 2) Fold each installed kernel's matching -headers into the SAME -Syu, so when a
-#    kernel rolls forward its headers do too and the DKMS hook builds against the
-#    right version immediately (the fix for the "new kernel, no GPU driver" trap).
-#    kernel_headers_pkgs only emits installable targets, so this can't abort the
-#    upgrade on a custom/AUR kernel whose -headers isn't a repo package.
-# 3) Always a FULL -Syu (never -Sy): partial upgrades are the #1 way to break Arch.
+#    kernel rolls forward its headers do too and any DKMS module builds against the
+#    right version immediately. On CachyOS the default nvidia module is the prebuilt
+#    linux-cachyos*-nvidia-open package (no DKMS build), but DKMS matters once
+#    nvidia-switch.sh swaps in nvidia-open-dkms — and this keeps any other DKMS
+#    module (VirtualBox, etc.) in lockstep. kernel_headers_pkgs only emits
+#    installable targets, so it can't abort the upgrade on a kernel whose -headers
+#    isn't a repo package.
+# 3) Always a FULL -Syu (never -Sy): partial upgrades are the #1 way to break Arch/CachyOS.
 mapfile -t HDRS < <(kernel_headers_pkgs)
 say "    · kernel headers kept in sync: ${HDRS[*]:-none found}"
+# Only fold in a keyring package that actually exists (cachyos-keyring is absent on
+# a plain Arch box; archlinux-keyring is always present).
+KEYRINGS=()
+for k in archlinux-keyring cachyos-keyring; do
+    pacman -Si "$k" >/dev/null 2>&1 && KEYRINGS+=("$k")
+done
 if [ "$DRY_RUN" -eq 1 ]; then
-    say "    [dry-run] sudo pacman -Syu --needed archlinux-keyring ${HDRS[*]}"
+    say "    [dry-run] sudo pacman -Syu --needed ${KEYRINGS[*]} ${HDRS[*]}"
 else
-    sudo pacman -Syu --needed --noconfirm archlinux-keyring "${HDRS[@]}" \
+    sudo pacman -Syu --needed --noconfirm "${KEYRINGS[@]}" "${HDRS[@]}" \
         || FAILED+=("pacman -Syu")
 fi
 # Base tooling, done up front so `gh auth login` + `git push` work afterward and
@@ -895,15 +867,15 @@ Rolling-release self-heal: every install.sh run does a full upgrade with each
 kernel's headers in lockstep, then rebuilds DKMS modules + initramfs/UKI — so
 re-running this script also REPAIRS a botched upgrade. For a one-shot doctor
 (kernel/DKMS repair + orphans/failed-units/.pacnew/pins report) with no app
-install:  bash ~/Documents/arch-hyprland-setup/install.sh health
+install:  bash ~/Documents/hyprland-rice/cachyos/install.sh health
 
 To cleanly remove a component later (CUDA, Anaconda, ...), use the interactive
-uninstaller:  bash ~/Documents/arch-hyprland-setup/uninstall.sh
+uninstaller:  bash ~/Documents/hyprland-rice/cachyos/uninstall.sh
 
 To switch the WHOLE NVIDIA stack between repo-latest and the older driver Isaac
 Sim/Lab validates (580.x) — or to purge it entirely — use the dedicated tool
 (read its recovery notes; it can change what boots):
-  bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh status
-  bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh downgrade   # -> 580 for Isaac
-  bash ~/Documents/arch-hyprland-setup/nvidia-switch.sh latest      # -> repo newest
+  bash ~/Documents/hyprland-rice/cachyos/nvidia-switch.sh status
+  bash ~/Documents/hyprland-rice/cachyos/nvidia-switch.sh downgrade   # -> 580 for Isaac
+  bash ~/Documents/hyprland-rice/cachyos/nvidia-switch.sh latest      # -> repo newest
 EOF

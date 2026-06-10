@@ -57,7 +57,7 @@ the fix.
 ## Why KVM needs nothing special on either kernel
 
 This box keeps **two kernels** (`linux` and `linux-lts` — see the
-[NVIDIA](05-nvidia.md) and [maintenance](11-system-maintenance.md) pages for
+[NVIDIA](../arch/nvidia.md) and [maintenance](../arch/system-maintenance.md) pages for
 why). A reasonable worry is whether the VM stack needs setting up twice, once
 per kernel — the way DKMS modules (like the NVIDIA driver) get rebuilt for each.
 

@@ -1,69 +1,78 @@
-# arch-hyprland-setup
+# hyprland-rice
 
-Personal documentation for an Arch Linux + Hyprland (caelestia) setup, plus all the customisation built around it: NVIDIA RTX 3060 + LG ultrawide, DualSense audio fix, HDR toggle, CUDA/ML dev environment, and more.
+Personal documentation **and** reproducibility scripts for a Hyprland (caelestia)
+workstation on NVIDIA hardware — built across more than one distribution. The
+**learning core** is shared; each distro gets its own scripts, docs, and GitHub
+Pages section, all under this one master repo.
 
-**📖 Read the docs:** <https://glitchydreamer.github.io/arch-hyprland-setup/>
+**📖 Read the docs:** <https://glitchydreamer.github.io/hyprland-rice/>
+
+> Renamed from `arch-hyprland-setup` when it went multi-distro. GitHub
+> auto-redirects the old URL.
 
 ## Layout
 
 ```
-arch-hyprland-setup/
+hyprland-rice/
+├── README.md             ← you are here (master index)
+├── arch/                 ← Arch Linux build (original)
+│   ├── setup-home.sh  install.sh  uninstall.sh  nvidia-switch.sh  README.md
+├── cachyos/              ← CachyOS build (full parity, minus DualSense)
+│   ├── setup-home.sh  install.sh  uninstall.sh  nvidia-switch.sh  README.md
 ├── docs/
-│   ├── project-context.md ← READ FIRST: one-page map of the whole project
-│   ├── index.md          ← main reference
-│   ├── display.md        ← monitors / HDR / VRR
-│   ├── keybinds.md       ← keybind reference
-│   ├── coming-from-ubuntu.md
+│   ├── index.md          ← cross-OS landing ("pick your distro")
+│   ├── common/           ← shared, distro-neutral learning path
+│   ├── arch/             ← Arch-specific docs (pacman, NVIDIA, reference, …)
+│   ├── cachyos/          ← CachyOS-specific docs
 │   └── assets/
-├── setup-home.sh         ← reproduce the HOME-DIR half (configs/scripts, no sudo)
-├── install.sh            ← reproduce the SYSTEM half on a fresh install (sudo)
-├── uninstall.sh          ← interactive clean uninstaller (per-component)
-├── mkdocs.yml            ← site config (MkDocs Material)
+├── mkdocs.yml            ← one site, nav sections: Common / Arch / CachyOS
 ├── requirements.txt      ← Python deps for the site build
-├── sync.sh               ← edit → commit → push helper
+├── sync.sh               ← edit → commit → push helper (whole repo)
 └── .github/workflows/
     └── deploy-docs.yml   ← builds & deploys to GitHub Pages on push to main
 ```
 
+Each distro directory is **self-contained** (its own scripts + reference) but
+**interlinked** with the shared `docs/common/` learning material.
+
+## Builds
+
+| Distro | Directory | Status | Notes |
+|---|---|---|---|
+| **Arch Linux** | [`arch/`](arch/) · [docs](https://glitchydreamer.github.io/hyprland-rice/arch/project-context/) | original | RTX 3060 + ultrawide, NVIDIA pinned 580 for Isaac, DualSense fixes, roaming SSD |
+| **CachyOS** | [`cachyos/`](cachyos/) · [docs](https://glitchydreamer.github.io/hyprland-rice/cachyos/project-context/) | full parity | stock PipeWire (no DualSense work), VRR-off cursor fix, prebuilt-module NVIDIA + dkms 580 switcher |
+
 ## Rebuilding on a fresh install
 
-Two scripts, run in order. Both are idempotent and assume caelestia is already
-installed. All three scripts (`setup-home.sh`, `install.sh`, `uninstall.sh`) are
-**interactive and component-based** and share the same interface: run with no
-args for a numbered menu, or pass component names, `all`, `--yes` (skip the
-prompt), and `--dry-run` (preview, touches nothing).
+Pick your distro's directory; the two-script flow is the same shape everywhere
+(interactive, component-based, idempotent, `--dry-run`/`--yes`/`all`):
 
 ```sh
-# 1. Home-dir configs — Hyprland overrides, ~/.local/bin scripts, fish, Dolphin,
-#    git defaults. No sudo. Auto-detects your desktop connector + current mode,
-#    so it isn't pinned to one machine (DP-1 / DP-2 / HDMI all work).
-bash ~/Documents/arch-hyprland-setup/setup-home.sh
+# CachyOS, for example:
+bash cachyos/setup-home.sh   # 1. home-dir configs (Hyprland overrides, scripts, fish, git). No sudo.
+bash cachyos/install.sh      # 2. system half (packages repo+AUR, CUDA, groups, fish shell). Calls sudo itself.
 
-# 2. System half — packages (repo + AUR), DualSense udev + audio fix, CUDA
-#    (matched to your NVIDIA driver) + cuDNN, groups, fish login shell.
-#    Calls sudo itself where needed. Prereqs (git/gh/AUR helper) always run first.
-bash ~/Documents/arch-hyprland-setup/install.sh
-
-# Pick just a few components, or preview everything without changing anything:
-bash ~/Documents/arch-hyprland-setup/install.sh cuda audio
-bash ~/Documents/arch-hyprland-setup/install.sh --dry-run all
+# Pick just a few components, or preview without changing anything:
+bash cachyos/install.sh cuda audio
+bash cachyos/install.sh --dry-run all
 ```
 
-To cleanly remove a component later, use the interactive uninstaller — it strips
-the packages, data, configs, and launchers and reports the space reclaimed:
+To cleanly remove a component later, use that distro's interactive uninstaller:
 
 ```sh
-bash ~/Documents/arch-hyprland-setup/uninstall.sh            # interactive menu
-bash ~/Documents/arch-hyprland-setup/uninstall.sh --dry-run docker   # preview
+bash cachyos/uninstall.sh            # interactive menu
+bash cachyos/uninstall.sh --dry-run docker
 ```
 
-`install.sh` bootstraps the essentials first — `git`, `base-devel`, the GitHub
-CLI (`gh`), and an **AUR helper** (it builds `yay` from the AUR if neither
-`paru` nor `yay` is present on a fresh minimal install) — so the AUR steps have
-a helper and you can push as soon as it finishes. It also picks the CUDA toolkit
-that fits your installed driver: it reads `nvidia-smi`'s max-supported CUDA and
-only installs the rolling repo `cuda` if it's within that ceiling, otherwise it
-reaches for an AUR `cuda-<ver>` pinned to the driver.
+To switch the whole NVIDIA stack between repo-latest and the Isaac-validated 580
+(or purge it), use the distro's dedicated tool — it can change what boots, so read
+its recovery notes:
+
+```sh
+bash cachyos/nvidia-switch.sh status
+bash cachyos/nvidia-switch.sh downgrade   # -> 580 for Isaac
+bash cachyos/nvidia-switch.sh latest      # -> repo newest
+```
 
 After both scripts, the **only remaining manual step is authentication**:
 
@@ -73,33 +82,25 @@ git config --global user.name "…"  # if not already set
 # then log out / back in for the fish + group changes
 ```
 
-See `docs/index.md` §10 for what changed across rebuilds.
+See each distro's `project-context` doc for what differs and why.
 
 ## Updating the docs
 
-Edit `docs/index.md`, then either:
-
-```sh
-~/arch-setup-docs/sync.sh "docs: <what changed>"
-```
-
-or do it by hand:
-
-```sh
-cd ~/arch-setup-docs
-git add -A
-git commit -m "docs: <what changed>"
-git push
-```
-
-GitHub Actions rebuilds and redeploys the Pages site automatically on every push to `main` (takes ~30–60 s).
+Edit under `docs/`, then either run `./sync.sh "docs: <what changed>"` or commit +
+push by hand. GitHub Actions rebuilds and redeploys the Pages site automatically on
+every push to `main`.
 
 ## Previewing locally (optional)
 
 ```sh
-cd ~/arch-setup-docs
 python -m venv .venv && source .venv/bin/activate.fish   # or .venv/bin/activate for bash
 pip install -r requirements.txt
-mkdocs serve
-# open http://127.0.0.1:8000
+mkdocs serve            # open http://127.0.0.1:8000
 ```
+
+## Adding another distro
+
+The structure is built for it: add a `<distro>/` directory with the four scripts,
+a `docs/<distro>/` section that links into `docs/common/` for the shared learning,
+and a `<distro>` nav block in `mkdocs.yml`. The `arch/` and `cachyos/` directories
+are the templates.

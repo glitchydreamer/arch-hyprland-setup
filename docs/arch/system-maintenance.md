@@ -5,8 +5,8 @@ upgrade and it *also* breaks") and replace it with a calm, repeatable routine. B
 the end you'll know exactly what `pacman -Syu` does to your machine, why the
 **pinned** packages on this system (NVIDIA 580, PipeWire 1.6.5) survive every
 upgrade untouched, and what the *real* long-term risk of pinning is. This builds on
-[Arch Linux & pacman](01-arch-and-pacman.md) and the
-[package-management cheat-sheet](10-package-management.md).
+[Arch Linux & pacman](arch-and-pacman.md) and the
+[package-management cheat-sheet](package-management.md).
 
 ## The paradox — and why it's false
 
@@ -70,8 +70,8 @@ IgnorePkg = libpipewire pipewire pipewire-audio pipewire-alsa pipewire-pulse pip
 
 | Pinned stack | Held at | Why | Details |
 |---|---|---|---|
-| **NVIDIA driver** | `580.119.02` | newer drivers (595+) segfault Isaac Sim's RTX renderer | [NVIDIA on Linux](05-nvidia.md) |
-| **PipeWire audio** | `1.6.5` | `1.6.6` broke the DualSense controller speaker | [Audio on Linux](06-audio.md) |
+| **NVIDIA driver** | `580.119.02` | newer drivers (595+) segfault Isaac Sim's RTX renderer | [NVIDIA on Linux](nvidia.md) |
+| **PipeWire audio** | `1.6.5` | `1.6.6` broke the DualSense controller speaker | [Audio on Linux](../common/audio.md) |
 
 And the kernel picture:
 
@@ -249,7 +249,7 @@ which automates steps 2–3 and 6):
    modules). For everyday app updates, no reboot needed.
 6. **Occasionally sweep up:** `pacman -Qdtq | sudo pacman -Rns -` for orphans and
    `sudo paccache -r` to trim the cache (see
-   [package management](10-package-management.md)).
+   [package management](package-management.md)).
 
 !!! tip "Don't fear the rolling release — befriend it"
     The mental shift from Ubuntu is this: there's no "big scary version upgrade" to dread
@@ -259,9 +259,9 @@ which automates steps 2–3 and 6):
 
 ---
 
-**Where to go next:** the [NVIDIA](05-nvidia.md) and [Audio](06-audio.md) pages explain
+**Where to go next:** the [NVIDIA](nvidia.md) and [Audio](../common/audio.md) pages explain
 *why* each pin exists and how `nvidia-switch.sh` swaps the driver stack safely; the
-[package-management cheat-sheet](10-package-management.md) has the day-to-day
-query/remove/clean commands; and the [troubleshooting mindset](09-troubleshooting-mindset.md)
+[package-management cheat-sheet](package-management.md) has the day-to-day
+query/remove/clean commands; and the [troubleshooting mindset](../common/troubleshooting-mindset.md)
 page is your guide for the day something *does* go sideways. Unsure of a term? The
-[Glossary](glossary.md) has you covered.
+[Glossary](../common/glossary.md) has you covered.

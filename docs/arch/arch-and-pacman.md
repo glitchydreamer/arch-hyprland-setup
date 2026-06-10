@@ -39,8 +39,8 @@ Arch is simply *whatever you last updated to*.
     GPUs and Wayland. The price: occasionally an update ships a regression and
     *you* deal with it. This is not hypothetical here — a PipeWire update
     (1.6.6) broke the DualSense controller's audio, and the fix was to **pin**
-    that package to the last good version. See the [audio page](06-audio.md) and
-    [troubleshooting](09-troubleshooting-mindset.md). Building good habits
+    that package to the last good version. See the [audio page](../common/audio.md) and
+    [troubleshooting](../common/troubleshooting-mindset.md). Building good habits
     (snapshots, reading the news, pinning) is part of running Arch.
 
 ### 2. You assemble it
@@ -52,7 +52,7 @@ machine can run Hyprland + caelestia instead of being locked to GNOME: Arch
 never made that choice for you.
 
 This is empowering once you understand the layers (which is what the
-[Learning Path](index.md) builds), and bewildering before then.
+[Learning Path](../common/index.md) builds), and bewildering before then.
 
 ## pacman — the package manager
 
@@ -89,7 +89,7 @@ Decoding the flags (they compose, which is why they look cryptic):
 
 `sudo pacman -S --needed <pkgs>` skips anything already installed and
 up-to-date. This makes a script **idempotent** — safe to run repeatedly with the
-same result. The [install script](08-reproducibility.md) uses `--needed`
+same result. The [install script](../common/reproducibility.md) uses `--needed`
 everywhere for exactly this reason.
 
 ## The AUR — the Arch User Repository
@@ -113,7 +113,7 @@ yay  -S anaconda
     machine, so in principle a malicious one could do harm. In practice the
     popular packages are heavily watched, but the habit is: glance at a
     `PKGBUILD` before installing something obscure. A fresh Arch install has no
-    AUR helper at all — the [install script](08-reproducibility.md) bootstraps
+    AUR helper at all — the [install script](../common/reproducibility.md) bootstraps
     `yay` from scratch (clone + build) so the rest of the automation has one.
 
 ## Mental model: official repos vs AUR
@@ -132,10 +132,10 @@ The driving reason is the **NVIDIA + Wayland + new-hardware** combination. Wayla
 support and GPU drivers improve constantly; a rolling release gets those fixes
 months before a point-release distro. The cost — occasional breakage — is
 acceptable here because the whole system is [scripted and
-reproducible](08-reproducibility.md): if something breaks badly, rebuilding is a
+reproducible](../common/reproducibility.md): if something breaks badly, rebuilding is a
 known, automated path, not a weekend of guesswork.
 
 ---
 
-**Next:** [Wayland & Hyprland →](02-wayland-and-hyprland.md) — how Linux actually
+**Next:** [Wayland & Hyprland →](../common/wayland-and-hyprland.md) — how Linux actually
 puts windows on your screen.

@@ -7,11 +7,11 @@
 # services, and group memberships — so the result is as if it had never been
 # installed, and the space it ate is reclaimed.
 #
-#     bash ~/Documents/arch-hyprland-setup/uninstall.sh            # interactive menu
-#     bash ~/Documents/arch-hyprland-setup/uninstall.sh docker     # one component
-#     bash ~/Documents/arch-hyprland-setup/uninstall.sh docker isaac ros2
-#     bash ~/Documents/arch-hyprland-setup/uninstall.sh --dry-run docker
-#     bash ~/Documents/arch-hyprland-setup/uninstall.sh --yes all   # no prompts
+#     bash ~/Documents/hyprland-rice/cachyos/uninstall.sh            # interactive menu
+#     bash ~/Documents/hyprland-rice/cachyos/uninstall.sh docker     # one component
+#     bash ~/Documents/hyprland-rice/cachyos/uninstall.sh docker isaac ros2
+#     bash ~/Documents/hyprland-rice/cachyos/uninstall.sh --dry-run docker
+#     bash ~/Documents/hyprland-rice/cachyos/uninstall.sh --yes all   # no prompts
 #
 # Flags:
 #   --dry-run   show exactly what WOULD happen; touch nothing.

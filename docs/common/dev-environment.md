@@ -5,12 +5,12 @@ especially the GPU/CUDA toolchain and Python — and the philosophy behind *whic
 tools get installed where.
 
 This box is a robotics / ML / embedded development machine, so the dev setup is
-substantial. The [install reference](../reference.md#6-installed-software)
+substantial. The [install reference](../arch/reference.md#6-installed-software)
 lists every package; this page explains the *reasoning*.
 
 ## CUDA, matched to the driver
 
-[Recall from the NVIDIA page](05-nvidia.md#what-cuda-is): your installed driver
+[Recall from the NVIDIA page](../arch/nvidia.md#what-cuda-is): your installed driver
 sets a **ceiling** on which CUDA version can run. Install a CUDA newer than the
 driver supports and it simply won't work.
 
@@ -28,7 +28,7 @@ This means a fresh install gets a *working* CUDA automatically, instead of the
 newest one that might fail to load. **cuDNN** (NVIDIA's deep-learning primitives
 library) is installed alongside. The PATH is wired so `nvcc` and friends are
 found in both login shells and fish. The exact logic is in
-[`install_cuda`](08-reproducibility.md).
+[`install_cuda`](reproducibility.md).
 
 > **Minor-version compatibility — the ceiling is a *major*-version rule.** A
 > CUDA **13.2** toolkit runs fine on a driver that maxes out at **13.0**, because
@@ -64,7 +64,7 @@ approaches, and this machine uses a mix deliberately:
 
 ## The package philosophy
 
-A glance at the [installed software](../reference.md#6-installed-software)
+A glance at the [installed software](../arch/reference.md#6-installed-software)
 shows the categories: build tools (clang, cmake, ninja, gdb), the Python stack,
 Node, editors (Neovim, VS Code), embedded/serial tools (picocom,
 arduino-cli, openocd), GPU/gaming (gamemode, mangohud), KDE settings apps,
@@ -79,7 +79,7 @@ Two principles guide what's installed:
    `anaconda`, theme tweaks).
 
 2. **Everything installable is also cleanly removable.** Because the system is
-   [scripted](08-reproducibility.md), each capability you add has a matching
+   [scripted](reproducibility.md), each capability you add has a matching
    uninstall path. That's how the entire Docker/Isaac/ROS stack was later removed
    without leaving cruft — and why CUDA, Anaconda, etc. are individual
    *components* you can add or strip one at a time.
@@ -90,7 +90,7 @@ A small but recurring Linux annoyance: a package's name and its **command** name
 can differ. Mission Center installs as `missioncenter` (no hyphen); `plasma-discover`
 is the binary for the package some menus label "Discover." When something "isn't found," check the actual
 binary with `which <name>`. The [keybinds
-reference](../keybinds.md#package-name-vs-binary-name-gotcha) keeps a list of the
+reference](../arch/keybinds.md#package-name-vs-binary-name-gotcha) keeps a list of the
 confirmed mismatches on this system.
 
 ## Robotics: Isaac Sim & ROS 2
@@ -102,7 +102,7 @@ for good reasons:
 - **Isaac Sim / Lab — native.** They need the GPU's full RTX renderer, which
   talks straight to the kernel driver. The only thing that ever blocked Isaac
   here was the *driver version* (it needs the 580 branch; see
-  [NVIDIA → the fix](05-nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver)).
+  [NVIDIA → the fix](../arch/nvidia.md#the-fix-switch-the-whole-nvidia-stack-to-the-validated-driver)).
   Once the host is on 580 + `linux-lts`, Isaac runs natively.
 - **ROS 2 Humble — a container.** Arch isn't an officially supported ROS 2
   platform, and ROS pins to specific Ubuntu releases. Rather than fight that on a
@@ -232,7 +232,7 @@ ros2-humble run "ros2 topic list"   # one-off command
 
 Everything large lives on **/home** (the container image store is
 `/home/docker-data`, the workspace is `~/robotics/ws`) because the root partition
-is small — see [Reproducibility](08-reproducibility.md).
+is small — see [Reproducibility](reproducibility.md).
 
 ## LeRobot for the SO-arm 101 (real hardware)
 
@@ -421,5 +421,5 @@ Anaconda itself stays (`uninstall.sh anaconda` for that). The companion
 
 ---
 
-**Next:** [Reproducibility & the scripts →](08-reproducibility.md) — how this
+**Next:** [Reproducibility & the scripts →](reproducibility.md) — how this
 whole machine rebuilds itself.

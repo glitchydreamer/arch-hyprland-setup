@@ -81,7 +81,7 @@ freed. Two subtleties it gets right (learned the hard way):
   `sudo`, or they'd survive with "permission denied."
 
 This is exactly how the entire **Docker + Isaac Sim + ROS** stack was removed
-when [Isaac proved unworkable](05-nvidia.md#case-study-2-isaac-sim-and-a-bug-a-container-couldnt-fix) —
+when [Isaac proved unworkable](../arch/nvidia.md#case-study-2-isaac-sim-and-a-bug-a-container-couldnt-fix) —
 one command, packages and tens of gigabytes of images gone, the scripts and docs
 updated to match.
 
@@ -97,7 +97,7 @@ hardware rather than hard-coding it:
   file. Laptops have a built-in panel; desktops don't — so the *presence of
   hardware* is the reliable signal, no hostname needed.
 
-The [display setup page](../display.md#why-a-symlink-and-a-script) explains the
+The [display setup page](../arch/display.md#why-a-symlink-and-a-script) explains the
 mechanism in full.
 
 ## The standing habit
@@ -114,9 +114,9 @@ project's memory so it survives across sessions):
     the machine instead of describing a system that no longer exists.
 
 The repo map and the full habit are on the [project context
-page](../project-context.md).
+page](../arch/project-context.md).
 
 ---
 
-**Next:** [The troubleshooting mindset →](09-troubleshooting-mindset.md) — how to
+**Next:** [The troubleshooting mindset →](troubleshooting-mindset.md) — how to
 debug Linux instead of guessing.

@@ -3,7 +3,7 @@
 **Goal of this page:** the everyday commands for finding, listing, and *cleanly*
 removing software on Arch — plus the one idea that makes them all make sense (the
 way pacman records *why* each package is installed). This is the hands-on companion
-to the conceptual [Arch Linux & pacman](01-arch-and-pacman.md) page.
+to the conceptual [Arch Linux & pacman](arch-and-pacman.md) page.
 
 Three package "worlds" can coexist on an Arch machine:
 
@@ -105,7 +105,7 @@ sudo pacman -Scc                  # nuke the ENTIRE cache (reinstalls re-downloa
     apps create *after* install — home configs and caches like `~/.config/…`,
     `~/.local/…`, `~/.mozilla/`, `~/.var/app/…`. Uninstalling Firefox leaves your
     profile in `~/.mozilla/` untouched. This blind spot is exactly why this repo
-    ships an [`uninstall.sh`](08-reproducibility.md) that cleans the *home-side*
+    ships an [`uninstall.sh`](../common/reproducibility.md) that cleans the *home-side*
     data + configs each component created — the part `pacman -Rns` can't reach.
 
 ## AUR packages (paru / yay)
@@ -155,10 +155,10 @@ caveat above).
 
 ---
 
-**Where to go next:** [System maintenance & upgrades](11-system-maintenance.md) turns
+**Where to go next:** [System maintenance & upgrades](system-maintenance.md) turns
 these commands into a *routine* — how to upgrade a rolling-release safely and why this
 machine's pinned packages survive every `-Syu`. The
-[Full Reference → Common commands](../reference.md#7-common-commands-cheat-sheet)
-has more day-to-day one-liners, and the [project scripts](../project-context.md)
+[Full Reference → Common commands](reference.md#7-common-commands-cheat-sheet)
+has more day-to-day one-liners, and the [project scripts](project-context.md)
 show how `install.sh` / `uninstall.sh` wrap these commands into clean, repeatable
-components. Unsure of a term? The [Glossary](glossary.md) has you covered.
+components. Unsure of a term? The [Glossary](../common/glossary.md) has you covered.

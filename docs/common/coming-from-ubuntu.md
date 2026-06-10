@@ -50,8 +50,8 @@ Files). The shortcuts you already know carry over.
 Nautilus is launched by **`Super+E`** (the `$fileExplorer` variable in
 `hypr-vars.conf` is set to `nautilus`). The folder/app icons are themed by the
 `nautilus` component of `setup-home.sh` — see
-[Full Reference → icons](reference.md) and the
-[caelestia Learning Path page](learn/03-caelestia-shell.md#theming-gtk-apps-and-the-libadwaita-catch).
+[Full Reference → icons](../arch/reference.md) and the
+[caelestia Learning Path page](caelestia-shell.md#theming-gtk-apps-and-the-libadwaita-catch).
 
 > KDE's Dolphin is **not** installed here (it was removed in favour of Nautilus).
 > If you'd rather use it, `sudo pacman -S dolphin`.
@@ -80,7 +80,7 @@ bind = Super+Shift, I, exec, app2unit -- systemsettings
 # ...
 ```
 
-See [Keybinds](keybinds.md) for the full table and how to add more.
+See [Keybinds](../arch/keybinds.md) for the full table and how to add more.
 
 The `app2unit --` wrapper (caelestia ships it) launches the app under a
 systemd user unit so it gets clean process accounting; plain `exec, nautilus`
@@ -146,7 +146,7 @@ Three layers to this in Ubuntu — and three different equivalents here:
 | Default applications | `xdg-mime default <app>.desktop <mime/type>` |
 | Disks utility | `gnome-disk-utility` (`sudo pacman -S gnome-disk-utility`) — works fine; `df -h` for a quick CLI check |
 | Clicking an NTFS/Windows drive auto-mounts it | Needs the userspace driver Arch omits: `bash install.sh storage` (ntfs-3g + exfatprogs). Then it mounts on click, like Ubuntu |
-| Remote login / "Sharing → Remote Desktop" | `bash install.sh remote` installs SSH + `freerdp`/`remmina` (out) + `wayvnc` (VNC in). `sshd` is left **off**; toggle per session with `remote on` / `remote off` / `remote status`. See [reference §9](../reference.md) |
+| Remote login / "Sharing → Remote Desktop" | `bash install.sh remote` installs SSH + `freerdp`/`remmina` (out) + `wayvnc` (VNC in). `sshd` is left **off**; toggle per session with `remote on` / `remote off` / `remote status`. See [reference §9](../arch/reference.md) |
 | System Monitor (Ctrl+Esc) | `btop` (TUI), `gnome-system-monitor` if you want a GUI |
 
 ## When this paradigm helps you

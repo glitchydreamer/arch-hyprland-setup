@@ -65,13 +65,13 @@ After a routine `pacman -Syu`, the controller's built-in speaker stopped working
 
 - **Cause:** the update bumped **PipeWire to 1.6.6**, which shipped a regression
   breaking DualSense USB audio. This is the [rolling-release
-  bargain](01-arch-and-pacman.md#the-rolling-release-bargain) in action — newest
+  bargain](../arch/arch-and-pacman.md#the-rolling-release-bargain) in action — newest
   isn't always working.
 - **Fix:** **pin** the audio stack back to the last good version, **1.6.5**.
   "Pinning" means telling pacman to *ignore* a package during upgrades
   (`IgnorePkg` in `/etc/pacman.conf`) so it can't re-pull the broken version,
   plus downgrading from the local package cache. The
-  [install script](08-reproducibility.md) does this automatically *and only when
+  [install script](reproducibility.md) does this automatically *and only when
   it detects the bad version* — a "self-limiting" fix that's a no-op on a healthy
   system.
 
@@ -103,7 +103,7 @@ since they're correct and useful for *working* hardware.)
     ("no sound") but was hardware. The way you tell them apart is **isolation
     testing** — change one variable at a time (different device, bypass a layer)
     until only one explanation survives. That mindset gets its own
-    [page](09-troubleshooting-mindset.md).
+    [page](troubleshooting-mindset.md).
 
 ## Everyday audio commands
 
@@ -115,10 +115,10 @@ pactl list sinks short            # output devices
 pavucontrol                       # GUI mixer (per-app volumes, device routing)
 ```
 
-The [reference](../reference.md#73-audio) has the fuller command set and the
+The [reference](../arch/reference.md#73-audio) has the fuller command set and the
 exact DualSense routing recipe.
 
 ---
 
-**Next:** [The developer environment →](07-dev-environment.md) — CUDA matching,
+**Next:** [The developer environment →](dev-environment.md) — CUDA matching,
 Python environments, and the package philosophy.

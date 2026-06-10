@@ -9,7 +9,7 @@ your browser's find (<span class="keys">Ctrl</span>+F).
 : A complete, curated bundle of the Linux kernel plus everything around it
 (package manager, services, tools). Arch, Ubuntu, Fedora are distros — each picks
 its own software versions and update cadence. See
-[Arch & pacman](01-arch-and-pacman.md).
+[Arch & pacman](../arch/arch-and-pacman.md).
 
 **Arch Linux**
 : A minimal, do-it-yourself distro with a **rolling release** (see below) and the
@@ -26,7 +26,7 @@ processes, and devices. The GPU driver's kernel module lives here.
 **Userspace**
 : Everything running *outside* the kernel — apps and the libraries they use
 (OpenGL, Vulkan, CUDA runtime). The [kernel/userspace
-split](05-nvidia.md#kernel-module-vs-userspace-the-split-that-explains-everything)
+split](../arch/nvidia.md#kernel-module-vs-userspace-the-split-that-explains-everything)
 is key to debugging GPU issues.
 
 ## Packages
@@ -45,12 +45,12 @@ AUR packages — same feel as `pacman -S`.
 
 **Idempotent**
 : A script you can run repeatedly with the same end result — it skips work
-already done. The [setup scripts](08-reproducibility.md) are idempotent.
+already done. The [setup scripts](reproducibility.md) are idempotent.
 
 **Pin / `IgnorePkg`**
 : Telling pacman to *not* upgrade a specific package, used to hold back a known
 good version after a newer one regressed (e.g. the
-[PipeWire 1.6.5 pin](06-audio.md#problem-a-the-speaker-went-silent-a-software-regression)).
+[PipeWire 1.6.5 pin](audio.md#problem-a-the-speaker-went-silent-a-software-regression)).
 
 ## Display & graphics
 
@@ -65,7 +65,7 @@ compositor pieces. Being replaced by Wayland.
 **Wayland**
 : The modern display *protocol* that merges server/WM/compositor into one
 **compositor** process (defined below). Tear-free and secure by design. See
-[Wayland & Hyprland](02-wayland-and-hyprland.md).
+[Wayland & Hyprland](wayland-and-hyprland.md).
 
 **Compositor**
 : Under Wayland, the single program that arranges windows into the final image
@@ -90,7 +90,7 @@ in `.conf` files; controlled live with `hyprctl`.
 **caelestia**
 : The desktop *shell* on top of Hyprland — the bar, launcher, notifications,
 panels. Built on **Quickshell** (defined below). See
-[the caelestia shell](03-caelestia-shell.md).
+[the caelestia shell](caelestia-shell.md).
 
 **Quickshell**
 : A toolkit for building desktop shells in QML; caelestia is built with it.
@@ -114,7 +114,7 @@ smoother motion.
 
 **Scaling (HiDPI)**
 : Drawing the UI larger on dense panels. Integer scales are crisp; fractional
-(1.25, 1.5) can blur XWayland apps. See [Displays](04-displays.md#scaling-hidpi).
+(1.25, 1.5) can blur XWayland apps. See [Displays](displays.md#scaling-hidpi).
 
 **VRR (Variable Refresh Rate)**
 : Letting the monitor redraw the instant a frame is ready instead of on a fixed
@@ -128,7 +128,7 @@ gradients, no banding.
 **Color gamut / wide gamut**
 : The *range* of colors a display shows. sRGB is the standard range apps assume;
 wide gamut (P3/Adobe RGB) is larger but breaks untagged sRGB apps — see [why this
-machine stays on sRGB](04-displays.md#color-management-srgb-vs-wide-gamut).
+machine stays on sRGB](displays.md#color-management-srgb-vs-wide-gamut).
 
 **HDR (High Dynamic Range)**
 : Brighter highlights and deeper darks than standard (SDR). Opt-in per session
@@ -141,7 +141,7 @@ here via a toggle, because naive HDR makes SDR content look washed out.
 
 **Driver**
 : Software translating generic GPU requests into hardware commands. Without it,
-no acceleration. See [NVIDIA on Linux](05-nvidia.md).
+no acceleration. See [NVIDIA on Linux](../arch/nvidia.md).
 
 **nouveau**
 : The open-source, reverse-engineered NVIDIA driver — fully free but slow; not
@@ -155,7 +155,7 @@ recommended for recent GPUs.
 **CUDA**
 : NVIDIA's platform for general-purpose GPU computing (ML/AI, science). Your
 driver caps the max usable CUDA version. See
-[dev environment](07-dev-environment.md#cuda-matched-to-the-driver).
+[dev environment](dev-environment.md#cuda-matched-to-the-driver).
 
 **cuDNN**
 : NVIDIA's deep-learning primitive library, installed alongside CUDA.
@@ -176,7 +176,7 @@ PipeWire.
 
 **PipeWire**
 : The modern Linux audio (and video) server, replacing PulseAudio and JACK while
-speaking their protocols. Used here. See [Audio](06-audio.md).
+speaking their protocols. Used here. See [Audio](audio.md).
 
 **WirePlumber**
 : PipeWire's session/policy manager — decides default devices, routing rules, and
@@ -195,7 +195,7 @@ mixer controls — why some devices have no volume sliders.
 **Symlink (symbolic link)**
 : A file that points at another file/directory. `~/.config/hypr` is a symlink
 into the caelestia tree — important for the [override
-model](03-caelestia-shell.md#the-golden-rule-never-edit-the-upstream-tree).
+model](caelestia-shell.md#the-golden-rule-never-edit-the-upstream-tree).
 
 **fish**
 : A user-friendly interactive shell (the program in your terminal), used as the
@@ -213,8 +213,8 @@ repo *documents and regenerates* the dotfiles rather than being them.
 **Component (in these scripts)**
 : A named, self-contained unit of work in `install.sh` / `uninstall.sh` /
 `setup-home.sh` (e.g. `cuda`, `audio`) you can select individually. See
-[Reproducibility](08-reproducibility.md#the-component-model).
+[Reproducibility](reproducibility.md#the-component-model).
 
 ---
 
-Back to the [Learning Path](index.md) or the [Full Reference](../reference.md).
+Back to the [Learning Path](index.md) or the [Full Reference](../arch/reference.md).

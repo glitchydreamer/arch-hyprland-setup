@@ -43,7 +43,7 @@ apps, arranges them, and produces the screen — and it handles input routing to
     Not every app speaks Wayland yet. **XWayland** is a translation shim that
     runs old X11 apps inside a Wayland session. It mostly "just works," but it's
     the reason some apps look blurry at fractional display scales — see the
-    [displays page](04-displays.md).
+    [displays page](displays.md).
 
 ## What Hyprland is
 
@@ -77,7 +77,7 @@ flowchart LR
 
 The payoff: no time lost arranging windows or hunting for a buried one. The cost:
 a learning curve, and you must *know the keybinds* because nothing is clickable
-to discover. (This site's [keybinds reference](../keybinds.md) is your map.)
+to discover. (This site's [keybinds reference](../arch/keybinds.md) is your map.)
 
 ## The keyboard-first model
 
@@ -98,7 +98,7 @@ class="keys">Super</span>+arrow.
 
 **Workspaces** replace a crowded taskbar: <span class="keys">Super</span>+1..9
 jump between virtual screens, each holding its own windows. Coming from Ubuntu?
-The [Coming from Ubuntu](../coming-from-ubuntu.md) guide maps every old habit to
+The [Coming from Ubuntu](coming-from-ubuntu.md) guide maps every old habit to
 its new equivalent.
 
 !!! tip "Discoverability is the real adjustment"
@@ -112,7 +112,7 @@ its new equivalent.
 Hyprland reads plain-text config files (`.conf`). On this machine those files are
 managed by the **caelestia** shell's tree, with your personal overrides layered
 on top in a very specific way — that layering is important enough to get
-[its own page](03-caelestia-shell.md). For now, the key facts:
+[its own page](caelestia-shell.md). For now, the key facts:
 
 - Config is text you edit, then reload (`hyprctl reload`, or caelestia
   auto-reloads on save).
@@ -122,5 +122,5 @@ on top in a very specific way — that layering is important enough to get
 
 ---
 
-**Next:** [The caelestia shell →](03-caelestia-shell.md) — the bar, launcher, and
+**Next:** [The caelestia shell →](caelestia-shell.md) — the bar, launcher, and
 the config-override rule you must not break.

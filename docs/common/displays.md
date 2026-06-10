@@ -2,7 +2,7 @@
 
 **Goal of this page:** build intuition for the knobs that control your picture —
 resolution, refresh rate, scaling, variable refresh (VRR), bit depth, and HDR /
-color management — so the [display reference](../display.md) reads as decisions
+color management — so the [display reference](../arch/display.md) reads as decisions
 rather than magic numbers.
 
 Everything below is configured per-monitor with one line in Hyprland:
@@ -12,7 +12,7 @@ monitor = NAME, RESOLUTION@REFRESH, POSITION, SCALE, [extras...]
 ```
 
 e.g. `monitor = DP-1, 3440x1440@159.96, 0x0, 1, bitdepth, 10, cm, srgb, vrr, 0`.
-The [reference](../display.md#the-monitor-line-decoded) decodes every field; this
+The [reference](../arch/display.md#the-monitor-line-decoded) decodes every field; this
 page explains *what each concept means*.
 
 ## Resolution & refresh rate
@@ -38,7 +38,7 @@ makes UI elements physically larger by telling apps to render bigger. `scale =
     **XWayland** (legacy X11) apps can look slightly blurry. The laptop here uses
     1.25 (its dense panel needs it); the desktop ultrawide uses 1.0 (no scaling,
     no blur). Workarounds for blurry XWayland apps are in the
-    [reference](../display.md#troubleshooting).
+    [reference](../arch/display.md#troubleshooting).
 
 ## Variable refresh rate (VRR) — and the brand-name confusion
 
@@ -62,7 +62,7 @@ The mental key: **VRR's job is to drag refresh *down* to match a struggling
 GPU.** This machine's desktop (RTX 3060) comfortably feeds 160 Hz, so VRR is
 *off* there — you want it pinned at max. The laptop keeps VRR on for power and
 smoothness under variable load. (Per-monitor `vrr, N` overrides the global
-default — see the [reference](../display.md#g-sync-vs-freesync-vs-vrr-theyre-all-the-same-thing).)
+default — see the [reference](../arch/display.md#g-sync-vs-freesync-vs-vrr-theyre-all-the-same-thing).)
 
 ## Bit depth — smoother gradients
 
@@ -89,7 +89,7 @@ show more saturated colors — but here's the trap:
     Firefox with a flag) manage color correctly today. So this setup uses
     `cm, srgb` for *accurate* color, plus `bitdepth, 10` for smooth gradients —
     the best combination that doesn't break everything else. Full reasoning:
-    [Why sRGB and not wide gamut](../display.md#why-srgb-and-not-wide-gamut).
+    [Why sRGB and not wide gamut](../arch/display.md#why-srgb-and-not-wide-gamut).
 
 ## HDR — opt-in, not always-on
 
@@ -102,7 +102,7 @@ class="keys">Super</span>+<span class="keys">Ctrl</span>+<span
 class="keys">Alt</span>+H) runs the `hdr-toggle` script, which flips the live
 monitor mode to HDR when you want it (a game, an HDR movie) and back to sRGB
 afterward — without editing any file. How that script works is in the
-[reference](../reference.md#5-hdr-color-management).
+[reference](../arch/reference.md#5-hdr-color-management).
 
 ## The roaming-SSD twist
 
@@ -112,7 +112,7 @@ a small login script (`select-monitors.sh`) picks the right per-host monitor fil
 on every boot by checking whether a laptop panel (`eDP-1`) is present. The
 *theory* of that detection is worth reading once — it's a clean example of
 "configure by hardware fact, not by hostname": see the full
-[display setup page](../display.md).
+[display setup page](../arch/display.md).
 
 ## Inspecting reality
 
@@ -123,10 +123,10 @@ Two tools answer almost any display question:
 - `drm_info` — what the *kernel* knows about the hardware (does the panel really
   support 10-bit/HDR/VRR per its EDID?).
 
-The [reference](../display.md#inspecting-current-state) has a "which tool for
+The [reference](../arch/display.md#inspecting-current-state) has a "which tool for
 which question" table and ready-made one-liners.
 
 ---
 
-**Next:** [NVIDIA on Linux →](05-nvidia.md) — drivers, CUDA, and why NVIDIA earns
+**Next:** [NVIDIA on Linux →](../arch/nvidia.md) — drivers, CUDA, and why NVIDIA earns
 its reputation here.
