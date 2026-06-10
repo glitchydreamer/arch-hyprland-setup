@@ -174,11 +174,28 @@ read_limine() {
 # left from the OLD driver version (or generated mid-swap with phantom libs like
 # libnvidia-tileiras.so) makes container start fail with "no such file". No-op if
 # the toolkit isn't installed. Best-effort (records FAILED, never aborts).
+#
+# IMPORTANT: `nvidia-ctk cdi generate` initializes NVML, which needs the LOADED
+# kernel module to match the installed userspace. Right after a driver swap the
+# old module is still resident in RAM, so NVML throws "Driver/library version
+# mismatch" — a spurious failure that's really "reboot first". Detect that case
+# (loaded /sys/module/nvidia/version != installed nvidia-utils) and DEFER with a
+# clear note instead of recording a hard FAILED.
 regen_cdi() {
     command -v nvidia-ctk >/dev/null 2>&1 || { say "    · nvidia-ctk absent — no Docker CDI spec to refresh"; return; }
     [ -e /etc/cdi/nvidia.yaml ] || { say "    · no /etc/cdi/nvidia.yaml — skip (docker not set up for GPUs yet)"; return; }
-    say "    · regenerating the Docker CDI spec for the new driver version"
     if [ "$DRY_RUN" -eq 1 ]; then say "    [dry-run] sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml"; return; fi
+    # Defer if the loaded module and installed userspace disagree (pre-reboot swap).
+    local loaded inst
+    loaded=$(cat /sys/module/nvidia/version 2>/dev/null)
+    inst=$(pacman -Q nvidia-utils 2>/dev/null | awk '{print $2}' | sed 's/-.*//')
+    if [ -n "$loaded" ] && [ -n "$inst" ] && [ "$loaded" != "$inst" ]; then
+        say "    · Docker CDI regen DEFERRED — loaded module ($loaded) != installed userspace"
+        say "      ($inst). NVML can't init until you reboot into the new driver. After reboot:"
+        say "          sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml"
+        return
+    fi
+    say "    · regenerating the Docker CDI spec for the new driver version"
     sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml || FAILED+=("cdi-regen")
 }
 
