@@ -53,7 +53,7 @@ COMPONENTS=(
     "caelestia|Caelestia shell.json tweaks (weather/dashboard temperature in °C, not °F)"
     "nautilus|Sweet icons: synthwave Sweet-Purple folders + candy app icons as the GTK icon theme (ICON_THEME=<variant> to pick another)"
     # (the daily file manager is nautilus; the old 'dolphin' tweak component was removed)
-    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, vnc-server, remote, lerobot-verify, fastfetch-logo"
+    "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, moveit2-humble, vnc-server, remote, lerobot-verify, fastfetch-logo"
     "fastfetch|Point fastfetch at a custom image / GIF / video logo via the fastfetch-logo helper (interactive: just give it the file path)"
     "fish|Fish dev-env additions (~/.config/fish/conf.d/dev-env.fish)"
     "wireplumber|WirePlumber drop-in so the DualSense auto-switches to its headphone jack"
@@ -409,6 +409,107 @@ case "$cmd" in
   stop)  exec docker stop "$NAME" ;;
   pull)  exec docker pull "$IMAGE" ;;
   *) echo "usage: ros2-humble [shell|run \"<cmd>\"|attach|stop|pull]" >&2; exit 1 ;;
+esac
+EOF
+
+    # moveit2-humble: sibling of ros2-humble for the official MoveIt 2 Humble tutorial
+    # container (moveit/moveit2:humble-humble-tutorial-source). It deliberately REUSES
+    # ros2-humble's Fast DDS UDP-only profile and ~/robotics/ws workspace so MoveIt 2,
+    # the ros2-humble container, and Isaac Sim's bundled Humble bridge all share one
+    # DDS domain + workspace and nothing drops samples. (The upstream MoveIt
+    # docker-compose has no UDP-only profile, so it would silently fail to exchange
+    # data with native Isaac across the host↔container boundary.) Same root user, so
+    # the X11/Wayland/GPU mounts carry over unchanged; the image's prebuilt MoveIt
+    # overlay (/root/ws_moveit) is sourced on entry and left untouched by the mount.
+    cat > "$BIN/moveit2-humble" <<'EOF'
+#!/usr/bin/env bash
+# Thin wrapper around the moveit/moveit2:humble-humble-tutorial-source Docker image
+# (the official MoveIt 2 Humble tutorial container — MoveIt + colcon overlay prebuilt).
+#
+# WHY this works with the rest of the stack: MoveIt 2 here is Humble, so it speaks the
+# same Fast DDS 2.6 / XCDR wire format as Isaac Sim's bundled bridge AND the
+# ros2-humble container — no cross-distro discovery mismatch (see ros2-humble for the
+# Jazzy crash story). It deliberately SHARES two things with ros2-humble so all three
+# (Isaac ⇄ ros2-humble ⇄ moveit2) sit on one DDS domain and one workspace:
+#   * the SAME ~/.config/ros2/fastdds-udp-only.xml profile — forces UDP-only transport
+#     so samples aren't silently dropped over the default shared-MEMORY path (native
+#     Isaac is UID 1000, the container is root → they can't share /dev/shm segments).
+#   * the SAME host ~/robotics/ws workspace, mounted at /root/ws.
+# --network host + matching ROS_DOMAIN_ID/RMW complete the shared domain. The MoveIt
+# image's own prebuilt overlay lives at /root/ws_moveit inside the image (a different
+# dir from the /root/ws workspace mount, so neither clobbers the other); this helper
+# sources it for you on entry.
+# GPU works via --gpus all (NVIDIA Container Toolkit injects the native 580 driver).
+set -euo pipefail
+
+IMAGE="moveit/moveit2:humble-humble-tutorial-source"
+NAME="moveit2-humble"
+WS="$HOME/robotics/ws"
+PROFILE="$HOME/.config/ros2/fastdds-udp-only.xml"
+mkdir -p "$WS" "$(dirname "$PROFILE")"
+
+# Fast DDS 2.6 transport profile: replace the builtin transports (which include
+# shared memory) with one UDPv4 transport. Shared with ros2-humble — that helper
+# writes it first in most sessions; we write it here too so moveit2-humble works
+# standalone. Delete the file to regenerate.
+if [ ! -f "$PROFILE" ]; then
+  cat > "$PROFILE" <<'PROFILEEOF'
+<?xml version="1.0" encoding="UTF-8" ?>
+<dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <profiles>
+    <transport_descriptors>
+      <transport_descriptor>
+        <transport_id>udp_only</transport_id>
+        <type>UDPv4</type>
+      </transport_descriptor>
+    </transport_descriptors>
+    <participant profile_name="udp_only_participant" is_default_profile="true">
+      <rtps>
+        <userTransports>
+          <transport_id>udp_only</transport_id>
+        </userTransports>
+        <useBuiltinTransports>false</useBuiltinTransports>
+      </rtps>
+    </participant>
+  </profiles>
+</dds>
+PROFILEEOF
+fi
+
+# Source the image's prebuilt MoveIt overlay if present, else the ROS base. Used as
+# the interactive shell's rcfile and as the prefix for `run`.
+SOURCE_OVERLAY='if [ -f /opt/ws_moveit/install/setup.bash ]; then source /opt/ws_moveit/install/setup.bash; elif [ -f /root/ws_moveit/install/setup.bash ]; then source /root/ws_moveit/install/setup.bash; else source /opt/ros/humble/setup.bash; fi'
+
+run_args=(
+  --gpus all
+  -e DISPLAY="${DISPLAY:-}"
+  -e WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}"
+  -e XDG_RUNTIME_DIR=/tmp
+  -e QT_X11_NO_MITSHM=1
+  -e ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
+  -e RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
+  -e FASTRTPS_DEFAULT_PROFILES_FILE=/opt/fastdds-udp-only.xml
+  -v "$PROFILE":/opt/fastdds-udp-only.xml:ro
+  -v /tmp/.X11-unix:/tmp/.X11-unix
+  -v "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY:-wayland-1}":"/tmp/${WAYLAND_DISPLAY:-wayland-1}"
+  -v "$WS":/root/ws
+  --network host
+  --ipc host
+)
+
+cmd="${1:-shell}"
+case "$cmd" in
+  shell)
+    if docker ps --format '{{.Names}}' | grep -qx "$NAME"; then
+      exec docker exec -it "$NAME" bash -c "$SOURCE_OVERLAY; exec bash"
+    fi
+    exec docker run -it --rm --name "$NAME" "${run_args[@]}" "$IMAGE" bash -c "$SOURCE_OVERLAY; exec bash"
+    ;;
+  run)   shift; exec docker run -it --rm --name "$NAME" "${run_args[@]}" "$IMAGE" bash -lc "$SOURCE_OVERLAY; $*" ;;
+  attach) exec docker exec -it "$NAME" bash -c "$SOURCE_OVERLAY; exec bash" ;;
+  stop)  exec docker stop "$NAME" ;;
+  pull)  exec docker pull "$IMAGE" ;;
+  *) echo "usage: moveit2-humble [shell|run \"<cmd>\"|attach|stop|pull]" >&2; exit 1 ;;
 esac
 EOF
 
@@ -791,7 +892,7 @@ Open a NEW foot terminal and run \`fastfetch\`.
 MSG
 EOF
 
-    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-humble" "$BIN/vnc-server" "$BIN/remote" "$BIN/lerobot-verify" "$BIN/fastfetch-logo"
+    chmod +x "$BIN/select-monitors.sh" "$BIN/hdr-toggle" "$BIN/dualsense-audio" "$BIN/ros2-humble" "$BIN/moveit2-humble" "$BIN/vnc-server" "$BIN/remote" "$BIN/lerobot-verify" "$BIN/fastfetch-logo"
 }
 
 do_fastfetch() {

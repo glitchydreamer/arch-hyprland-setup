@@ -41,7 +41,7 @@ COMPONENTS=(
     "docker|Docker engine, buildx, containerd, NVIDIA container toolkit, all images/data, the docker group"
     "vm|QEMU/KVM + libvirt + virt-manager + virt-viewer + OVMF/swTPM/guestfs, the default NAT net, ALL guest disk images in EVERY pool (default + custom pools on /home), /etc/libvirt, the nested-virt modprobe drop-in, and libvirt/kvm group membership (leaves your ISOs untouched)"
     "isaac|Isaac Sim container caches, the IsaacLab clone, the isaac-sim launcher, xorg-xauth"
-    "ros2|The ros2-humble launcher + its Docker image + the Fast DDS UDP profile (also clears a leftover Jazzy image/launcher; image only if Docker is still present)"
+    "ros2|The ros2-humble + moveit2-humble launchers + their Docker images + the shared Fast DDS UDP profile (also clears a leftover Jazzy image/launcher; images only if Docker is still present)"
     "anaconda|Anaconda (AUR) + the conda fish init; leaves your project envs' data under ~/anaconda3 if external"
     "lerobot|Conda env 'lerobot' + the ~/lerobot clone the install created (override LEROBOT_DIR); set LEROBOT_KEEP_CLONE=1 to keep the clone. Anaconda itself stays."
     "uv|uv venv (~/.venv), build cache (~/.cache/uv) and uv-managed Pythons; keeps the pacman uv binary"
@@ -276,7 +276,7 @@ do_ros2() {
     # Includes a leftover osrf/ros:jazzy-desktop-full from the pre-Humble setup.
     if command -v docker >/dev/null 2>&1; then
         local img found=0
-        for img in osrf/ros:humble-desktop-full osrf/ros:jazzy-desktop-full; do
+        for img in osrf/ros:humble-desktop-full osrf/ros:jazzy-desktop-full moveit/moveit2:humble-humble-tutorial-source; do
             if docker image inspect "$img" >/dev/null 2>&1; then
                 run ros2-image docker rmi "$img"; found=1
             fi
@@ -286,6 +286,7 @@ do_ros2() {
         say "    · docker already gone — its images went with it"
     fi
     reclaim ros2-launcher "$HOME/.local/bin/ros2-humble"
+    reclaim moveit2-launcher "$HOME/.local/bin/moveit2-humble"
     reclaim ros2-launcher-old "$HOME/.local/bin/ros2-jazzy"   # pre-Humble name
     reclaim ros2-ddsprofile "$HOME/.config/ros2/fastdds-udp-only.xml"
     # Drop the ~/.config/ros2 dir only if now empty (don't nuke other ROS configs).

@@ -149,8 +149,8 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
 | User Hyprland overrides | `~/.config/caelestia/hypr-user.conf`, `hypr-vars.conf` |
 | Caelestia shell settings | `~/.config/caelestia/shell.json` (bar/dashboard/weather; written by the `caelestia` component) |
 | Per-host monitors + active symlink | `~/.config/caelestia/hypr-monitors-{desktop,laptop}.conf`, `hypr-monitors.conf` |
-| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, vnc-server, remote}` |
-| ROS 2 Fast DDS profile | `~/.config/ros2/fastdds-udp-only.xml` (UDP-only transport; written by the `ros2-humble` launcher) |
+| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, moveit2-humble, vnc-server, remote}` |
+| ROS 2 Fast DDS profile | `~/.config/ros2/fastdds-udp-only.xml` (UDP-only transport; written by the `ros2-humble`/`moveit2-humble` launchers, shared by both) |
 | Fish additions | `~/.config/fish/conf.d/dev-env.fish` |
 | WirePlumber DualSense | `~/.config/wireplumber/wireplumber.conf.d/51-dualsense-headphones.conf` |
 | DualSense touchpad ignore | `/etc/udev/rules.d/71-dualsense-touchpad-ignore.rules` |
