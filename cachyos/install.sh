@@ -424,8 +424,11 @@ do_gpu()     { pac gpu lib32-nvidia-utils gamemode lib32-gamemode mangohud lib32
 # its DDS shares a domain with native Isaac Sim's ROS 2 bridge (Humble matches the
 # bridge's bundled Fast DDS — a Jazzy container crashed Isaac on discovery).
 do_docker() {
-    # xorg-xauth: host-side xauth so GUI tools (rviz2) forward X11 from the container.
-    pac docker docker docker-buildx nvidia-container-toolkit xorg-xauth
+    # xorg-xhost: this Hyprland/Xwayland session starts X with no auth cookie, so X11
+    # GUI tools (rviz2/rqt) from the container can't connect until the container's root
+    # user is allow-listed. The ros2-humble/moveit2-humble launchers run
+    # `xhost +SI:localuser:root` automatically; this provides the xhost binary.
+    pac docker docker docker-buildx nvidia-container-toolkit xorg-xhost
     say "\n### Docker: data-root on /home + NVIDIA runtime + enable + docker group"
     if [ "$DRY_RUN" -eq 1 ]; then
         say "    [dry-run] nvidia-ctk runtime configure; daemon.json data-root=/home/docker-data"

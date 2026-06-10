@@ -303,6 +303,16 @@ A quick cross-domain sanity check: start `ros2-humble shell` (or Isaac with its 
 2 bridge on), then in `moveit2-humble shell` run `ros2 topic list` — you should see
 the other side's topics, confirming all three share the domain.
 
+!!! note "X11 GUIs (RViz/rqt) from a container, on a Wayland session"
+    This Hyprland/Xwayland session starts its X server **without an auth cookie** — so
+    *no* X11 client (host or container) can connect until the container's root user is
+    allow-listed. Both launchers handle this for you: they run
+    `xhost +SI:localuser:root` automatically on start (the `xorg-xhost` package is
+    pulled in by `install.sh docker`). If RViz ever errors with *"Authorization
+    required"* / *"could not connect to display"*, that grant didn't run — `pacman -S
+    xorg-xhost`, then `xhost +SI:localuser:root` by hand. (The image has no Qt Wayland
+    plugin, so RViz uses X11/`xcb`, not native Wayland.)
+
 ## LeRobot for the SO-arm 101 (real hardware)
 
 LeRobot is Hugging Face's Python framework for training and running robot

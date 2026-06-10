@@ -396,6 +396,13 @@ run_args=(
   --ipc host
 )
 
+# X11 GUI (rviz2/rqt): this Hyprland/Xwayland session starts X with no auth cookie,
+# so X clients can't connect until the local root user (the container runs as root)
+# is allow-listed. Idempotent; a no-op if xhost is missing or the grant already exists.
+if [ -n "${DISPLAY:-}" ] && command -v xhost >/dev/null 2>&1; then
+  xhost +SI:localuser:root >/dev/null 2>&1 || true
+fi
+
 cmd="${1:-shell}"
 case "$cmd" in
   shell)
@@ -496,6 +503,13 @@ run_args=(
   --network host
   --ipc host
 )
+
+# X11 GUI (rviz2/rqt): this Hyprland/Xwayland session starts X with no auth cookie,
+# so X clients can't connect until the local root user (the container runs as root)
+# is allow-listed. Idempotent; a no-op if xhost is missing or the grant already exists.
+if [ -n "${DISPLAY:-}" ] && command -v xhost >/dev/null 2>&1; then
+  xhost +SI:localuser:root >/dev/null 2>&1 || true
+fi
 
 cmd="${1:-shell}"
 case "$cmd" in
