@@ -130,17 +130,75 @@ Open the full keybinds source any time:
 `~/.config/hypr/hyprland/keybinds.conf`. Definitions of the `$kb*` aliases
 live in `~/.config/hypr/variables.conf`.
 
-## Adding more app binds
+## Adding your own keybinds
 
-Any new app launcher follows the same pattern. Pick a free `Super+Shift+<letter>`,
-edit `~/.config/caelestia/hypr-user.conf`, save, and the caelestia
-config-watcher reloads Hyprland automatically (or run `hyprctl reload`).
+**This is identical on the Arch and CachyOS builds** — both generate
+`~/.config/caelestia/hypr-user.conf` from the same `setup-home.sh hyprland`
+component, and on both, `hyprland.conf` sources that file **last**, so anything you
+put there wins over caelestia's defaults without touching the upstream tree. Every
+kind of keybind — app launchers, system commands, workspaces, window actions — goes
+in this one file.
+
+### The syntax
 
 ```ini
-bind = Super+Shift, X, exec, app2unit -- some-app
+bind = MODS, KEY, DISPATCHER, ARGS
 ```
 
-To check whether a combo is already used:
+- **MODS** — `Super`, `Shift`, `Ctrl`, `Alt`, combined with `+` (e.g. `Super+Shift`).
+  Leave empty for no modifier: `bind = , XF86AudioPlay, ...`.
+- **KEY** — a letter/number, a named key (`Return`, `space`, `comma`, `Print`,
+  `XF86AudioRaiseVolume`), or `code:NN` for a raw keycode.
+- **DISPATCHER + ARGS** — what it does (see categories below). Full list:
+  [Hyprland dispatchers](https://wiki.hyprland.org/Configuring/Dispatchers/).
+
+### By category
+
+```ini
+# Launch a GUI app — use app2unit (runs it as a systemd user unit, the convention
+# every launcher here follows; gives clean process accounting + cgroup isolation):
+bind = Super+Shift, X, exec, app2unit -- some-app
+
+# Run a script or system command — plain exec:
+bind = Super+Shift, L, exec, ~/.local/bin/my-script.sh
+bind = , XF86AudioRaiseVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+bind = Super, Print, exec, grim -g "$(slurp)" - | wl-copy   # region screenshot
+
+# Workspaces — `workspace` to switch, `movetoworkspace` to send the focused window:
+bind = Super, F1,       workspace, 6
+bind = Super+Shift, F1, movetoworkspace, 6
+bind = Super, grave,    workspace, previous
+
+# Window / system actions — any dispatcher:
+bind = Super, F, fullscreen, 0
+bind = Super+Shift, Q, killactive,
+```
+
+Launch GUI apps by their **binary** name (`which <cmd>`), not the package name —
+see the [gotcha below](#package-name-vs-binary-name-gotcha).
+
+### Overriding a caelestia default
+
+If a chord is already taken (Super+1–9, Super+Q, the Super+Ctrl arrows, …),
+`unbind` it first, then rebind — exactly how `Super+G` is retargeted to Chrome:
+
+```ini
+unbind = Super, G
+bind   = Super, G, exec, app2unit -- google-chrome-stable
+```
+
+### Apply the change
+
+No logout needed — save the file and run:
+
+```bash
+hyprctl reload
+```
+
+If a bind doesn't fire, `hyprctl reload` prints any parse error; otherwise check it
+registered with `hyprctl binds`.
+
+### Check a combo isn't already used
 
 ```bash
 hyprctl binds -j | jq -r '.[] | "\(.modmask) \(.key)  →  \(.dispatcher) \(.arg)"' | grep ' X$'
@@ -148,6 +206,14 @@ hyprctl binds -j | jq -r '.[] | "\(.modmask) \(.key)  →  \(.dispatcher) \(.arg
 
 Modmask reference: `64` = Super, `65` = Super+Shift, `72` = Super+Ctrl,
 `80` = Super+Alt, `81` = Super+Shift+Alt, `73` = Super+Shift+Ctrl.
+
+!!! warning "Make a bind survive a fresh reinstall"
+    `hypr-user.conf` is **generated** by `setup-home.sh` and is *not* tracked in the
+    repo — a clean `setup-home.sh hyprland` run rewrites it from the template, so
+    binds you add by hand live only on that box. To make one permanent across
+    reinstalls, add it to the `hypr-user.conf` heredoc in **both** `arch/setup-home.sh`
+    and `cachyos/setup-home.sh` and commit. For quick experiments, just edit the live
+    file.
 
 ## Verifying no duplicates / dead targets
 

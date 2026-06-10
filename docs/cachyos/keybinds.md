@@ -32,3 +32,12 @@ binds and overrides win without touching the upstream tree. See the
     The launcher binds call the **binary**, which isn't always the package name
     (e.g. `microsoft-edge-stable`, `missioncenter`). Same gotcha as Arch — see the
     [package-name-vs-binary note](../arch/keybinds.md#package-name-vs-binary-name-gotcha).
+
+## Adding your own keybinds
+
+Same mechanism as Arch, byte-for-byte: drop your `bind` lines into
+`~/.config/caelestia/hypr-user.conf` (sourced last, so they win) and run
+`hyprctl reload`. Apps, system commands, workspaces, window actions — all one file.
+Full how-to with the syntax, per-category examples, overriding caelestia defaults,
+conflict-checking, and how to make a bind survive a fresh reinstall:
+[Arch keybinds → Adding your own keybinds](../arch/keybinds.md#adding-your-own-keybinds).
