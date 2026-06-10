@@ -560,10 +560,10 @@ do_purge() {
         [ "$phrase" = "PURGE NVIDIA" ] || { say "Aborted."; return; }
     fi
 
-    say "\n### 1/4  drop the pin"
+    say "\n### 1/5  drop the pin"
     del_pin
 
-    say "\n### 2/4  remove nvidia + cuda packages"
+    say "\n### 2/5  remove nvidia + cuda packages"
     local pkgs; mapfile -t pkgs < <(installed_of \
         nvidia-open-dkms linux-cachyos-nvidia-open linux-cachyos-lts-nvidia-open \
         nvidia-utils lib32-nvidia-utils opencl-nvidia lib32-opencl-nvidia \
