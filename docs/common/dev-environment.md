@@ -259,6 +259,50 @@ Everything large lives on **/home** (the container image store is
 `/home/docker-data`, the workspace is `~/robotics/ws`) because the root partition
 is small — see [Reproducibility](reproducibility.md).
 
+### MoveIt 2 — motion planning, in the same DDS domain
+
+**MoveIt 2** (the ROS 2 motion-planning framework) runs in the official MoveIt
+tutorial container, launched by the **`moveit2-humble`** helper — a deliberate
+sibling of `ros2-humble`. The image is
+`moveit/moveit2:humble-humble-tutorial-source` (MoveIt + a prebuilt colcon overlay
+at `/root/ws_moveit`, sourced for you on entry).
+
+The whole point is that it plugs into the stack you already have **without breaking
+anything**. It does that by *reusing*, not duplicating, two things from
+`ros2-humble`:
+
+- the **same `~/.config/ros2/fastdds-udp-only.xml` profile** (and the same
+  `FASTRTPS_DEFAULT_PROFILES_FILE` env var), so it dodges the shared-memory
+  sample-drop trap (Gotcha 3) exactly the way the ROS 2 container does;
+- the **same `~/robotics/ws` workspace** (mounted at `/root/ws`) and the same
+  `--network host` / `ROS_DOMAIN_ID` / `RMW_IMPLEMENTATION`.
+
+Result: Isaac Sim (native), `ros2-humble`, and `moveit2-humble` all sit on **one
+DDS domain** — MoveIt can plan against a robot Isaac is simulating, with joint
+states and trajectories crossing all three. Because the tutorial image is Humble,
+it shares Isaac's Fast DDS 2.6 wire format, so it sidesteps the Jazzy
+discovery-crash (Gotcha 4) for free.
+
+!!! note "Why not the upstream `docker compose run gpu`?"
+    MoveIt's own [Docker guide](https://moveit.picknik.ai/humble/doc/how_to_guides/how_to_setup_docker_containers_in_ubuntu.html)
+    ships a `docker-compose.yml` with host networking + the NVIDIA GPU reservation,
+    but **no Fast DDS UDP-only profile**. Run that way, MoveIt would *discover*
+    native Isaac fine yet silently exchange **zero data** with it over the default
+    shared-memory transport (root container ↔ UID-1000 host can't share `/dev/shm`).
+    The `moveit2-humble` helper bakes in the UDP-only profile, so it Just Works with
+    the rest of the stack.
+
+```bash
+moveit2-humble pull        # fetch the image once (~5 GB → /home/docker-data)
+moveit2-humble shell       # MoveIt env, overlay sourced; ~/robotics/ws is /root/ws
+moveit2-humble run "ros2 launch moveit2_tutorials demo.launch.py"   # one-off
+moveit2-humble attach      # second shell into the running container
+```
+
+A quick cross-domain sanity check: start `ros2-humble shell` (or Isaac with its ROS
+2 bridge on), then in `moveit2-humble shell` run `ros2 topic list` — you should see
+the other side's topics, confirming all three share the domain.
+
 ## LeRobot for the SO-arm 101 (real hardware)
 
 LeRobot is Hugging Face's Python framework for training and running robot

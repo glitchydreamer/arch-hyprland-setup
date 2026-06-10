@@ -30,8 +30,8 @@ scripts**; the live config lives in the home directory.
 
 Everything else — the caelestia override files, the monitor auto-detection, the
 Sweet icon theme, the `~/.local/bin` helpers, CUDA/Anaconda/LeRobot, Docker + ROS 2
-Humble, QEMU/KVM, the HWiNFO-style monitoring stack, etc. — is **carried over
-verbatim** (full parity).
+Humble + MoveIt 2 Humble, QEMU/KVM, the HWiNFO-style monitoring stack, etc. — is
+**carried over verbatim** (full parity).
 
 ## The rebuild
 
@@ -69,7 +69,7 @@ idempotent and `FAILED=()`-tracked. This is identical to the Arch shape — see
 | User Hyprland overrides | `~/.config/caelestia/hypr-user.conf`, `hypr-vars.conf` |
 | caelestia shell settings | `~/.config/caelestia/shell.json` |
 | Per-host monitors + active symlink | `~/.config/caelestia/hypr-monitors-{desktop,laptop}.conf`, `hypr-monitors.conf` |
-| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, ros2-humble, vnc-server, remote, lerobot-verify, fastfetch-logo}` |
+| Scripts | `~/.local/bin/{select-monitors.sh, hdr-toggle, ros2-humble, moveit2-humble, vnc-server, remote, lerobot-verify, fastfetch-logo}` |
 | Fish additions | `~/.config/fish/conf.d/dev-env.fish` |
 | CUDA PATH | `/etc/profile.d/cuda.sh` (+ fish via `dev-env.fish`) |
 | NVIDIA pin (after a downgrade) | `IgnorePkg` block in `/etc/pacman.conf` |
