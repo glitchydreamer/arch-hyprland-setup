@@ -114,9 +114,36 @@ worth knowing: the dashboard's weather panel **defaults to Fahrenheit**. To show
 }
 ```
 
-You don't normally edit this by hand — the **`caelestia` component** of
-`setup-home.sh` merges the setting in for you (it deep-merges, so your other
-`shell.json` keys are preserved):
+### The background audio visualiser
+
+Caelestia can paint a screen-wide **audio spectrum on the wallpaper** — reactive
+bars that dance to whatever's playing (a YouTube video, music, anything through
+PipeWire). It's the `background.visualiser` feature, drawn by `libcava` (a *hard
+dependency* of `caelestia-shell`, so the backend is always present — note it's the
+**library**, not the standalone `cava` binary). It can ship **disabled by default**,
+in which case nothing draws even though everything's installed. Turn it on:
+
+```json
+{
+    "background": {
+        "visualiser": {
+            "enabled": true,
+            "autoHide": false
+        }
+    }
+}
+```
+
+`autoHide: false` keeps it visible even when a tiled window is focused (so it shows
+while you're watching a video); set it `true` to only show it on an empty/floating
+desktop. Other knobs under `background.visualiser`: `blur` (blur the wallpaper
+behind the bars), `rounding`, `spacing`.
+
+You don't normally edit these by hand — the **`caelestia` component** of
+`setup-home.sh` merges both settings in for you (it deep-merges, so your other
+`shell.json` keys are preserved). It **re-asserts** them on every run, so if a
+caelestia update ever ships the visualiser disabled-by-default, just re-run the
+component to switch it back on:
 
 ```bash
 bash setup-home.sh caelestia

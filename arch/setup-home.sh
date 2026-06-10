@@ -50,7 +50,7 @@ set_ini_key() {
 # ============================================================================
 COMPONENTS=(
     "hyprland|Hyprland overrides (hypr-vars, hypr-user) + per-host monitor configs & active symlink"
-    "caelestia|Caelestia shell.json tweaks (weather/dashboard temperature in °C, not °F)"
+    "caelestia|Caelestia shell.json tweaks (weather/dashboard in °C; background audio visualiser on)"
     "nautilus|Sweet icons: synthwave Sweet-Purple folders + candy app icons as the GTK icon theme (ICON_THEME=<variant> to pick another)"
     # (the daily file manager is nautilus; the old 'dolphin' tweak component was removed)
     "scripts|~/.local/bin helpers: select-monitors.sh, hdr-toggle, dualsense-audio, ros2-humble, moveit2-humble, vnc-server, remote, lerobot-verify, fastfetch-logo"
@@ -196,11 +196,16 @@ EOF
 }
 
 do_caelestia() {
-    # Caelestia reads ~/.config/caelestia/shell.json. The weather/dashboard panel
-    # defaults to Fahrenheit (services.useFahrenheit = true); flip it to Celsius.
-    # Merge into the existing JSON so other keys (bar, appearance, ...) are kept.
+    # Caelestia reads ~/.config/caelestia/shell.json. We assert two preferences and
+    # MERGE them into the existing JSON (other keys — bar, appearance, … — are kept):
+    #   · services.useFahrenheit = false  → weather/dashboard in °C, not °F
+    #   · background.visualiser.enabled = true (+ autoHide=false) → the screen-wide
+    #     audio spectrum on the wallpaper (libcava-backed, a hard dep of
+    #     caelestia-shell; shows even over tiled windows). The key is RE-ASSERTED on
+    #     every run, so if a future caelestia version ships it disabled-by-default,
+    #     re-running this component (setup-home.sh caelestia) flips it back on.
     local f="$CAE/shell.json"
-    dry "$f: merge services.useFahrenheit=false (weather in °C)" && return
+    dry "$f: merge services.useFahrenheit=false + background.visualiser.enabled=true" && return
     mkdir -p "$CAE"
     python3 - "$f" <<'PY'
 import json, sys
@@ -211,11 +216,14 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     cfg = {}
 cfg.setdefault("services", {})["useFahrenheit"] = False
+vis = cfg.setdefault("background", {}).setdefault("visualiser", {})
+vis["enabled"] = True
+vis["autoHide"] = False
 with open(f, "w") as fh:
     json.dump(cfg, fh, indent=4)
     fh.write("\n")
 PY
-    say ">>> shell.json: weather set to Celsius (services.useFahrenheit=false)."
+    say ">>> shell.json: weather in °C + background audio visualiser enabled."
     # Caelestia watches shell.json and hot-reloads it — no restart needed.
 }
 
