@@ -64,25 +64,28 @@ approaches, and this machine uses a mix deliberately:
 
 !!! warning "The harmless `OpenSSL 3's legacy provider failed to load` warning"
     Every new shell prints this once, because the `conda init` hook runs
-    Anaconda's Python, and Anaconda's `/opt/anaconda/ssl/openssl.cnf` activates
-    only the `default` provider — so when conda asks OpenSSL for the *legacy*
-    provider, it warns. It is **purely cosmetic**: md5/sha/blake2 still work, only
-    ancient algorithms (md4/des/rc4) are affected, which conda doesn't need. The
-    *system* Python is unaffected. To silence it, activate the legacy provider in
-    Anaconda's config (run in a **plain terminal**, since it needs `sudo`):
+    Anaconda's Python. Anaconda's bundled OpenSSL was packaged (via the AUR) with
+    its build-time staging path compiled into `libcrypto` as the `OPENSSLDIR` and
+    `MODULESDIR` — a `~/.cache/paru/...` directory that no longer exists. So
+    OpenSSL can't find its `legacy.so` provider module and warns. (Confirm with
+    `/opt/anaconda/bin/openssl version -d -m` — both point at the stale build
+    dir.) It is **purely cosmetic**: md5/sha/blake2 still work, only md4/des/rc4
+    are affected, which conda doesn't need, and the *system* Python is unaffected.
 
-    ```sh
-    sudo cp -n /opt/anaconda/ssl/openssl.cnf /opt/anaconda/ssl/openssl.cnf.bak
-    grep -q '^legacy = legacy_sect' /opt/anaconda/ssl/openssl.cnf \
-      || sudo sed -i 's/^default = default_sect$/default = default_sect\nlegacy = legacy_sect/' /opt/anaconda/ssl/openssl.cnf
-    sudo sed -i '/^\[default_sect\]/{n; s/^# *activate = 1/activate = 1/}' /opt/anaconda/ssl/openssl.cnf
-    grep -q '^\[legacy_sect\]' /opt/anaconda/ssl/openssl.cnf \
-      || printf '\n[legacy_sect]\nactivate = 1\n' | sudo tee -a /opt/anaconda/ssl/openssl.cnf >/dev/null
+    Editing `/opt/anaconda/ssl/openssl.cnf` does **nothing** — OpenSSL never reads
+    it (the baked-in `OPENSSLDIR` points elsewhere). The fix is to redirect
+    OpenSSL to the real modules dir; `setup-home.sh fish` now writes this into
+    `dev-env.fish` (sourced before the `conda init` hook, so it lands in time):
+
+    ```fish
+    if test -d /opt/anaconda/lib/ossl-modules
+        set -gx OPENSSL_MODULES /opt/anaconda/lib/ossl-modules
+    end
     ```
 
-    A future `conda update openssl` may rewrite `openssl.cnf` and re-mute the fix
-    (the `.bak` is your reference). If the warning ever comes back, it's safe to
-    ignore.
+    Safe by design: the *system* OpenSSL keeps using its own built-in module dir
+    and only loads the `default` provider, so this env var doesn't disturb it.
+    Open a new shell to pick it up.
 
 ## The package philosophy
 

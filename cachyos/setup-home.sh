@@ -859,6 +859,16 @@ abbr -ag lg lazygit
 if type -q zoxide
     zoxide init fish | source
 end
+
+# Anaconda's bundled OpenSSL has its build-time (AUR staging) OPENSSLDIR/MODULESDIR
+# compiled into libcrypto — a ~/.cache/paru path that no longer exists — so it
+# can't find its legacy provider and warns on every conda call. Point it at the
+# real install dir. Safe: system OpenSSL keeps using its own dirs (only loads the
+# default provider). Sourced before config.fish's conda-init hook, so it's set in
+# time. Verify the baked-in paths with: /opt/anaconda/bin/openssl version -d -m
+if test -d /opt/anaconda/lib/ossl-modules
+    set -gx OPENSSL_MODULES /opt/anaconda/lib/ossl-modules
+end
 EOF
 }
 
