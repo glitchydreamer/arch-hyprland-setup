@@ -318,7 +318,7 @@ the other side's topics, confirming all three share the domain.
 LeRobot is Hugging Face's Python framework for training and running robot
 policies. This machine has a real **SO-arm 101** (Feetech STS3215 servos, USB
 serial controller), so the install here is **hardware-focused**, not a
-sim-bench bundle. The official install instructions trip on two Arch-specific
+sim-bench bundle. The official install instructions trip on a few Arch-specific
 issues that are worth knowing before you start.
 
 > **Gotcha 5 — Arch cmake 4 breaks legacy native wheels (`egl-probe`).** Following
@@ -352,6 +352,21 @@ issues that are worth knowing before you start.
 > applies if you later add an extra that hits it). Pair this with the
 > **editable-clone install** below — the example/calibration scripts you'll use
 > for the actual robot live in the repo, not in the published wheel.
+
+> **Gotcha 7 — the system Anaconda's ToS gate + root-owned envs.** This box
+> installs Anaconda via the AUR (`install.sh anaconda`), which lands a
+> *system-wide, **root-owned*** conda at `/opt/anaconda`. Two things bite a fresh
+> `setup-home.sh lerobot` run there: (1) recent conda (≥ 24) refuses the default
+> `pkgs/main` / `pkgs/r` channels until you **interactively** `conda tos accept`,
+> which aborts a non-interactive `conda create` outright; and (2) your user can't
+> write envs into root-owned `/opt/anaconda/envs`. **Fix:** the component creates
+> the env from **conda-forge** with `--override-channels`
+> (`conda create -n lerobot -c conda-forge --override-channels python=3.12`).
+> conda-forge carries no ToS gate — it's the very channel HF's recommended
+> *miniforge* ships — and a *named* env then auto-lands in the **writable**
+> `~/.conda/envs`, with no `sudo` and without accepting Anaconda's commercial ToS.
+> The cmake-policy hook (Gotcha 5) is written into that env's real `$CONDA_PREFIX`
+> wherever conda placed it, not a hardcoded `/opt/anaconda/envs` path.
 
 ### Editable clone vs PyPI
 

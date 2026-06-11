@@ -1102,12 +1102,22 @@ do_lerobot() {
     if conda env list | awk '{print $1}' | grep -qx "$env_name"; then
         say "    · env '$env_name' already exists — reusing it"
     else
-        say "    · creating env '$env_name' with Python $py …"
-        conda create -y -n "$env_name" "python=$py"
+        say "    · creating env '$env_name' with Python $py (conda-forge) …"
+        # conda-forge + --override-channels: the system conda's default channels
+        # (pkgs/main, pkgs/r) now require interactive ToS acceptance (conda 24+),
+        # which aborts non-interactive creates; conda-forge carries no such gate and
+        # is the same channel HF's recommended miniforge ships. A *named* env
+        # auto-lands in the writable ~/.conda/envs when the system base (e.g. the
+        # root-owned /opt/anaconda from the AUR package) isn't user-writable.
+        conda create -y -n "$env_name" -c conda-forge --override-channels "python=$py"
     fi
 
-    # Persist the cmake-policy fix as an activate hook (the Arch cmake-4 gotcha).
-    local hookdir="$conda_base/envs/$env_name/etc/conda/activate.d"
+    conda activate "$env_name"
+
+    # Persist the cmake-policy fix as an activate hook (the Arch cmake-4 gotcha),
+    # written into the env's REAL prefix. $CONDA_PREFIX may be ~/.conda/envs/<name>
+    # (not $conda_base/envs/<name>) when the system conda base is root-owned.
+    local hookdir="$CONDA_PREFIX/etc/conda/activate.d"
     mkdir -p "$hookdir"
     cat > "$hookdir/cmake_policy.sh" <<'HOOK'
 # Arch ships cmake 4.x which removed support for cmake_minimum_required < 3.5.
@@ -1115,8 +1125,9 @@ do_lerobot() {
 # accept the old minimum. Needed for egl-probe and similar legacy C++ wheels.
 export CMAKE_POLICY_VERSION_MINIMUM=3.5
 HOOK
-
-    conda activate "$env_name"
+    # The activate.d hook only fires on FUTURE activations; export it now so this
+    # run's own pip builds (egl-probe etc.) inherit it too.
+    export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
     say "    · upgrading pip/setuptools/wheel inside '$env_name' …"
     python -m pip install --upgrade pip setuptools wheel
