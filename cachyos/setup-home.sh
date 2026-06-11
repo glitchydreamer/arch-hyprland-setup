@@ -206,13 +206,18 @@ do_caelestia() {
     # Caelestia reads ~/.config/caelestia/shell.json. We assert two preferences and
     # MERGE them into the existing JSON (other keys — bar, appearance, … — are kept):
     #   · services.useFahrenheit = false  → weather/dashboard in °C, not °F
-    #   · background.visualiser.enabled = true (+ autoHide=false) → the screen-wide
+    #   · background.visualiser.enabled = true (+ autoHide=true) → the screen-wide
     #     audio spectrum on the wallpaper (libcava-backed, a hard dep of
-    #     caelestia-shell; shows even over tiled windows). The key is RE-ASSERTED on
-    #     every run, so if a future caelestia version ships it disabled-by-default,
-    #     re-running this component (setup-home.sh caelestia) flips it back on.
+    #     caelestia-shell). autoHide=TRUE is deliberate: with autoHide=false the
+    #     libcava FFT + render loop runs CONTINUOUSLY (even in silence / behind a
+    #     focused tiled window), pinning quickshell (`qs`) at ~40% CPU on an idle
+    #     desktop. autoHide=true lets it sleep while a window is focused, dropping
+    #     idle CPU to low single digits — the bars still show over an empty/floating
+    #     desktop. The keys are RE-ASSERTED on every run, so if a future caelestia
+    #     version ships the visualiser disabled-by-default, re-running this component
+    #     (setup-home.sh caelestia) flips it back on.
     local f="$CAE/shell.json"
-    dry "$f: merge services.useFahrenheit=false + background.visualiser.enabled=true" && return
+    dry "$f: merge services.useFahrenheit=false + background.visualiser.enabled=true (autoHide=true)" && return
     mkdir -p "$CAE"
     python3 - "$f" <<'PY'
 import json, sys
@@ -225,12 +230,12 @@ except (FileNotFoundError, json.JSONDecodeError):
 cfg.setdefault("services", {})["useFahrenheit"] = False
 vis = cfg.setdefault("background", {}).setdefault("visualiser", {})
 vis["enabled"] = True
-vis["autoHide"] = False
+vis["autoHide"] = True   # sleep the FFT/render loop while a window is focused (CPU saver)
 with open(f, "w") as fh:
     json.dump(cfg, fh, indent=4)
     fh.write("\n")
 PY
-    say ">>> shell.json: weather in °C + background audio visualiser enabled."
+    say ">>> shell.json: weather in °C + background audio visualiser enabled (autoHide on)."
     # Caelestia watches shell.json and hot-reloads it — no restart needed.
 }
 

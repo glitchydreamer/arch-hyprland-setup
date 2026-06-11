@@ -42,8 +42,10 @@ user.name`, then log out/in (fish shell + group changes need a fresh session).
 
 - `setup-home.sh` — components: `hyprland`, `caelestia` (merges `shell.json`
   shell/dashboard tweaks — weather in °C via `services.useFahrenheit=false`, and the
-  screen-wide background audio visualiser via `background.visualiser.enabled=true`,
-  re-asserted each run so a caelestia default-flip can't silently disable it),
+  screen-wide background audio visualiser via `background.visualiser.enabled=true`
+  + `autoHide=true` (autoHide is deliberate — `false` runs the libcava FFT loop
+  continuously and pins `qs` at ~40% idle CPU; `true` sleeps it when a window is
+  focused), re-asserted each run so a caelestia default-flip can't silently disable it),
   `nautilus` (sets a Sweet icon theme — synthwave **Sweet-Purple** folders +
   candy app icons — as the GTK icon theme via gsettings + GTK3/4 settings.ini;
   `ICON_THEME=<variant>` to pick another. For PERSISTENCE across upgrades use

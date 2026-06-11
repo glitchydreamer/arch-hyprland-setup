@@ -128,7 +128,7 @@ in which case nothing draws even though everything's installed. Turn it on:
     "background": {
         "visualiser": {
             "enabled": true,
-            "autoHide": false
+            "autoHide": true
         }
     }
 }
@@ -138,6 +138,21 @@ in which case nothing draws even though everything's installed. Turn it on:
 while you're watching a video); set it `true` to only show it on an empty/floating
 desktop. Other knobs under `background.visualiser`: `blur` (blur the wallpaper
 behind the bars), `rounding`, `spacing`.
+
+!!! warning "Use `autoHide: true` — `false` pins a CPU core"
+    The visualiser is driven by `libcava`, which runs an **FFT + animated render
+    loop**. With `autoHide: false` that loop runs **continuously** — even in
+    silence and even when it's hidden behind a focused tiled window, which on a
+    tiling WM is nearly always. In practice that pins quickshell (`qs`) at **~40%
+    CPU on an idle desktop**, with a constant GPU draw and the fan noise/heat that
+    follow. `autoHide: true` lets the loop **sleep whenever a window is focused**,
+    dropping idle CPU back to low single digits; the bars still appear over an
+    empty or floating desktop. That's why the `caelestia` component sets
+    `autoHide: true`. It's a power/heat win, **not** a hardware-safety issue —
+    transient utilisation spikes never damage modern silicon (it thermal-throttles
+    long before that point) — but there's no reason to burn a core drawing bars
+    nobody can see. See *Troubleshooting → the shell sits at high CPU when idle*
+    below for how to diagnose and fix it by hand.
 
 You don't normally edit these by hand — the **`caelestia` component** of
 `setup-home.sh` merges both settings in for you (it deep-merges, so your other
@@ -221,6 +236,58 @@ making it horizontal means forking its QML. The pragmatic path is to swap in
 right-click menus) and keep the rest of caelestia. The
 [Coming from Ubuntu](coming-from-ubuntu.md) guide covers this and other
 "where did my Ubuntu feature go" questions in detail.
+
+## Troubleshooting
+
+### The shell sits at high CPU when idle (and "spikes" when panels open)
+
+**Symptom.** Opening the dashboard, app launcher, sidebar, or the bar makes CPU,
+GPU, and temps jump — and even with nothing open the machine feels busier than it
+should.
+
+**Two things are happening, and only one is worth fixing:**
+
+1. **The on-open jump is normal and harmless.** A caelestia panel is a Quickshell
+   (Qt/QML) surface with **blur/shader effects** and show animations; revealing
+   it composites a new GPU surface and re-evaluates QML bindings. The dashboard
+   also pulls live data (CPU/GPU/temp gauges), so showing the monitor briefly
+   *reads* the system. That's a sub-second GPU burst doing exactly what it's meant
+   to. **Transient spikes never damage modern silicon** — CPUs/GPUs thermal-throttle
+   long before any harmful temperature, and a 1-second burst barely moves the die
+   temperature. Degradation comes from *sustained* heat over years, not UI animations.
+
+2. **The elevated *baseline* is the real bug, and it's the audio visualiser.**
+   With `background.visualiser.autoHide: false`, `libcava` runs its FFT + render
+   loop **continuously** — even in silence, even hidden behind a focused window —
+   so quickshell (`qs`) sits around **40% CPU at idle**. The on-open spikes then
+   land on top of that already-high floor, which is what makes them feel drastic.
+
+**Diagnose it (no guessing — measure):**
+
+```bash
+# What is quickshell actually using right now?
+ps -eo pid,comm,%cpu,%mem --sort=-%cpu | grep -E 'qs|caelestia'
+# Its GPU footprint (NVIDIA):
+nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv | grep -i qs
+```
+
+A healthy idle shell is ~1–5% CPU. If `qs` is sitting at 30–45%, you've found it.
+
+**Fix it by hand** — edit **`~/.config/caelestia/shell.json`** (plain JSON; this is
+*your* config, not a caelestia-owned file, so it's safe to edit) and set:
+
+```json
+"background": { "visualiser": { "enabled": true, "autoHide": true } }
+```
+
+Caelestia **watches `shell.json` and hot-reloads** — no restart, no logout. Re-run
+the diagnose command and `qs` should now sit in the low single digits whenever a
+window is focused; the bars still appear over an empty/floating desktop.
+
+The repo does this for you: the `caelestia` component of `setup-home.sh` asserts
+`autoHide: true` (and re-asserts on every run), so `bash setup-home.sh caelestia`
+applies the same fix idempotently. Prefer **no visualiser at all**? Set
+`"enabled": false` for the lowest possible draw.
 
 ---
 
