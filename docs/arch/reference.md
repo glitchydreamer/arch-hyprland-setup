@@ -11,8 +11,8 @@
 >
 > **Rebuilt 2026-05-27** on a fresh minimal Arch install (NVIDIA + GDM). The
 > system-level half (packages, DualSense fix, CUDA, fish shell)
-> is reproduced by [`install.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/install.sh)
-> at the repo root; the home-dir configs below were recreated directly. Two
+> is reproduced by [`install.sh`](https://github.com/glitchydreamer/hyprland-rice/blob/main/arch/install.sh)
+> in the `arch/` directory; the home-dir configs below were recreated directly. Two
 > things changed vs. the previous install: the desktop output is now **DP-1**
 > (was DP-2), and user Hyprland files live under `~/.config/caelestia/` because
 > `~/.config/hypr` is now a symlink into the caelestia package tree.
@@ -436,7 +436,7 @@ npm 11, pnpm 10, yarn classic.
 > **580.119.02** on the **`linux-lts`** kernel (Isaac's RTX renderer needs the
 > 580 branch; Arch's 595 segfaults it — a driver-*version* mismatch, not
 > hardware). The switch is automated/reversible via
-> [`nvidia-switch.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/nvidia-switch.sh)
+> [`nvidia-switch.sh`](https://github.com/glitchydreamer/hyprland-rice/blob/main/arch/nvidia-switch.sh)
 > `downgrade`. **ROS 2 Humble is wired up** too (`install.sh docker` + the
 > `ros2-humble` launcher): the NVIDIA Container Toolkit injects the 580 host driver
 > into containers, and `--network host` + `--ipc host` + a shared `ROS_DOMAIN_ID`/RMW
@@ -446,7 +446,7 @@ npm 11, pnpm 10, yarn classic.
 > 2.6, see §8). Run `ros2-humble pull` then `ros2-humble shell`; enable Isaac's
 > `isaacsim.ros2.bridge` extension. CUDA + Anaconda remain for general ML; align CUDA to the 580
 > ceiling with `nvidia-switch.sh cuda`. To remove components the clean way, use
-> [`uninstall.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/uninstall.sh).
+> [`uninstall.sh`](https://github.com/glitchydreamer/hyprland-rice/blob/main/arch/uninstall.sh).
 >
 > **NVIDIA stack switching** — `nvidia-switch.sh status | downgrade [ver] | latest
 > | cuda | purge`. Switches the *whole* NVIDIA stack (driver + userspace)
@@ -1147,10 +1147,10 @@ sshd`.
 
 Original setup performed by Claude on 2026-05-17. **Rebuilt 2026-05-27** on a
 fresh minimal Arch install (clean `archinstall`, NVIDIA drivers, GDM instead of
-SDDM). The whole thing is now reproducible by two idempotent scripts at the repo
-root: [`setup-home.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/setup-home.sh)
+SDDM). The whole thing is now reproducible by two idempotent scripts in the
+`arch/` directory: [`setup-home.sh`](https://github.com/glitchydreamer/hyprland-rice/blob/main/arch/setup-home.sh)
 (home-dir configs, no sudo — auto-detects the desktop connector) then
-[`install.sh`](https://github.com/glitchydreamer/arch-hyprland-setup/blob/main/install.sh)
+[`install.sh`](https://github.com/glitchydreamer/hyprland-rice/blob/main/arch/install.sh)
 (packages + system, sudo — CUDA matched to the driver).
 Notable deltas from the first install: desktop output moved DP-2 → **DP-1**,
 user Hyprland files moved under `~/.config/caelestia/` (since `~/.config/hypr`

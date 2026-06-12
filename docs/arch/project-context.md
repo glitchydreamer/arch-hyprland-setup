@@ -224,7 +224,7 @@ needs `gh auth login` (or SSH/PAT) — a fresh install has no credentials.
 auth + write access, not visibility — as the owner you push the same either way.
 
 **GitHub Pages is LIVE (resolved 2026-05-28):**
-<https://glitchydreamer.github.io/arch-hyprland-setup/>. The repo was **made
+<https://glitchydreamer.github.io/hyprland-rice/>. The repo was **made
 public** to get there — on the Free plan Pages is unavailable for *private* repos,
 which is why it 404'd and every `deploy-docs` run failed at
 `actions/configure-pages` (API HTTP 422 "current plan does not support GitHub
